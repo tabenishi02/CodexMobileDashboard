@@ -185,6 +185,8 @@ FastAPIも導入しない。
 
 LAN内のみ
 
+TCP 8765番ポートを使用し、作業用PCからAndroid端末へHTTP POST、閲覧スマートフォンからAndroid端末へHTTP GETする。LAN内の基本接続確認結果は`docs/NETWORK.md`に定める。
+
 ```
 PC
 
