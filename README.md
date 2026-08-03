@@ -3,7 +3,7 @@
 VSCode Codexで進めている開発の状況を、スマートフォンから短時間で確認するためのダッシュボードです。
 
 > [!IMPORTANT]
-> 現在は設計確定・実装準備段階です。収集ツール、Android端末サーバー、閲覧画面はまだ実装されていないため、現時点では起動できません。進捗は[`TASKS.md`](TASKS.md)で管理しています。
+> 現在は設計確定・実装準備段階です。収集ツール、Androidサーバー、閲覧画面はまだ実装されていないため、現時点では起動できません。進捗は[`TASKS.md`](TASKS.md)で管理しています。
 
 ## 目的
 
@@ -14,7 +14,7 @@ VSCode Codexで進めている開発の状況を、スマートフォンから�
 - エラーと決定事項
 - Gitで確認した変更ファイル
 - 次に行う作業
-- PCとAndroid端末の稼働状態
+- PCとAndroidサーバー端末の稼働状態
 
 ## システム構成
 
@@ -27,7 +27,7 @@ VSCode + Codex
   └─ HTTP POST
           │
           ▼
-検証用Android端末
+Androidサーバー端末
 Termux Web Server
   ├─ 認証とJSON検証
   ├─ JSON保存
@@ -38,7 +38,7 @@ Termux Web Server
 Androidブラウザ
 ```
 
-作業用PCを処理の主体とし、Android端末ではCodexログやGitの解析、表示データの整形を行いません。閲覧スマートフォンには専用アプリを導入せず、HTML・CSS・JavaScriptで構成した画面をブラウザで表示します。
+作業用PCを処理の主体とし、Androidサーバー端末ではCodexログやGitの解析、表示データの整形を行いません。閲覧スマートフォンには専用アプリを導入せず、HTML・CSS・JavaScriptで構成した画面をブラウザで表示します。
 
 ## 情報源と役割
 
@@ -46,15 +46,15 @@ Androidブラウザ
 |---|---|
 | Codex JSONL | 会話、作業目的、決定事項、エラー、次の作業、変更内容の要約 |
 | Git | 実際の変更ファイル、変更状態、変更行数、ステージ状態 |
-| PC収集ツール | 収集、解析、分類、JSON生成、分割、Android端末への送信 |
-| Android端末 | 認証、検証、保存、静的ファイルとJSONの配信 |
+| PC収集ツール | 収集、解析、分類、JSON生成、分割、Androidサーバー端末への送信 |
+| Androidサーバー端末 | 認証、検証、保存、静的ファイルとJSONの配信 |
 | 閲覧ブラウザ | JSONの取得とモバイル向け表示 |
 
 Gitは「何が実際に変更されているか」、Codex JSONLは「なぜ、何のために変更したか」を示します。両者が一致しない場合は推測で統合せず、それぞれの情報を分けて表示します。
 
 ## 送信するデータ
 
-GitからAndroid端末へ送信するのは、次のメタデータだけです。
+GitからAndroidサーバー端末へ送信するのは、次のメタデータだけです。
 
 - ファイルパス
 - 追加、修正、削除、名前変更、競合、未追跡
@@ -63,7 +63,7 @@ GitからAndroid端末へ送信するのは、次のメタデータだけです�
 - バイナリーファイル判定
 - ブランチ、`HEAD`、コミット識別情報
 
-次のデータは、プロジェクトから読み取ってAndroid端末へ送信しません。
+次のデータは、プロジェクトから読み取ってAndroidサーバー端末へ送信しません。
 
 - プロジェクトのファイル本体
 - ソースコード本文
@@ -82,7 +82,11 @@ Codex JSONL内にコードがテキストとして記録されている場合は
 - Python 3.10.6 64-bit
 - Git
 
-### Android端末サーバー
+### Androidサーバー端末
+
+対象は、TermuxとPython 3.10以上を利用でき、必要なネットワーク、保存容量、バックグラウンド動作条件を満たすAndroidスマートフォンです。特定メーカーの機能には依存しません。
+
+動作確認済みの基準端末：
 
 - 検証用Android端末
 - Android 12
@@ -110,7 +114,7 @@ Codex JSONL内にコードがテキストとして記録されている場合は
 - JSONは役割ごとに分割する
 - 対象テキストを件数や保存期間で自動削除しない
 - 大容量テキストは省略せず分割して送信する
-- PCとAndroid端末の運用ログは日単位でローテーションし、直近7日分を保存する
+- PCとAndroidサーバー端末の運用ログは日単位でローテーションし、直近7日分を保存する
 
 ## 表示用データ
 
@@ -140,7 +144,7 @@ CodexMobileDashboard/
 ├─ CODING_RULES.md
 ├─ TASKS.md
 ├─ CHANGELOG.md
-├─ server/             # Android端末側サーバー（実装予定）
+├─ server/             # Android・Termux側サーバー（実装予定）
 ├─ client/             # スマートフォン向け画面（実装予定）
 ├─ tools/              # PC側の収集・変換・送信ツール（実装予定）
 ├─ data/               # テスト用JSON（作成予定）
@@ -162,13 +166,13 @@ CodexMobileDashboard/
 | [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | 設定ファイルと秘密情報の管理 |
 | [`docs/LOGGING.md`](docs/LOGGING.md) | ログ出力とローテーション |
 | [`docs/ERROR_HANDLING.md`](docs/ERROR_HANDLING.md) | エラー分類、保存、再試行 |
-| [`docs/TERMUX_ENVIRONMENT.md`](docs/TERMUX_ENVIRONMENT.md) | 検証用Android端末のTermux動作環境 |
+| [`docs/TERMUX_ENVIRONMENT.md`](docs/TERMUX_ENVIRONMENT.md) | Androidサーバー端末の要件と検証用Android端末での確認結果 |
 | [`docs/NETWORK.md`](docs/NETWORK.md) | LAN内通信の確認結果 |
 | [`docs/MVP_ACCEPTANCE.md`](docs/MVP_ACCEPTANCE.md) | MVPの受入条件 |
 
 ## セットアップ
 
-収集ツール、サーバー、閲覧画面を実装した後に、PCとAndroid端末のセットアップ手順、起動・停止方法、秘密情報の配置、障害復旧手順をここから参照できるようにします。
+収集ツール、サーバー、閲覧画面を実装した後に、PCとAndroidサーバー端末のセットアップ手順、起動・停止方法、秘密情報の配置、障害復旧手順をここから参照できるようにします。
 
 現時点では実行可能なプログラムがないため、仮の起動コマンドは掲載していません。
 

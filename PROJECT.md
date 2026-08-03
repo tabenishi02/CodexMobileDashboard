@@ -27,7 +27,7 @@ VSCode Codexで行っている開発内容を、スマートフォンから快�
 
         ▼
 
-    検証用Android端末
+    Androidサーバー端末
 (Termux Web Server)
 
         │
@@ -52,7 +52,7 @@ CodexMobileDashboard/
 ├── CODING_RULES.md     # 実装ルール
 ├── TASKS.md            # 実装タスク管理
 ├── CHANGELOG.md        # 変更履歴
-├── server/             # 検証用Android端末側
+├── server/             # Android・Termux側
 ├── client/             # 閲覧用HTML
 ├── tools/              # 作業PC側の変換・送信ツール
 ├── data/               # テスト用JSON
@@ -71,7 +71,7 @@ Python 3.10.6 64-bit
 
 初期実装はPython 3.10以上で動作する構文と標準ライブラリを使用し、Python 3.11以降で追加された機能には依存しない。
 
-検証用Android端末ではTermux 0.118.3、Android 12、aarch64、Python 3.14.6、Git 2.55.0を使用する。PCのPython 3.10.6とAndroid端末のPython 3.14.6の両方で動作確認する。詳細は`docs/TERMUX_ENVIRONMENT.md`に定める。
+サーバー対象は、Termuxを利用でき、Python 3.10以上、必要なネットワーク接続、保存容量、バックグラウンド動作条件を満たすAndroidスマートフォンとする。特定メーカーやCPUアーキテクチャには依存しない。動作確認済みの基準端末は検証用Android端末で、Termux 0.118.3、Android 12、aarch64、Python 3.14.6、Git 2.55.0を使用する。PCのPython 3.10.6と基準端末のPython 3.14.6の両方で動作確認する。詳細は`docs/TERMUX_ENVIRONMENT.md`に定める。
 
 Pythonコードは標準ライブラリのみで実装する。外部ライブラリが必要または有効と判断した場合は、追加前に用途、利点、標準ライブラリだけで実装する場合との差を提示し、採用可否を検討する。
 
@@ -79,21 +79,21 @@ Pythonコードは標準ライブラリのみで実装する。外部ライブ�
 
 通常設定はINI形式で管理し、秘密情報はリポジトリ外の専用ファイルに保存する。実設定と秘密ファイルはGitへ登録しない。詳細は`docs/CONFIGURATION.md`に定める。
 
-ダッシュボードの対象は、Gitが利用でき、少なくとも1つのコミットを持つプロジェクトに限定する。変更ファイル、変更状態、変更行数はGitを正とし、変更内容の要約はCodex JSONLだけから生成する。プロジェクトのファイル本体とGit差分本文はAndroid端末へ送信しない。詳細は`docs/GIT_TRACKING.md`に定める。
+ダッシュボードの対象は、Gitが利用でき、少なくとも1つのコミットを持つプロジェクトに限定する。変更ファイル、変更状態、変更行数はGitを正とし、変更内容の要約はCodex JSONLだけから生成する。プロジェクトのファイル本体とGit差分本文はAndroidサーバー端末へ送信しない。詳細は`docs/GIT_TRACKING.md`に定める。
 
-Codex JSONLから抽出対象としたテキストは削除または省略せず、通信と表示のために分割する。データの分割基準、送信対象、PCとAndroid端末の責務は`docs/DATA_LIMITS.md`に定める。
+Codex JSONLから抽出対象としたテキストは削除または省略せず、通信と表示のために分割する。データの分割基準、送信対象、PCとAndroidサーバー端末の責務は`docs/DATA_LIMITS.md`に定める。
 
 Codexのターン完了時は即時更新し、作業中は30秒、停止中は60秒ごとに定期確認する。通常データは変更時だけ送信し、5分間正常な送信がない場合はハートビートを送信する。スマートフォンは表示中に15秒ごとに更新確認し、非表示中は停止する。保存期間を含む詳細は`docs/UPDATE_POLICY.md`に定める。
 
-MVPは、PCからAndroid端末、閲覧スマートフォンまでの一連動作、データ完全性、Git変更メタデータ、送信対象、大容量処理、モバイル表示、障害復旧、秘密情報保護、運用手順、未解決不具合の10項目で合否判定する。詳細は`docs/MVP_ACCEPTANCE.md`に定める。
+MVPは、PCからAndroidサーバー端末、閲覧スマートフォンまでの一連動作、データ完全性、Git変更メタデータ、送信対象、大容量処理、モバイル表示、障害復旧、秘密情報保護、運用手順、未解決不具合の10項目で合否判定する。実機受入確認には基準端末の検証用Android端末を使用する。詳細は`docs/MVP_ACCEPTANCE.md`に定める。
 
-開発エラーは`errors.json`、システム運用エラーは各端末のローテーションログへ分離して保存する。Android端末側の詳細エラーはPCへ逆送せず、スマートフォンにはシステム状態の要約だけを表示する。詳細は`docs/ERROR_HANDLING.md`に定める。
+開発エラーは`errors.json`、システム運用エラーは各端末のローテーションログへ分離して保存する。Androidサーバー端末側の詳細エラーはPCへ逆送せず、スマートフォンにはシステム状態の要約だけを表示する。詳細は`docs/ERROR_HANDLING.md`に定める。
 
 ---
 
 ## サーバーはできるだけ賢くしない
 
-Android端末は
+Androidサーバー端末は
 
 - 静的ファイル配信
 - HTTP API
@@ -191,14 +191,14 @@ FastAPIも導入しない。
 
 LAN内のみ
 
-TCP 8765番ポートを使用し、作業用PCからAndroid端末へHTTP POST、閲覧スマートフォンからAndroid端末へHTTP GETする。LAN内の基本接続確認結果は`docs/NETWORK.md`に定める。
+TCP 8765番ポートを使用し、作業用PCからAndroidサーバー端末へHTTP POST、閲覧スマートフォンからAndroidサーバー端末へHTTP GETする。検証用Android端末を基準端末としたLAN内の基本接続確認結果は`docs/NETWORK.md`に定める。
 
 ```
 PC
 
 ↓
 
-Android端末
+Androidサーバー端末
 
 ↓
 

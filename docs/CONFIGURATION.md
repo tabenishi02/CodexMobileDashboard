@@ -34,13 +34,13 @@ API認証トークンは、リポジトリ外のファイルへ1行で保存す�
 %USERPROFILE%\.config\CodexMobileDashboard\sender.token
 ```
 
-検証用Android端末：
+Androidサーバー端末：
 
 ```text
 ~/.config/codex-mobile-dashboard/server.token
 ```
 
-PCとAndroid端末には同じトークンを設定する。前後の空白と改行は読み取り時に除去する。
+PCとAndroidサーバー端末には同じトークンを設定する。前後の空白と改行は読み取り時に除去する。
 
 ## 設定例
 
@@ -59,7 +59,7 @@ timeout_seconds = 10
 token_file = %USERPROFILE%\.config\CodexMobileDashboard\sender.token
 ```
 
-検証用Android端末の設定例：
+Androidサーバー端末の設定例：
 
 ```ini
 [server]
@@ -103,7 +103,7 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 ## 認証
 
 - PC側は秘密ファイルからトークンを読み取り、HTTP認証ヘッダーへ設定する。
-- Android端末側は同じ秘密ファイルからトークンを読み取る。
+- Androidサーバー端末側は同じ秘密ファイルからトークンを読み取る。
 - トークンの比較には`hmac.compare_digest()`を使用する。
 - 認証ヘッダー、トークン、秘密ファイルの内容をログへ出力しない。
 - 認証失敗時は、入力されたトークンをレスポンスやログへ含めない。
@@ -124,8 +124,8 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 ## トークン更新
 
 1. 新しいトークンを生成する。
-2. PCとAndroid端末の秘密ファイルを更新する。
-3. Android端末側サーバーを再起動する。
+2. PCとAndroidサーバー端末の秘密ファイルを更新する。
+3. Androidサーバー端末側のサーバーを再起動する。
 4. PC側送信処理を再起動する。
 5. 認証成功を確認する。
 6. 古いトークンが使用できないことを確認する。

@@ -14,7 +14,7 @@ Python標準ライブラリの`logging`と`logging.handlers.TimedRotatingFileHan
 | --- | --- | --- |
 | `collector` | `logs/collector.log` | Codexセッションの検出と読み取り |
 | `converter` | `logs/converter.log` | ダッシュボードJSONの生成 |
-| `sender` | `logs/sender.log` | Android端末へのHTTP送信 |
+| `sender` | `logs/sender.log` | Androidサーバー端末へのHTTP送信 |
 | `server` | `logs/server.log` | HTTP受付と静的ファイル配信 |
 
 ## 出力形式
@@ -73,7 +73,7 @@ Python標準ライブラリの`logging`と`logging.handlers.TimedRotatingFileHan
 - チャット本文の全文
 - コードの全文
 - ツール引数とツール出力の全文
-- Android端末へ送信するJSONの全文
+- Androidサーバー端末へ送信するJSONの全文
 
 必要な場合は、件数、サイズ、識別子、処理結果だけを記録する。
 
@@ -93,7 +93,7 @@ HTTPアクセスでは次の情報だけを記録する。
 
 ## 運用
 
-- PC側とAndroid端末側のログはそれぞれの端末内に保存する。
+- PC側とAndroidサーバー端末側のログはそれぞれの端末内に保存する。
 - ログファイルはGitへ登録しない。
 - 障害調査でログを共有する前に秘密情報がないことを確認する。
 - 将来、検索や集計が必要になった場合はJSON Lines形式への移行を検討する。
