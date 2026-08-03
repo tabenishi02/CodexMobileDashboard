@@ -1,0 +1,19 @@
+# Local configuration
+config/*.ini
+!config/*.example.ini
+
+# Secrets
+*.token
+.env
+.env.*
+
+# Runtime data
+logs/
+data/*.json
+data/*.tmp
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
