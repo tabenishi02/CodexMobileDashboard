@@ -16,4 +16,3 @@ data/*.tmp
 __pycache__/
 *.py[cod]
 .venv/
-

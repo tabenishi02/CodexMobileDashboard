@@ -129,4 +129,3 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 4. PC側送信処理を再起動する。
 5. 認証成功を確認する。
 6. 古いトークンが使用できないことを確認する。
-
