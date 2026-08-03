@@ -1,0 +1,147 @@
+# Git変更追跡仕様
+
+## 前提
+
+ダッシュボードの対象は、Gitが利用でき、少なくとも1つのコミットを持つプロジェクトに限定する。
+
+Gitが未導入、Gitリポジトリではない、または`HEAD`が存在しないプロジェクトは対象外とする。ダッシュボード側から`git init`や初回コミットを自動実行しない。
+
+Codex JSONLは会話、タスク、ツール実行の情報源とし、実際の変更ファイルと差分はGitを正とする。
+
+## 起動時の確認
+
+収集ツール起動時にGitの存在を1回確認する。
+
+```text
+git --version
+```
+
+対象プロジェクトごとに次を確認する。
+
+```text
+git -C <workspace> rev-parse --is-inside-work-tree
+git -C <workspace> rev-parse --show-toplevel
+git -C <workspace> rev-parse --verify HEAD
+```
+
+リポジトリルートとワークスペースの関係を確認し、`HEAD`を取得する。
+
+```text
+git -C <workspace> rev-parse HEAD
+```
+
+新しいCodexセッションを検出した時点の`HEAD`を`session_start_commit`として保存する。
+
+## 現在の作業ツリー
+
+変更ファイル一覧は次のコマンドで取得する。
+
+```text
+git -C <workspace> status --porcelain=v1 -z --untracked-files=all
+```
+
+- `X`をステージング領域の状態として保持する。
+- `Y`を作業ツリーの状態として保持する。
+- `??`を未追跡ファイルとして扱う。
+- 追加、変更、削除、名前変更、競合を区別する。
+- NUL区切りをバイト列として解析する。
+- 名前変更では変更前と変更後のパスを保持する。
+- `.gitignore`対象は一覧に含めない。
+
+## セッション中のコミット済み変更
+
+タスクごとにコミットする運用でも変更を失わないよう、セッション開始時と現在の`HEAD`を比較する。
+
+```text
+git -C <workspace> diff --name-status -z --find-renames <session_start_commit>..HEAD
+```
+
+現在の未コミット変更と、セッション中にコミットされた変更を統合して表示する。
+
+## 変更行数
+
+未ステージ変更：
+
+```text
+git -C <workspace> diff --numstat -z
+```
+
+ステージ済み変更：
+
+```text
+git -C <workspace> diff --cached --numstat -z
+```
+
+セッション中のコミット済み変更：
+
+```text
+git -C <workspace> diff --numstat -z <session_start_commit>..HEAD
+```
+
+追加行数と削除行数が`-`の場合はバイナリファイルとして扱う。
+
+## 差分本文
+
+一覧生成時にすべての差分本文を取得せず、対象ファイルについて必要な場合だけ取得する。
+
+未ステージ変更：
+
+```text
+git -C <workspace> diff --no-ext-diff --no-textconv --unified=3 -- <path>
+```
+
+ステージ済み変更：
+
+```text
+git -C <workspace> diff --cached --no-ext-diff --no-textconv --unified=3 -- <path>
+```
+
+セッション中のコミット済み変更：
+
+```text
+git -C <workspace> diff --no-ext-diff --no-textconv --unified=3 <session_start_commit>..HEAD -- <path>
+```
+
+未追跡ファイルは一覧に表示するが、MVPでは内容を自動送信しない。
+
+## 実行タイミング
+
+### 収集ツール起動時
+
+- Gitの存在を確認する。
+- リポジトリと`HEAD`を検証する。
+- 現在の`HEAD`と作業ツリー状態を保存する。
+
+### Codexのターン完了時
+
+JSONLの`task_complete`を検出した後に、`HEAD`と作業ツリーを取得する。状態が変わっている場合は詳細を取得し、JSONを生成してAndroid端末へ送信する。
+
+### 定期確認
+
+- Codexが作業中の場合は30秒ごとに確認する。
+- Codexが停止中の場合は60秒ごとに確認する。
+- 最初に`HEAD`と`git status`だけを確認する。
+- 前回から状態が変わった場合だけ詳細差分を取得する。
+- Gitの`post-commit`フックはMVPでは使用しない。
+
+## Pythonからの実行
+
+- `subprocess.run()`へ引数リストを渡す。
+- `shell=True`を使用しない。
+- ワークスペースやファイルパスをコマンド文字列へ連結しない。
+- タイムアウトを設定する。
+- 終了コードと標準エラーを確認する。
+- `stdout`は必要に応じてバイト列のまま解析する。
+- Gitの失敗理由を秘密情報を含めずにログへ記録する。
+
+## 対象外とエラー
+
+次の場合は変更追跡を開始しない。
+
+- Gitがインストールされていない。
+- 対象がGitリポジトリではない。
+- 初回コミットがなく`HEAD`が存在しない。
+- リポジトリにアクセスできない。
+- Gitリポジトリが破損している。
+
+対象外の理由はダッシュボード用メタデータとログへ記録する。
