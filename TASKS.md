@@ -22,7 +22,7 @@
 ## Phase 1：プロジェクト基盤
 
 - [x] ワークスペースを`CodexMobileDashboard/`配下へ配置する
-- [ ] `CHANGELOG.md`を作成する
+- [x] `CHANGELOG.md`を作成する
 - [ ] `README.md`を作成する
 - [ ] `server/`を作成する
 - [ ] `client/`を作成する
