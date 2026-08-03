@@ -23,7 +23,7 @@
 
 - [x] ワークスペースを`CodexMobileDashboard/`配下へ配置する
 - [x] `CHANGELOG.md`を作成する
-- [ ] `README.md`を作成する
+- [x] `README.md`を作成する
 - [ ] `server/`を作成する
 - [ ] `client/`を作成する
 - [ ] `tools/`を作成する
