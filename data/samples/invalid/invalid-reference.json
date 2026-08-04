@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "data_type": "recent",
+  "snapshot_id": "sample-20260804T153000-000001",
+  "generated_at": "2026-08-04T15:30:00+09:00",
+  "workspace_id": "sample-project",
+  "session_id": "00000000-0000-7000-8000-000000000001",
+  "warnings": [],
+  "current_turn": null,
+  "turns": [
+    {
+      "turn_id": "turn-invalid-reference",
+      "status": "completed",
+      "started_at": "2026-08-04T15:20:00+09:00",
+      "completed_at": "2026-08-04T15:22:30+09:00",
+      "user_message_id": "msg_does-not-exist",
+      "assistant_message_ids": ["msg_also-does-not-exist"],
+      "user_preview": "存在しない参照です。",
+      "assistant_preview": "参照整合性チェックで拒否されます。"
+    }
+  ]
+}

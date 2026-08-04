@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "data_type": "metadata",
+  "snapshot_id": "sample-20260804T153000-000001",
+  "generated_at": "2026-08-04T15:30:00+09:00",
+  "workspace_id": "sample-project",
+  "session_id": "00000000-0000-7000-8000-000000000001",
+  "warnings": [],
+  "collector": {
+    "status": "ok",
+    "codex_status": "idle",
+    "last_checked_at": "2026-08-04T15:30:00+09:00",
+    "last_data_change_at": "2026-08-04T15:22:30+09:00",
+    "last_acknowledged_snapshot_id": "sample-20260804T151500-000000",
+    "last_send_succeeded_at": "2026-08-04T15:15:05+09:00"
+  },
+  "snapshot": {
+    "state": "complete",
+    "files": [
+      {"path": "dashboard.json", "byte_size": 1335, "sha256": "9183d8040d0b43629a324cb5887e6b9c08acfb3bebaad25e128d85e2bae18208"},
+      {"path": "recent.json", "byte_size": 1340, "sha256": "ef62eb84de1725ba90ec2695f51bd08f6a6562bb5e31d5c5ed48ad444cf15949"},
+      {"path": "messages.json", "byte_size": 594, "sha256": "08d5e443dcff193d7fc0725c801e08e2c8a1f3b88a2824bd89af701b4f224328"},
+      {"path": "messages/pages/page-000001.json", "byte_size": 2637, "sha256": "ab6c2134aeae1d350fcb5bfa127158fefe06ea052a52b481ef10369a3876ddc4"},
+      {"path": "errors.json", "byte_size": 1957, "sha256": "35f8b4718e12b1f37ab82896bde9ccd581756947b2fa45c110298871101483e7"},
+      {"path": "decisions.json", "byte_size": 1330, "sha256": "5b107971a78678ddb14222f62c1f4046a02764232558d8e3894d35913c52d2ae"},
+      {"path": "files.json", "byte_size": 1957, "sha256": "0c5658ac8794c3ff7fac971bf5a957c724261528f286fbb17a04265e63a83f78"}
+    ]
+  }
+}

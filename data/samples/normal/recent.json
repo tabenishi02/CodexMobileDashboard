@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0",
+  "data_type": "recent",
+  "snapshot_id": "sample-20260804T153000-000001",
+  "generated_at": "2026-08-04T15:30:00+09:00",
+  "workspace_id": "sample-project",
+  "session_id": "00000000-0000-7000-8000-000000000001",
+  "warnings": [],
+  "current_turn": null,
+  "turns": [
+    {
+      "turn_id": "turn-000002",
+      "status": "completed",
+      "started_at": "2026-08-04T15:20:00+09:00",
+      "completed_at": "2026-08-04T15:22:30+09:00",
+      "user_message_id": "msg_00000000-0000-7000-8000-000000000103",
+      "assistant_message_ids": ["msg_00000000-0000-7000-8000-000000000104"],
+      "user_preview": "正常・異常サンプルJSONを作成してください。",
+      "assistant_preview": "架空データによるサンプル一式を作成しました。"
+    },
+    {
+      "turn_id": "turn-000001",
+      "status": "completed",
+      "started_at": "2026-08-04T15:10:00+09:00",
+      "completed_at": "2026-08-04T15:12:00+09:00",
+      "user_message_id": "msg_00000000-0000-7000-8000-000000000101",
+      "assistant_message_ids": ["msg_00000000-0000-7000-8000-000000000102"],
+      "user_preview": "コードと通常文を区別して表示したいです。",
+      "assistant_preview": "PC側でブロックへ分離し、ブラウザ側で表示を分ける方式を提案します。"
+    }
+  ]
+}

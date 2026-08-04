@@ -1,0 +1,2 @@
+# Sample hashes are calculated from UTF-8 files with LF line endings.
+data/samples/**/*.json text eol=lf

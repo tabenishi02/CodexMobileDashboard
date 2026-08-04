@@ -1,0 +1,66 @@
+{
+  "schema_version": "1.0",
+  "data_type": "messages_page",
+  "snapshot_id": "sample-20260804T153000-000001",
+  "generated_at": "2026-08-04T15:30:00+09:00",
+  "workspace_id": "sample-project",
+  "session_id": "00000000-0000-7000-8000-000000000001",
+  "warnings": [],
+  "page": 1,
+  "messages": [
+    {
+      "message_id": "msg_00000000-0000-7000-8000-000000000101",
+      "source_message_id": "msg_00000000-0000-7000-8000-000000000101",
+      "sequence": 1,
+      "created_at": "2026-08-04T15:10:00+09:00",
+      "role": "user",
+      "message_type": "chat",
+      "phase": null,
+      "content": {"kind": "blocks", "blocks": [
+        {"block_id": "block-000001", "type": "text", "text": "コードと通常文を区別して表示したいです。📱"}
+      ]},
+      "redactions": []
+    },
+    {
+      "message_id": "msg_00000000-0000-7000-8000-000000000102",
+      "source_message_id": "msg_00000000-0000-7000-8000-000000000102",
+      "sequence": 2,
+      "created_at": "2026-08-04T15:12:00+09:00",
+      "role": "assistant",
+      "message_type": "chat",
+      "phase": "final_answer",
+      "content": {"kind": "blocks", "blocks": [
+        {"block_id": "block-000002", "type": "text", "text": "PC側で本文をブロックへ分離し、ブラウザ側で表示を分けます。"},
+        {"block_id": "block-000003", "type": "code", "language": "python", "text": "print(\"サンプル\")\n"},
+        {"block_id": "block-000004", "type": "text", "text": "コードは実行せず、そのまま表示します。"}
+      ]},
+      "redactions": []
+    },
+    {
+      "message_id": "msg_00000000-0000-7000-8000-000000000103",
+      "source_message_id": "msg_00000000-0000-7000-8000-000000000103",
+      "sequence": 3,
+      "created_at": "2026-08-04T15:20:00+09:00",
+      "role": "user",
+      "message_type": "chat",
+      "phase": null,
+      "content": {"kind": "blocks", "blocks": [
+        {"block_id": "block-000005", "type": "text", "text": "正常・異常サンプルJSONを作成してください。"}
+      ]},
+      "redactions": []
+    },
+    {
+      "message_id": "msg_00000000-0000-7000-8000-000000000104",
+      "source_message_id": "msg_00000000-0000-7000-8000-000000000104",
+      "sequence": 4,
+      "created_at": "2026-08-04T15:22:30+09:00",
+      "role": "assistant",
+      "message_type": "chat",
+      "phase": "final_answer",
+      "content": {"kind": "blocks", "blocks": [
+        {"block_id": "block-000006", "type": "text", "text": "架空データによるサンプル一式を作成しました。\n構文と参照関係も確認します。"}
+      ]},
+      "redactions": []
+    }
+  ]
+}

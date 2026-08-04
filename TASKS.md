@@ -37,14 +37,14 @@
 
 ## Phase 2：データ設計
 
-- [ ] 各JSONファイルの責務を定義する
-  - [ ] `dashboard.json`
-  - [ ] `recent.json`
-  - [ ] `messages.json`
-  - [ ] `errors.json`
-  - [ ] `decisions.json`
-  - [ ] `files.json`
-  - [ ] `metadata.json`
+- [x] 各JSONファイルの責務を定義する
+  - [x] `dashboard.json`
+  - [x] `recent.json`
+  - [x] `messages.json`
+  - [x] `errors.json`
+  - [x] `decisions.json`
+  - [x] `files.json`
+  - [x] `metadata.json`
 - [ ] 共通フィールドを定義する
   - [ ] ID
   - [ ] 日時
@@ -58,10 +58,10 @@
 - [ ] 決定事項の形式を定義する
 - [ ] 作業状況と次の作業の形式を定義する
 - [ ] メタデータの形式を定義する
-- [ ] JSONスキーマのバージョン管理方法を決める
+- [x] JSONスキーマのバージョン管理方法を決める
 - [x] JSONの最大件数と分割ルールを決める
 - [ ] 欠損値・不正値の扱いを決める
-- [ ] テスト表示用のサンプルJSONを作成する
+- [x] テスト表示用のサンプルJSONを作成する
 - [ ] データ仕様を`docs/`に文書化する
 
 ## Phase 3：作業PC側の収集・変換ツール
