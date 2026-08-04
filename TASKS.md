@@ -25,7 +25,7 @@
 - [x] `CHANGELOG.md`を作成する
 - [x] `README.md`を作成する
 - [x] `server/`を作成する
-- [ ] `client/`を作成する
+- [x] `client/`を作成する
 - [ ] `tools/`を作成する
 - [ ] `data/`を作成する
 - [x] `docs/`を作成する
