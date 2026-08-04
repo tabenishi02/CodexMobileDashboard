@@ -74,7 +74,7 @@ HTML、CSS、JavaScriptは分離し、外部ライブラリやCDNには依存し
 
 ## データ取得
 
-画面はAndroidサーバー端末から、役割ごとに分割されたJSONをHTTP GETで取得します。
+画面はAndroidサーバー端末から、役割ごとに分割されたJSONをHTTPS GETで取得します。閲覧スマートフォンにはプライベートCAの公開証明書を信頼させ、証明書エラーを無視して接続する運用は行いません。
 
 ```text
 dashboard.json

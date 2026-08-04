@@ -1,6 +1,6 @@
 # Android・Termux側サーバー
 
-このディレクトリには、Androidサーバー端末のTermux上で動作するHTTPサーバーを配置します。
+このディレクトリには、Androidサーバー端末のTermux上で動作するHTTPSサーバーを配置します。
 
 > [!IMPORTANT]
 > 現在は配置場所と責務を定義した段階です。サーバープログラムはまだ実装されていません。
@@ -9,12 +9,12 @@
 
 Androidサーバー端末は、作業用PCが生成した表示用JSONと固定のWeb画面を保存・配信します。
 
-- 認証付きHTTP POSTの受付
+- 認証付きHTTPS POSTの受付
 - リクエストサイズの確認
 - JSON形式と送信先の検証
 - 許可されたJSONの安全な保存
 - 固定HTML、CSS、JavaScriptの配信
-- JSON取得用HTTP GETの提供
+- JSON取得用HTTPS GETの提供
 - ヘルスチェックの提供
 - アクセスログとエラーログの保存
 - 保存容量の監視
@@ -40,6 +40,8 @@ Androidサーバー端末は、作業用PCが生成した表示用JSONと固定�
 - 特定メーカーやCPUアーキテクチャに依存しないこと
 - Termuxのアプリ専用領域に配置すること
 - TCP 8765番ポートを初期値とし、INI設定で変更可能にすること
+- `ssl.SSLContext`を使用し、Python 3.10以上でHTTPSを提供すること
+- Python 3.14で追加された`HTTPSServer`には依存しないこと
 
 ## 予定構成
 
@@ -60,7 +62,7 @@ server/
 
 ```text
 作業用PC
-  ↓ 認証付きHTTP POST
+  ↓ 認証付きHTTPS POST
 リクエストサイズ確認
   ↓
 認証確認
@@ -80,9 +82,9 @@ server/
 
 ```text
 閲覧スマートフォン
-  ↓ HTTP GET
+  ↓ HTTPS GET
 固定HTML・CSS・JavaScript
-  ↓ HTTP GET
+  ↓ HTTPS GET
 表示用JSON
 ```
 
@@ -99,6 +101,10 @@ server/
 - 不正JSONとサイズ超過を保存前に拒否する。
 - サーバー内部の詳細エラーを作業用PCへ逆送しない。
 - MVPでは信頼できるLAN内だけで使用し、ルーターのポート転送を行わない。
+- プライベートCAが発行したサーバー証明書と秘密鍵を使用する。
+- 証明書のSANを接続先IPアドレスまたはホスト名と一致させる。
+- CA秘密鍵とサーバー秘密鍵をGit、ログ、表示用JSONへ含めない。
+- 平文HTTPは架空のサンプルデータを使う独立した疎通確認だけに限定する。
 
 ## 保存と復旧
 

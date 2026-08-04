@@ -24,7 +24,7 @@ VSCode + Codex
   ├─ Codex JSONLを収集・解析
   ├─ Git変更メタデータを取得
   ├─ 表示用JSONを生成
-  └─ HTTP POST
+  └─ HTTPS POST
           │
           ▼
 Androidサーバー端末
@@ -101,7 +101,7 @@ Codex JSONL内にコードがテキストとして記録されている場合は
 - Androidスマートフォン
 - JavaScriptを使用できるWebブラウザ
 
-初期実装はLAN内のTCP 8765番ポートを使用します。Tailscaleによる外部アクセスはMVP完成後の検討対象です。
+初期実装はLAN内のTCP 8765番ポートとプライベートCAによるHTTPSを使用します。HTTPは架空サンプルによる独立した疎通確認だけに限定します。Tailscaleによる外部アクセスはMVP完成後の検討対象です。
 
 ## 技術方針
 
@@ -111,6 +111,9 @@ Codex JSONL内にコードがテキストとして記録されている場合は
 - SQLite、FastAPI、WebSocketはMVPで使用しない
 - 通常設定はUTF-8のINIファイルで管理する
 - 認証トークンなどの秘密情報はリポジトリ外へ保存する
+- PC側の設定、秘密、状態、キュー、生成JSON、ログは`%LOCALAPPDATA%\CodexMobileDashboard`配下へ保存する
+- JSONLから候補を抽出し、`C:\codex`配下のGitプロジェクトだけを自動登録する
+- 実セッションの送受信はHTTPSとし、証明書検証を無効化しない
 - JSONは役割ごとに分割する
 - 対象テキストを件数や保存期間で自動削除しない
 - 大容量テキストは省略せず分割して送信する
@@ -144,6 +147,7 @@ CodexMobileDashboard/
 ├─ CODING_RULES.md
 ├─ TASKS.md
 ├─ CHANGELOG.md
+├─ config/             # 秘密を含まない設定例
 ├─ server/             # Android・Termux側サーバー（実装予定）
 ├─ client/             # スマートフォン向け画面（実装予定）
 ├─ tools/              # PC側の収集・変換・送信ツール（実装予定）
@@ -180,7 +184,7 @@ CodexMobileDashboard/
 
 - スマートフォンからのファイル編集やCodex操作
 - プロジェクトファイル本体とGit差分本文の閲覧
-- 複数ワークスペース、複数Codexセッション
+- 複数ワークスペースを同時比較する画面や高度な切替UI
 - インターネット経由の接続とTailscale
 - PWA、WebSocket、SQLite
 - 全文検索、Wiki自動生成、音声要約

@@ -18,7 +18,7 @@ VSCode Codexで行っている開発内容を、スマートフォンから快�
 # システム構成
 
 ```
-                HTTP POST
+                HTTPS POST
 
     作業用PC
 (VSCode + Codex)
@@ -32,7 +32,7 @@ VSCode Codexで行っている開発内容を、スマートフォンから快�
 
         │
 
-HTTP / HTTPS
+HTTPS
 
         │
 
@@ -52,6 +52,7 @@ CodexMobileDashboard/
 ├── CODING_RULES.md     # 実装ルール
 ├── TASKS.md            # 実装タスク管理
 ├── CHANGELOG.md        # 変更履歴
+├── config/             # 秘密を含まない設定例
 ├── server/             # Android・Termux側
 ├── client/             # 閲覧用HTML
 ├── tools/              # 作業PC側の変換・送信ツール
@@ -77,9 +78,9 @@ Pythonコードは標準ライブラリのみで実装する。外部ライブ�
 
 ログはコンソールとテキストファイルへ出力し、日単位でローテーションする。直近7日分をUTF-8で保存する。詳細は`docs/LOGGING.md`に定める。
 
-通常設定はINI形式で管理し、秘密情報はリポジトリ外の専用ファイルに保存する。実設定と秘密ファイルはGitへ登録しない。詳細は`docs/CONFIGURATION.md`に定める。
+通常設定はINI形式で管理し、秘密情報はリポジトリ外の専用ファイルに保存する。PC側の設定、秘密、状態、未送信キュー、生成JSON、ログは`%LOCALAPPDATA%\CodexMobileDashboard`配下へ用途別に保存する。実設定と秘密ファイルはGitへ登録しない。詳細は`docs/CONFIGURATION.md`に定める。
 
-ダッシュボードの対象は、Gitが利用でき、少なくとも1つのコミットを持つプロジェクトに限定する。変更ファイル、変更状態、変更行数はGitを正とし、変更内容の要約はCodex JSONLだけから生成する。プロジェクトのファイル本体とGit差分本文はAndroidサーバー端末へ送信しない。詳細は`docs/GIT_TRACKING.md`に定める。
+ダッシュボードの対象は、許可ルート`C:\codex`配下にあり、Gitが利用でき、少なくとも1つのコミットを持つプロジェクトに限定する。JSONLの`cwd`等から候補を自動検出し、許可ルート外の一時添付・参照ファイルをワークスペースとして登録しない。変更ファイル、変更状態、変更行数はGitを正とし、変更内容の要約はCodex JSONLだけから生成する。プロジェクトのファイル本体とGit差分本文はAndroidサーバー端末へ送信しない。詳細は`docs/GIT_TRACKING.md`に定める。
 
 Codex JSONLから抽出対象としたテキストは削除または省略せず、通信と表示のために分割する。データの分割基準、送信対象、PCとAndroidサーバー端末の責務は`docs/DATA_LIMITS.md`に定める。
 
@@ -96,7 +97,7 @@ MVPは、PCからAndroidサーバー端末、閲覧スマートフォンまで�
 Androidサーバー端末は
 
 - 静的ファイル配信
-- HTTP API
+- HTTPS API
 - JSON保存
 
 のみを担当する。
@@ -115,7 +116,7 @@ JSON生成
 
 ↓
 
-HTTP POST
+HTTPS POST
 
 までを担当する。
 
@@ -181,7 +182,7 @@ JSONをそのまま配信する。
 
 FastAPIも導入しない。
 
-静的HTTPサーバーで十分。
+標準ライブラリによる静的ファイル配信とHTTPS APIで十分。
 
 ---
 
@@ -191,7 +192,7 @@ FastAPIも導入しない。
 
 LAN内のみ
 
-TCP 8765番ポートを使用し、作業用PCからAndroidサーバー端末へHTTP POST、閲覧スマートフォンからAndroidサーバー端末へHTTP GETする。検証用Android端末を基準端末としたLAN内の基本接続確認結果は`docs/NETWORK.md`に定める。
+TCP 8765番ポートとプライベートCAを使用し、作業用PCからAndroidサーバー端末へHTTPS POST、閲覧スマートフォンからAndroidサーバー端末へHTTPS GETする。HTTPは架空サンプルによる疎通確認だけに限定する。検証用Android端末を基準端末としたLAN内の基本接続確認結果は`docs/NETWORK.md`に定める。
 
 ```
 PC

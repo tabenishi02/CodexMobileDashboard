@@ -14,8 +14,8 @@ Python標準ライブラリの`logging`と`logging.handlers.TimedRotatingFileHan
 | --- | --- | --- |
 | `collector` | `logs/collector.log` | Codexセッションの検出と読み取り |
 | `converter` | `logs/converter.log` | ダッシュボードJSONの生成 |
-| `sender` | `logs/sender.log` | Androidサーバー端末へのHTTP送信 |
-| `server` | `logs/server.log` | HTTP受付と静的ファイル配信 |
+| `sender` | `logs/sender.log` | Androidサーバー端末へのHTTPS送信 |
+| `server` | `logs/server.log` | HTTPS受付と静的ファイル配信 |
 
 ## 出力形式
 
@@ -77,7 +77,7 @@ Python標準ライブラリの`logging`と`logging.handlers.TimedRotatingFileHan
 
 必要な場合は、件数、サイズ、識別子、処理結果だけを記録する。
 
-## HTTPログ
+## HTTPSアクセスログ
 
 HTTPアクセスでは次の情報だけを記録する。
 

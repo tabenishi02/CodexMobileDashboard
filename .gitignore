@@ -4,6 +4,8 @@ config/*.ini
 
 # Secrets
 *.token
+*.key
+*.pem
 .env
 .env.*
 
