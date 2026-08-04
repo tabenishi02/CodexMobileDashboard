@@ -27,7 +27,7 @@
 - [x] `server/`を作成する
 - [x] `client/`を作成する
 - [x] `tools/`を作成する
-- [ ] `data/`を作成する
+- [x] `data/`を作成する
 - [x] `docs/`を作成する
 - [x] `.gitignore`を作成する
 - [x] Python 3.10.6の実行環境を確認する

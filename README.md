@@ -147,7 +147,7 @@ CodexMobileDashboard/
 ├─ server/             # Android・Termux側サーバー（実装予定）
 ├─ client/             # スマートフォン向け画面（実装予定）
 ├─ tools/              # PC側の収集・変換・送信ツール（実装予定）
-├─ data/               # テスト用JSON（作成予定）
+├─ data/               # テスト用サンプルとローカル動作確認用データ
 └─ docs/               # 詳細設計
 ```
 
