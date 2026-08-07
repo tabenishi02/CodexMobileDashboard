@@ -8,6 +8,8 @@
 
 ### Added
 
+- ユーザー・Codexの会話、安全なツール概要、重複参照付き開発者指示を抽出する`tools/chat_extractor.py`と単体テストを追加した。
+- Codexの途中経過を保持して折りたたみ指定にし、完全な自動付加ブロックだけをユーザー本文から除外する規則を追加した。
 - Codex JSONLの既知形式を永続化せずメモリ内の共通レコードへ変換する`tools/record_normalizer.py`と単体テストを追加した。
 - 実ログで新たに確認した`mcp_tool_call_end`の構造と安全な正規化方法を文書化した。
 - Codexのライブ・アーカイブ済みJSONLを網羅的に探索し、完全な行だけを差分読み取りする`tools/session_reader.py`を追加した。

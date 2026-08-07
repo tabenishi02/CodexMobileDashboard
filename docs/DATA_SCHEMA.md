@@ -155,6 +155,10 @@ turn要素：
 | `phase` | string | 必須 | 可 | JSONLのphaseがなければ`null` |
 | `content` | object | 必須 | 不可 | 本文または断片参照 |
 | `redactions` | array | 必須 | 不可 | マスク情報。なければ空配列 |
+| `display_mode` | string | 必須 | 不可 | `expanded`または`collapsed` |
+| `duplicate_of` | string | 必須 | 可 | 開発者指示の重複参照先。通常は`null` |
+| `occurrence_count` | integer | 必須 | 不可 | 初回の開発者指示に同一本文の総出現回数、それ以外は1 |
+| `removed_automatic_contexts` | array[string] | 必須 | 不可 | 除外した自動付加情報の種類。なければ`[]` |
 
 ### 本文形式
 
@@ -349,8 +353,8 @@ JSONLの`response_item`で`payload.type`が`message`の場合、`payload.role`�
 |---|---|---|
 | `user` | ユーザーの指示 | 展開 |
 | `assistant` | Codexの回答 | 展開 |
-| `tool` | コマンド・ツールと結果 | 折りたたみ |
-| `developer` | 開発者・製品側指示 | 非表示 |
+| `tool` | コマンド・ツールの安全な概要 | 折りたたみ |
+| `developer` | 開発者・製品側指示 | 別枠で折りたたみ |
 | `system` | システムイベント | 非表示または状態表示 |
 
 | `message_type` | 具体例 |
@@ -358,12 +362,33 @@ JSONLの`response_item`で`payload.type`が`message`の場合、`payload.role`�
 | `chat` | user/assistantの通常メッセージ |
 | `tool_call` | コマンド、関数、MCP呼び出し |
 | `tool_output` | コマンド・ツールの出力 |
+| `tool_summary` | ツール名、結果受信、成否、処理時間などの安全な概要 |
 | `developer_instruction` | developerメッセージ |
+| `developer_instruction_reference` | 完全一致する開発者指示の再出現位置 |
 | `system_notice` | セッション開始、圧縮、完了など |
 
 `role`は「誰が生成したか」、`message_type`は「何の種類か」を表す。JSONLの内部値をそのまま公開仕様にせず、PC側で正規化する。
 
-画面上の具体的な表示名は、`user`＝「あなた」、`assistant`＝「Codex」、`tool`＝「ツール」、`developer`＝「開発者指示」、`system`＝「システム」とする。メッセージ種別は、`chat`＝「会話」、`tool_call`＝「ツール呼び出し」、`tool_output`＝「ツール結果」、`developer_instruction`＝「開発者指示」、`system_notice`＝「システム通知」とする。
+画面上の具体的な表示名は、`user`＝「あなた」、`assistant`＝「Codex」、`tool`＝「ツール」、`developer`＝「開発者指示」、`system`＝「システム」とする。メッセージ種別は、`chat`＝「会話」、`tool_call`＝「ツール呼び出し」、`tool_output`＝「ツール結果」、`tool_summary`＝「ツール概要」、`developer_instruction`＝「開発者指示」、`developer_instruction_reference`＝「開発者指示を再適用」、`system_notice`＝「システム通知」とする。
+
+### チャット抽出規則
+
+- ユーザーとCodexの本文は欠落なく保持する。
+- Codexの`commentary`と`final_answer`を両方保持し、通常表示では`commentary`を折りたたむ。
+- ツール引数と結果本文は`messages`へ保存せず、ツール名、呼び出しID、結果受信、判定可能な成否・処理時間だけを`tool_summary`として保存する。
+- 開発者指示は通常会話と分離して折りたたむ。同一セッション内で本文が完全一致する場合、最初の1件だけに本文を持たせ、再出現位置は`developer_instruction_reference`として`duplicate_of`で参照する。
+- ユーザーまたはCodexが同じ本文を意図的に繰り返した場合は重複削除しない。
+- `response_item.message`を会話の正とし、同一内容の`event_msg.user_message`または`agent_message`を二重登録しない。対応する`response_item`がない場合だけイベント側を代替利用する。
+
+### 自動付加情報
+
+ユーザーメッセージの絶対先頭にあり、開始・終了構造が完全な次のブロックだけを除外する。
+
+- `<recommended_plugins>...</recommended_plugins>`
+- `# AGENTS.md instructions...`に続く`<INSTRUCTIONS>...</INSTRUCTIONS>`
+- `<environment_context>...</environment_context>`
+
+複数の本文要素に分かれていても、先頭から連続する完全なブロックだけを対象にする。構造が不完全な場合、メッセージ途中にある場合、Markdownコードフェンス内に例示された場合は除外しない。除外後もユーザー本文が残る場合は`removed_automatic_contexts`へ種類を記録する。自動付加情報だけで構成されたメッセージは表示対象にせず、PC側で元位置と種類だけを監査用に保持し、除外本文は複製しない。
 
 ## 物理配置
 
