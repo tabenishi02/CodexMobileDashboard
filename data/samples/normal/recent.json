@@ -16,7 +16,8 @@
       "user_message_id": "msg_00000000-0000-7000-8000-000000000103",
       "assistant_message_ids": ["msg_00000000-0000-7000-8000-000000000104"],
       "user_preview": "正常・異常サンプルJSONを作成してください。",
-      "assistant_preview": "架空データによるサンプル一式を作成しました。"
+      "assistant_preview": "架空データによるサンプル一式を作成しました。",
+      "rolled_back": false
     },
     {
       "turn_id": "turn-000001",
@@ -26,7 +27,8 @@
       "user_message_id": "msg_00000000-0000-7000-8000-000000000101",
       "assistant_message_ids": ["msg_00000000-0000-7000-8000-000000000102"],
       "user_preview": "コードと通常文を区別して表示したいです。",
-      "assistant_preview": "PC側でブロックへ分離し、ブラウザ側で表示を分ける方式を提案します。"
+      "assistant_preview": "PC側でブロックへ分離し、ブラウザ側で表示を分ける方式を提案します。",
+      "rolled_back": false
     }
   ]
 }

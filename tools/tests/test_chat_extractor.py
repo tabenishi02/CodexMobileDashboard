@@ -25,7 +25,7 @@ def normalized_record(
         source_record_type="response_item" if subtype != "chat_message_event" else "event_msg",
         source_payload_type="message",
         source_id=source_id,
-        turn_id=None,
+        turn_id="turn-1",
         role=role,
         phase=phase,
         content=(NormalizedContentPart("text", text, "input_text"),),

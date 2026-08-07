@@ -71,6 +71,7 @@ class ExtractedChatMessage:
     role: str
     message_type: str
     phase: Optional[str]
+    turn_id: Optional[str]
     content: Tuple[ChatContentPart, ...]
     display_mode: str
     duplicate_of: Optional[str]
@@ -228,6 +229,7 @@ def _extract_conversation_message(
         role=record.role,
         message_type=message_type,
         phase=record.phase,
+        turn_id=record.turn_id,
         content=content,
         display_mode=display_mode,
         duplicate_of=None,
@@ -305,6 +307,7 @@ def _tool_message(
         role="tool",
         message_type="tool_summary",
         phase=None,
+        turn_id=record.turn_id,
         content=content,
         display_mode="collapsed",
         duplicate_of=None,

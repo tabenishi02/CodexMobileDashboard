@@ -102,6 +102,15 @@ msg_019fc728-bdb2-7471-ac9a-370c26f24a2b
 | `reason` | string | 必須 | 可 | 推定理由 |
 | `source_message_ids` | array | 必須 | 不可 | 根拠メッセージ参照 |
 
+### Codex状態の判定
+
+- 終了イベントのない最新`task_started`があれば`codex.status`を`working`とする。
+- ターン履歴があり、進行中ターンがなければ`idle`とする。
+- ターンイベントがなければ`unknown`とする。
+- `stopped`はJSONLだけから推測せず、collectorまたはCodexプロセスを確認できる後続処理で設定する。
+- `working`時の`codex.current_work`は、同じturn IDを持つユーザー指示から最大500文字のプレビューを生成する。全文は`messages`を正とする。
+- `idle`、`stopped`、`unknown`では`codex.current_work`を`null`とする。
+
 ## `recent.json`
 
 直近2件の「ユーザー指示と、それに対するCodex応答」の組を保持する。一般イベントの横断タイムラインにはしない。
@@ -123,10 +132,13 @@ turn要素：
 | `assistant_message_ids` | array | 必須 | 不可 | 応答メッセージ参照。分割応答に対応 |
 | `user_preview` | string | 必須 | 不可 | 一覧用プレビュー |
 | `assistant_preview` | string | 必須 | 可 | 応答中または失敗時は`null`可 |
+| `rolled_back` | boolean | 必須 | 不可 | Codexでロールバックされたターンか |
 
 プレビューは表示用の派生情報であり、全文の正は`messages`データとする。
 
 応答中は`current_turn`へ現在のやりとりを置き、`turns`には直前までに完了した2件を残す。応答完了時に`current_turn`を`turns`の先頭へ移し、3件目になった古いターンを`recent.json`からだけ外す。元メッセージは`messages`に残すため削除されない。
+
+`turn_aborted`は`failed`とする。新しいターン開始時に終了イベントのない古いターンが残っている場合も`failed`として警告し、理由を内部状態へ保持する。`thread_rolled_back`の対象ターンは履歴から削除せず`rolled_back: true`とし、通常の最新ターンと直近2件の候補からは除外する。
 
 ## `messages.json`とページ
 
@@ -153,6 +165,7 @@ turn要素：
 | `role` | string | 必須 | 不可 | 発言主体 |
 | `message_type` | string | 必須 | 不可 | 正規化したメッセージ種別 |
 | `phase` | string | 必須 | 可 | JSONLのphaseがなければ`null` |
+| `turn_id` | string | 必須 | 可 | 関連するCodexターン。取得できなければ`null` |
 | `content` | object | 必須 | 不可 | 本文または断片参照 |
 | `redactions` | array | 必須 | 不可 | マスク情報。なければ空配列 |
 | `display_mode` | string | 必須 | 不可 | `expanded`または`collapsed` |

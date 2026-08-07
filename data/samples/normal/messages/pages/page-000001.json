@@ -16,10 +16,15 @@
       "role": "user",
       "message_type": "chat",
       "phase": null,
+      "turn_id": "turn-000001",
       "content": {"kind": "blocks", "blocks": [
         {"block_id": "block-000001", "type": "text", "text": "コードと通常文を区別して表示したいです。📱"}
       ]},
-      "redactions": []
+      "redactions": [],
+      "display_mode": "expanded",
+      "duplicate_of": null,
+      "occurrence_count": 1,
+      "removed_automatic_contexts": []
     },
     {
       "message_id": "msg_00000000-0000-7000-8000-000000000102",
@@ -29,12 +34,17 @@
       "role": "assistant",
       "message_type": "chat",
       "phase": "final_answer",
+      "turn_id": "turn-000001",
       "content": {"kind": "blocks", "blocks": [
         {"block_id": "block-000002", "type": "text", "text": "PC側で本文をブロックへ分離し、ブラウザ側で表示を分けます。"},
         {"block_id": "block-000003", "type": "code", "language": "python", "text": "print(\"サンプル\")\n"},
         {"block_id": "block-000004", "type": "text", "text": "コードは実行せず、そのまま表示します。"}
       ]},
-      "redactions": []
+      "redactions": [],
+      "display_mode": "expanded",
+      "duplicate_of": null,
+      "occurrence_count": 1,
+      "removed_automatic_contexts": []
     },
     {
       "message_id": "msg_00000000-0000-7000-8000-000000000103",
@@ -44,10 +54,15 @@
       "role": "user",
       "message_type": "chat",
       "phase": null,
+      "turn_id": "turn-000002",
       "content": {"kind": "blocks", "blocks": [
         {"block_id": "block-000005", "type": "text", "text": "正常・異常サンプルJSONを作成してください。"}
       ]},
-      "redactions": []
+      "redactions": [],
+      "display_mode": "expanded",
+      "duplicate_of": null,
+      "occurrence_count": 1,
+      "removed_automatic_contexts": []
     },
     {
       "message_id": "msg_00000000-0000-7000-8000-000000000104",
@@ -57,10 +72,15 @@
       "role": "assistant",
       "message_type": "chat",
       "phase": "final_answer",
+      "turn_id": "turn-000002",
       "content": {"kind": "blocks", "blocks": [
         {"block_id": "block-000006", "type": "text", "text": "架空データによるサンプル一式を作成しました。\n構文と参照関係も確認します。"}
       ]},
-      "redactions": []
+      "redactions": [],
+      "display_mode": "expanded",
+      "duplicate_of": null,
+      "occurrence_count": 1,
+      "removed_automatic_contexts": []
     }
   ]
 }
