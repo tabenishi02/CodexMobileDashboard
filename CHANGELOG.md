@@ -8,6 +8,8 @@
 
 ### Added
 
+- Codex JSONLの既知形式を永続化せずメモリ内の共通レコードへ変換する`tools/record_normalizer.py`と単体テストを追加した。
+- 実ログで新たに確認した`mcp_tool_call_end`の構造と安全な正規化方法を文書化した。
 - Codexのライブ・アーカイブ済みJSONLを網羅的に探索し、完全な行だけを差分読み取りする`tools/session_reader.py`を追加した。
 - 不完全な末尾行、不正な中間行、未知イベント、ファイル短縮、アーカイブ移動、日本語・絵文字を確認する単体テストを追加した。
 - PC収集ツール用の`config/collector.example.ini`を追加し、設定値、範囲、ローカル保存構成を確定した。

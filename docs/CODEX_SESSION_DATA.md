@@ -376,6 +376,20 @@ UI表示やターン進行に使われるイベントである。`payload.type`�
 
 `action`の下位キーは動作種別に応じて使い分けられる。検索結果本文やURLは秘密情報検査なしに送信しない。
 
+### MCP完了イベント
+
+`mcp_tool_call_end`で確認したキー：
+
+- `call_id`
+- `invocation.server`
+- `invocation.tool`
+- `invocation.arguments`
+- `duration.secs`
+- `duration.nanos`
+- `result.Ok`（観測値）。将来`result.Err`が現れた場合は失敗として扱う
+
+2026年8月8日の追加調査で11件確認した。正規化時はサーバー名、ツール名、処理時間、成否だけを保持し、引数と結果本文は同じ内容を持つ`response_item`を優先するため複製しない。
+
 ### その他のイベント
 
 - `context_compacted`：`payload.type`だけを持ち、コンテキスト圧縮の発生を示す。
@@ -411,7 +425,7 @@ UI表示やターン進行に使われるイベントである。`payload.type`�
 |---|---|
 | トップレベル`type` | `session_meta`、`turn_context`、`response_item`、`event_msg`、`world_state`、`compacted` |
 | `response_item.payload.type` | `message`、`reasoning`、`function_call`、`function_call_output`、`custom_tool_call`、`custom_tool_call_output` |
-| `event_msg.payload.type` | `user_message`、`agent_message`、`task_started`、`task_complete`、`turn_aborted`、`thread_rolled_back`、`thread_settings_applied`、`token_count`、`patch_apply_end`、`web_search_end`、`context_compacted` |
+| `event_msg.payload.type` | `user_message`、`agent_message`、`task_started`、`task_complete`、`turn_aborted`、`thread_rolled_back`、`thread_settings_applied`、`token_count`、`patch_apply_end`、`web_search_end`、`mcp_tool_call_end`、`context_compacted` |
 | `message.role` | `user`、`assistant`、`developer` |
 | `message.phase` | `commentary`、`final_answer` |
 | `message.content[].type` | `input_text`、`output_text` |
@@ -460,6 +474,8 @@ UI表示やターン進行に使われるイベントである。`payload.type`�
 - `--ephemeral`で開始されたセッションは保存されないため収集対象にできない。
 
 実装は`tools/session_reader.py`に置く。完全な行だけをUTF-8として1行ずつ解析し、既知のトップレベル種別だけを後続処理へ渡す。読み取り結果にはファイルパス、物理行番号、開始・終了バイトオフセットを付ける。セッション索引ではファイル名または`session_meta`からセッションIDを取得し、同じIDのファイルが`sessions`から`archived_sessions`へ移動しても同一セッションとしてまとめる。
+
+形式差の吸収は`tools/record_normalizer.py`で行う。正規化結果は中間ファイルへ保存せず、メモリ内だけで後続処理へ渡す。`response_item`と`event_msg`の出典、元ファイル位置、ネイティブIDを保持し、文字列・配列の本文形式や欠損フィールドを共通表現へ揃える。未知形式は推測せず警告し、画像本体、差分・ファイル本文、内部指示、暗号化推論を複製しない。
 
 ## セキュリティ
 
