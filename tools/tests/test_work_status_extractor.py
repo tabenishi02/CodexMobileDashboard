@@ -93,6 +93,8 @@ class WorkStatusExtractorTests(unittest.TestCase):
         self.assertEqual("completed", result.latest_turn_status)
         self.assertEqual(2000, result.turns[0].duration_ms)
         self.assertEqual("2026-08-08T00:00:00+00:00", result.turns[0].completed_at)
+        self.assertEqual("record_timestamp", result.turns[0].started_at_source)
+        self.assertEqual("event_field", result.turns[0].completed_at_source)
 
     def test_aborted_turn_is_failed(self) -> None:
         records = [turn_record("started"), turn_record("aborted", offset=200)]
@@ -116,8 +118,10 @@ class WorkStatusExtractorTests(unittest.TestCase):
 
         result = extract_current_work_status(records, [], "session-1")
 
-        self.assertEqual("failed", result.turns[0].status)
+        self.assertEqual("incomplete", result.turns[0].status)
         self.assertEqual("superseded_by_new_turn", result.turns[0].reason)
+        self.assertIsNone(result.turns[0].completed_at)
+        self.assertEqual("missing", result.turns[0].completed_at_source)
         self.assertEqual("turn-2", result.active_turn_id)
         self.assertEqual("unfinished_turn_superseded", result.issues[0].kind)
 
@@ -145,6 +149,14 @@ class WorkStatusExtractorTests(unittest.TestCase):
 
         self.assertEqual(500, len(result.current_work or ""))
         self.assertTrue((result.current_work or "").endswith("…"))
+
+    def test_missing_event_times_record_the_fallback_source(self) -> None:
+        records = [turn_record("started"), turn_record("completed", offset=200)]
+
+        result = extract_current_work_status(records, [], "session-1")
+
+        self.assertEqual("record_timestamp", result.turns[0].started_at_source)
+        self.assertEqual("record_timestamp", result.turns[0].completed_at_source)
 
 
 if __name__ == "__main__":

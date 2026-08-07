@@ -125,9 +125,11 @@ turn要素：
 | フィールド | 型 | 必須 | `null` | 定義 |
 |---|---|---|---|---|
 | `turn_id` | string | 必須 | 不可 | やりとりID |
-| `status` | string | 必須 | 不可 | `in_progress`、`completed`、`failed` |
+| `status` | string | 必須 | 不可 | `in_progress`、`completed`、`failed`、`incomplete` |
 | `started_at` | string | 必須 | 不可 | ユーザー指示日時 |
+| `started_at_source` | string | 必須 | 不可 | 日時の取得元 |
 | `completed_at` | string | 必須 | 可 | 完了日時 |
+| `completed_at_source` | string | 必須 | 不可 | 日時の取得元 |
 | `user_message_id` | string | 必須 | 不可 | ユーザーメッセージ参照 |
 | `assistant_message_ids` | array | 必須 | 不可 | 応答メッセージ参照。分割応答に対応 |
 | `user_preview` | string | 必須 | 不可 | 一覧用プレビュー |
@@ -138,7 +140,9 @@ turn要素：
 
 応答中は`current_turn`へ現在のやりとりを置き、`turns`には直前までに完了した2件を残す。応答完了時に`current_turn`を`turns`の先頭へ移し、3件目になった古いターンを`recent.json`からだけ外す。元メッセージは`messages`に残すため削除されない。
 
-`turn_aborted`は`failed`とする。新しいターン開始時に終了イベントのない古いターンが残っている場合も`failed`として警告し、理由を内部状態へ保持する。`thread_rolled_back`の対象ターンは履歴から削除せず`rolled_back: true`とし、通常の最新ターンと直近2件の候補からは除外する。
+`turn_aborted`は`failed`とする。新しいターン開始時に終了イベントのない古いターンが残っている場合は、明示的な失敗と断定せず`incomplete`として警告し、理由を`superseded_by_new_turn`とする。`thread_rolled_back`の対象ターンは履歴から削除せず`rolled_back: true`とし、通常の最新ターンと直近2件の候補からは除外する。
+
+`started_at_source`と`completed_at_source`は、イベント固有のUnixミリ秒を使用した場合に`event_field`、JSONLレコード自体の日時で補完した場合に`record_timestamp`、日時を取得できない場合に`missing`とする。補完値を元イベント固有の値として扱わない。
 
 ## `messages.json`とページ
 
@@ -328,6 +332,7 @@ PC生成データ全体のスキーマ、収集状態、スナップショット
 | ターン | `in_progress` | 応答中 |
 | ターン | `completed` | 完了 |
 | ターン | `failed` | 失敗 |
+| ターン | `incomplete` | 記録不完全 |
 | 収集 | `ok` | 正常 |
 | 収集 | `warning` | 注意あり |
 | 収集 | `failed` | 取得失敗 |

@@ -30,7 +30,9 @@ class TurnWorkState:
     turn_id: str
     status: str
     started_at: Optional[str]
+    started_at_source: str
     completed_at: Optional[str]
+    completed_at_source: str
     duration_ms: Optional[int]
     reason: Optional[str]
     user_message_id: Optional[str]
@@ -56,7 +58,9 @@ class _TurnBuilder:
     turn_id: str
     status: str
     started_at: Optional[str]
+    started_at_source: str
     completed_at: Optional[str]
+    completed_at_source: str
     duration_ms: Optional[int]
     reason: Optional[str]
     start_offset: int
@@ -91,18 +95,24 @@ def extract_current_work_status(
             if status == "started":
                 if active_turn_id is not None and active_turn_id != turn_id:
                     previous = turns[active_turn_id]
-                    previous.status = "failed"
-                    previous.completed_at = record.timestamp
+                    previous.status = "incomplete"
+                    previous.completed_at = None
+                    previous.completed_at_source = "missing"
                     previous.reason = "superseded_by_new_turn"
                     previous.terminal_offset = record.start_offset
                     _add_issue(record, issues, "unfinished_turn_superseded")
                 builder = turns.get(turn_id)
                 if builder is None:
+                    started_at, started_at_source = _event_time(
+                        record, "started_at_ms"
+                    )
                     builder = _TurnBuilder(
                         turn_id=turn_id,
                         status="in_progress",
-                        started_at=_event_time(record, "started_at_ms"),
+                        started_at=started_at,
+                        started_at_source=started_at_source,
                         completed_at=None,
+                        completed_at_source="missing",
                         duration_ms=None,
                         reason=None,
                         start_offset=record.start_offset,
@@ -112,20 +122,28 @@ def extract_current_work_status(
                     ordered_turn_ids.append(turn_id)
                 else:
                     builder.status = "in_progress"
-                    builder.started_at = builder.started_at or _event_time(
-                        record, "started_at_ms"
-                    )
+                    if builder.started_at is None:
+                        (
+                            builder.started_at,
+                            builder.started_at_source,
+                        ) = _event_time(record, "started_at_ms")
                     builder.completed_at = None
+                    builder.completed_at_source = "missing"
                     builder.terminal_offset = None
                 active_turn_id = turn_id
             else:
                 builder = turns.get(turn_id)
                 if builder is None:
+                    started_at, started_at_source = _event_time(
+                        record, "started_at_ms"
+                    )
                     builder = _TurnBuilder(
                         turn_id=turn_id,
                         status="in_progress",
-                        started_at=_event_time(record, "started_at_ms"),
+                        started_at=started_at,
+                        started_at_source=started_at_source,
                         completed_at=None,
+                        completed_at_source="missing",
                         duration_ms=None,
                         reason=None,
                         start_offset=record.start_offset,
@@ -135,7 +153,10 @@ def extract_current_work_status(
                     ordered_turn_ids.append(turn_id)
                     _add_issue(record, issues, "terminal_event_without_start")
                 builder.status = "completed" if status == "completed" else "failed"
-                builder.completed_at = _event_time(record, "completed_at_ms")
+                (
+                    builder.completed_at,
+                    builder.completed_at_source,
+                ) = _event_time(record, "completed_at_ms")
                 builder.duration_ms = _attribute_int(record, "duration_ms")
                 builder.reason = _attribute_str(record, "reason")
                 builder.terminal_offset = record.start_offset
@@ -215,7 +236,9 @@ def _finish_turn(
         turn_id=builder.turn_id,
         status=builder.status,
         started_at=builder.started_at,
+        started_at_source=builder.started_at_source,
         completed_at=builder.completed_at,
+        completed_at_source=builder.completed_at_source,
         duration_ms=builder.duration_ms,
         reason=builder.reason,
         user_message_id=user_message.message_id if user_message is not None else None,
@@ -246,16 +269,19 @@ def _message_preview(message: ExtractedChatMessage) -> Optional[str]:
     return text[: CURRENT_WORK_MAX_CHARACTERS - 1] + "…"
 
 
-def _event_time(record: NormalizedRecord, field: str) -> Optional[str]:
+def _event_time(record: NormalizedRecord, field: str) -> Tuple[Optional[str], str]:
     milliseconds = _attribute_int(record, field)
     if milliseconds is None:
-        return record.timestamp
+        if record.timestamp is None:
+            return None, "missing"
+        return record.timestamp, "record_timestamp"
     try:
-        return datetime.fromtimestamp(
-            milliseconds / 1000, tz=timezone.utc
-        ).isoformat()
+        value = datetime.fromtimestamp(milliseconds / 1000, tz=timezone.utc).isoformat()
+        return value, "event_field"
     except (OSError, OverflowError, ValueError):
-        return record.timestamp
+        if record.timestamp is None:
+            return None, "missing"
+        return record.timestamp, "record_timestamp"
 
 
 def _fallback_turn_id(session_id: str, record: NormalizedRecord) -> str:
