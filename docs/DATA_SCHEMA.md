@@ -442,14 +442,15 @@ messages/
 
 ```text
 codex exec --ephemeral --sandbox read-only \
-  --output-schema next-task.schema.json \
-  -o next-task.json \
-  "与えられた開発コンテキストから、実行可能な次タスクを1件推定してください。"
+  --ignore-user-config --ignore-rules --skip-git-repo-check \
+  --color never --output-schema next-task.schema.json -
 ```
 
-入力には秘密情報を除外した現在状況、最新2ターン、決定事項、未完了タスクだけを渡す。結果には`task`、`reason`、`confidence`を必須とする。Codex CLIの認証、利用制限、タイムアウト、失敗時の処理を実装前に確認する。
+現在のCodex CLIログインを再利用し、入力には秘密情報を除外した現在状況、最新2ターン、決定事項、未完了タスクだけを標準入力から渡す。対象プロジェクトではなく一時ディレクトリを作業場所とし、ユーザー設定、ルール、MCP、プラグインを読み込ませない。結果には`task`、`reason`、`confidence`を必須とし、最終JSONだけを標準出力からメモリへ取得する。
 
-非対話実行、`--ephemeral`、読み取り専用sandbox、`--output-schema`、`-o`の仕様は[Codex non-interactive mode](https://learn.chatgpt.com/docs/non-interactive-mode.md)を根拠とする。
+推定用入力全体はUTF-8で最大128KiB、タイムアウトは120秒、即時再試行は行わない。同じ根拠の成功結果は再利用し、失敗後の`TASKS.md`補完結果は5分間キャッシュしてから再推定可能とする。上限超過時は未完了タスク、決定事項、現在状況、直近メッセージの優先順で推定用コンテキストだけを構成し、省略警告を記録する。元のJSONLと抽出済み履歴は削除・変更しない。秘密情報除外済みであることを確認できない入力ではCLIを起動しない。
+
+非対話実行、`--ephemeral`、読み取り専用sandbox、`--output-schema`の仕様は[Codex non-interactive mode](https://learn.chatgpt.com/docs/non-interactive-mode.md)を根拠とする。
 
 ## マスク済み文字列
 
