@@ -34,7 +34,7 @@ data/
 | `recent.json` | 直近2件のユーザー指示とCodex応答 |
 | `messages.json` | ページ分割したセッションメッセージ |
 | `errors.json` | 開発エラーと解決状況 |
-| `decisions.json` | 採用、非採用、保留の決定事項 |
+| `decisions.json` | 採用、非採用、置き換え履歴を含む決定事項 |
 | `files.json` | Git変更メタデータ |
 | `metadata.json` | スキーマ、生成日時、収集状態、ハートビート |
 

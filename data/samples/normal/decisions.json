@@ -10,10 +10,13 @@
     {
       "decision_id": "decision-000001",
       "decided_at": "2026-08-04T14:00:00+09:00",
+      "decided_at_source": "message_timestamp",
       "status": "superseded",
       "title": "本文を単一テキストで保持する",
       "description": "初期案では本文を分割せず保持することにしました。",
       "reason": "構造が単純なためです。",
+      "topic_key": "メッセージ本文形式",
+      "source_session_ids": ["00000000-0000-7000-8000-000000000001"],
       "source_message_ids": ["msg_00000000-0000-7000-8000-000000000101"],
       "supersedes": null,
       "superseded_by": "decision-000002"
@@ -21,10 +24,13 @@
     {
       "decision_id": "decision-000002",
       "decided_at": "2026-08-04T15:12:00+09:00",
+      "decided_at_source": "message_timestamp",
       "status": "adopted",
       "title": "本文をPC側でブロック分割する",
       "description": "通常文とフェンス付きコードをPC側で分離し、ブラウザで視覚的に区別します。",
       "reason": "閲覧端末の処理を単純にし、安全な表示を行うためです。",
+      "topic_key": "メッセージ本文形式",
+      "source_session_ids": ["00000000-0000-7000-8000-000000000001"],
       "source_message_ids": ["msg_00000000-0000-7000-8000-000000000102"],
       "supersedes": "decision-000001",
       "superseded_by": null
