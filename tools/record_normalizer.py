@@ -323,12 +323,12 @@ def _normalize_event_message(
         content: List[NormalizedContentPart] = []
         content.extend(
             _normalize_text_value(
-                source, payload.get("stdout"), "tool_output", "stdout", issues
+                source, payload.get("stdout"), "stdout", "stdout", issues
             )
         )
         content.extend(
             _normalize_text_value(
-                source, payload.get("stderr"), "tool_output", "stderr", issues
+                source, payload.get("stderr"), "stderr", "stderr", issues
             )
         )
         return _base_record(

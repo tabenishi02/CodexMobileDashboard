@@ -211,20 +211,26 @@ turn要素：
 | `errors` | array | 必須 | 不可 | エラー一覧。物理ページは最大100件 |
 | `error_id` | string | 必須 | 不可 | セッション内エラーID |
 | `fingerprint` | string | 必須 | 不可 | 重複判定用SHA-256 |
-| `first_occurred_at` | string | 必須 | 不可 | 初回日時 |
-| `last_occurred_at` | string | 必須 | 不可 | 最終日時 |
+| `kind` | string | 必須 | 不可 | 正規化したエラー種別 |
+| `first_occurred_at` | string | 必須 | 可 | 初回日時。取得不能なら`null` |
+| `last_occurred_at` | string | 必須 | 可 | 最終日時。取得不能なら`null` |
+| `occurred_at_source` | string | 必須 | 不可 | `record_timestamp`、`file_mtime`、`missing` |
 | `occurrence_count` | integer | 必須 | 不可 | 発生回数 |
 | `severity` | string | 必須 | 不可 | 重要度 |
 | `category` | string | 必須 | 不可 | エラー分類 |
 | `summary` | string | 必須 | 不可 | 最大500文字の要約 |
 | `details_preview` | string | 必須 | 可 | 最大4,000文字の表示用抜粋 |
-| `source_message_ids` | array | 必須 | 不可 | 全文を含むメッセージ参照 |
-| `detail_storage` | string | 必須 | 不可 | `message_reference`、`inline`、`chunks` |
+| `details_complete` | boolean | 必須 | 不可 | 抽出した詳細がエラー部分の全文なら`true` |
+| `source_message_ids` | array | 必須 | 不可 | 関連メッセージ参照。なければ空配列 |
+| `source_line_number` | integer | 必須 | 不可 | 元JSONLの物理行番号 |
+| `source_start_offset` | integer | 必須 | 不可 | 元JSONLの開始バイト位置 |
+| `detail_storage` | string | 必須 | 不可 | `message_reference`、`inline`、`chunks`、`preview_only` |
 | `details` | string | 必須 | 可 | `inline`時の欠落のない全文。それ以外は`null` |
 | `detail_chunks` | array | 必須 | 不可 | `chunks`時の断片参照。それ以外は空配列 |
 | `status` | string | 必須 | 不可 | `open`、`resolved`、`ignored` |
 | `resolved_at` | string | 必須 | 可 | 未解決なら`null` |
 | `resolution` | string | 必須 | 可 | 未解決なら`null` |
+| `rolled_back` | boolean | 必須 | 不可 | ロールバック対象ターン由来か |
 
 保存候補は次の3つである。
 
@@ -232,7 +238,13 @@ turn要素：
 2. 概要、最大4,000文字のプレビュー、元メッセージ参照：通信量と可読性のバランスがよく、推奨する。
 3. エラー全文を独立して複製：単独で完結するが、通信量と保存量が増え、メッセージとの不整合も生じ得る。
 
-採用方式は候補2である。全文がメッセージに存在しない場合だけ、`inline`または`chunks`で欠落なく保存する。`detail_storage`が`message_reference`なら`source_message_ids`を1件以上、`inline`なら`details`を非`null`、`chunks`なら`detail_chunks`を1件以上にする。古い解決済みエラーは削除せずページ分割する。
+採用方式は候補2である。全文がメッセージに存在しない場合だけ、`inline`または`chunks`で欠落なく保存する。`detail_storage`が`message_reference`なら全文を含む`source_message_ids`を1件以上、`inline`なら`details`を非`null`、`chunks`なら`detail_chunks`を1件以上にする。複合出力からエラー全文を安全に分離できない場合は`preview_only`とし、`details_complete: false`、`details: null`、空の`detail_chunks`にする。古い解決済みエラーは削除せずページ分割する。
+
+エラー部分を安定して分離できない複合ツール出力は、正常出力やソースコードを混入させないため最大4,000文字のプレビューだけを抽出し、`details_complete: false`とする。元データはPC上のCodex JSONLに残す。エラー部分を分離できる`stderr`、Python Traceback、個別テスト失敗、Gitの`fatal`は、そのエラー部分の全文をメモリ内で後続の秘密情報除外処理へ渡す。マスク完了前に表示用JSONへ保存しない。
+
+`turn_aborted`の`interrupted`は`warning`、`patch_apply_end.success: false`と明示された非ゼロ終了コードは`error`とする。終了コード0で標準エラーに文字があるだけなら登録せず、終了コード0でもTracebackまたはテスト失敗を明確に認識できる場合だけ`warning`とする。`incomplete`ターンは開発エラーへ重複登録しない。ロールバック済みエラーは保持するが、現在の未解決件数から除外する。
+
+日時はJSONLレコード日時、セッションファイル更新日時の順で採用し、どちらもなければ`null`とする。過去エラーを初回収集時の発生に見せないため現在時刻では補完しない。
 
 ## `decisions.json`
 
@@ -347,6 +359,7 @@ PC生成データ全体のスキーマ、収集状態、スナップショット
 | エラー詳細 | `message_reference` | 関連メッセージ参照 |
 | エラー詳細 | `inline` | 本文内に保存 |
 | エラー詳細 | `chunks` | 分割して保存 |
+| エラー詳細 | `preview_only` | 安全に分離できたプレビューだけを保存 |
 | スナップショット | `building` | 作成中 |
 | スナップショット | `complete` | 完成 |
 | スナップショット | `failed` | 作成失敗 |

@@ -10,38 +10,50 @@
     {
       "error_id": "error-000001",
       "fingerprint": "1111111111111111111111111111111111111111111111111111111111111111",
+      "kind": "incomplete_jsonl_tail",
       "first_occurred_at": "2026-08-04T15:18:00+09:00",
       "last_occurred_at": "2026-08-04T15:18:00+09:00",
+      "occurred_at_source": "record_timestamp",
       "occurrence_count": 1,
       "severity": "warning",
       "category": "session_collection",
       "summary": "読み取り中に追記されたため、次回更新で再取得します。",
       "details_preview": "JSONLの末尾が一時的に不完全でした。既存データは維持されています。",
+      "details_complete": true,
       "source_message_ids": [],
+      "source_line_number": 120,
+      "source_start_offset": 24576,
       "detail_storage": "inline",
       "details": "JSONLの末尾が一時的に不完全でした。既存データは維持されています。",
       "detail_chunks": [],
       "status": "open",
       "resolved_at": null,
-      "resolution": null
+      "resolution": null,
+      "rolled_back": false
     },
     {
       "error_id": "error-000002",
       "fingerprint": "2222222222222222222222222222222222222222222222222222222222222222",
+      "kind": "command_failure",
       "first_occurred_at": "2026-08-04T15:05:00+09:00",
       "last_occurred_at": "2026-08-04T15:05:00+09:00",
+      "occurred_at_source": "record_timestamp",
       "occurrence_count": 1,
       "severity": "error",
       "category": "command",
       "summary": "サンプルコマンドが失敗しました。",
       "details_preview": "終了コード1。全文は関連メッセージを参照してください。",
+      "details_complete": true,
       "source_message_ids": ["msg_00000000-0000-7000-8000-000000000102"],
+      "source_line_number": 98,
+      "source_start_offset": 18432,
       "detail_storage": "message_reference",
       "details": null,
       "detail_chunks": [],
       "status": "resolved",
       "resolved_at": "2026-08-04T15:08:00+09:00",
-      "resolution": "引数を修正して再実行しました。"
+      "resolution": "引数を修正して再実行しました。",
+      "rolled_back": false
     }
   ]
 }

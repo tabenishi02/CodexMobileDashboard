@@ -90,6 +90,8 @@ class RecordNormalizerTests(unittest.TestCase):
                 {
                     "type": "patch_apply_end",
                     "success": True,
+                    "stdout": "normal output",
+                    "stderr": "error output",
                     "changes": {
                         "src/app.py": {
                             "type": "update",
@@ -107,6 +109,7 @@ class RecordNormalizerTests(unittest.TestCase):
             ({"path": "src/app.py", "type": "update", "move_path": None},),
             result.record.attributes["changes"],
         )
+        self.assertEqual(("stdout", "stderr"), tuple(part.kind for part in result.record.content))
         self.assertNotIn("secret", repr(result.record))
 
     def test_session_metadata_excludes_base_instructions(self) -> None:
