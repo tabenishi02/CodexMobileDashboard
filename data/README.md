@@ -32,7 +32,7 @@ data/
 |---|---|
 | `dashboard.json` | 現在の作業、最新状態、エラー概要、次の作業 |
 | `recent.json` | 直近2件のユーザー指示とCodex応答 |
-| `messages.json` | ページ分割したセッションメッセージ |
+| `messages.json` | ページ分割したセッションメッセージと会話上のファイル参照 |
 | `errors.json` | 開発エラーと解決状況 |
 | `decisions.json` | 採用、非採用、置き換え履歴を含む決定事項 |
 | `files.json` | Git変更メタデータ |

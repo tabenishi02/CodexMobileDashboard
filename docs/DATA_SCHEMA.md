@@ -176,6 +176,34 @@ turn要素：
 | `duplicate_of` | string | 必須 | 可 | 開発者指示の重複参照先。通常は`null` |
 | `occurrence_count` | integer | 必須 | 不可 | 初回の開発者指示に同一本文の総出現回数、それ以外は1 |
 | `removed_automatic_contexts` | array[string] | 必須 | 不可 | 除外した自動付加情報の種類。なければ`[]` |
+| `file_references` | array | 必須 | 不可 | このメッセージに関連する安全化済みファイル参照。なければ`[]` |
+
+### ファイル参照
+
+ファイル参照は会話で話題になったファイルを表し、Gitが示す実際の変更状態とは分離する。ユーザー添付、ユーザー・Codexの表示対象メッセージにあるローカルMarkdownリンク、インラインコード、明示的なファイル名・パスを対象とする。ツール引数・出力、Git差分、パッチ本文、JSONL保存場所、開発者指示、環境情報、URL、フェンス付きコードブロック内は対象外とする。
+
+`file_references`の各要素：
+
+| フィールド | 型 | 必須 | `null` | 定義 |
+|---|---|---|---|---|
+| `reference_id` | string | 必須 | 不可 | 決定的な参照ID |
+| `scope` | string | 必須 | 不可 | `workspace`または`external` |
+| `path` | string | 必須 | 可 | ワークスペース相対パス。外部なら`null` |
+| `display_name` | string | 必須 | 不可 | 表示用ファイル・ディレクトリ名 |
+| `extension` | string | 必須 | 不可 | 小文字の拡張子。なければ空文字 |
+| `kind` | string | 必須 | 不可 | `file`、`directory`、`missing`、`unknown` |
+| `mention_count` | integer | 必須 | 不可 | 同じワークスペース参照の出現回数 |
+| `source_session_ids` | array | 必須 | 不可 | 参照元セッションID |
+| `source_message_ids` | array | 必須 | 不可 | 参照元メッセージID |
+| `mentions` | array | 必須 | 不可 | 各言及位置 |
+
+`mentions`の各要素は`session_id`、`message_id`、`line`、`column`、`origin`を必須とする。`line`と`column`は取得不能なら`null`、`origin`は`attachment`、`markdown_link`、`inline_code`、`plain_text`のいずれかとする。
+
+ワークスペース内の絶対パスは、シンボリックリンクを含む解決後の位置がワークスペース配下にあることを確認して相対パスへ変換する。`..`やシンボリックリンクで外へ出る参照は`external`とする。外部参照は`path: null`とし、ファイル名と拡張子だけを送信する。外部絶対パスやそのハッシュをIDへ使用しない。
+
+存在確認では本文を開かず、ファイル・ディレクトリ・欠損だけを確認する。UNCパスはアクセスせず`unknown`とする。ファイルサイズ、更新日時、内容、行番号の実在性は確認しない。
+
+同じワークスペース相対パスは1参照へ集約し、参照元と行・列を追加する。外部参照は同名でもメッセージごとに別IDとする。物理JSONでは新しいトップレベルファイルを増やさず、該当メッセージの`file_references`へ関連情報を置く。`files.json`側は後続処理で同じ相対パスの`source_message_ids`を持てるが、Git変更と会話上の言及を同一事実として推測しない。
 
 ### 本文形式
 

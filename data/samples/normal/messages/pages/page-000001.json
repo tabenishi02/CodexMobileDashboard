@@ -24,7 +24,8 @@
       "display_mode": "expanded",
       "duplicate_of": null,
       "occurrence_count": 1,
-      "removed_automatic_contexts": []
+      "removed_automatic_contexts": [],
+      "file_references": []
     },
     {
       "message_id": "msg_00000000-0000-7000-8000-000000000102",
@@ -44,7 +45,8 @@
       "display_mode": "expanded",
       "duplicate_of": null,
       "occurrence_count": 1,
-      "removed_automatic_contexts": []
+      "removed_automatic_contexts": [],
+      "file_references": []
     },
     {
       "message_id": "msg_00000000-0000-7000-8000-000000000103",
@@ -62,7 +64,8 @@
       "display_mode": "expanded",
       "duplicate_of": null,
       "occurrence_count": 1,
-      "removed_automatic_contexts": []
+      "removed_automatic_contexts": [],
+      "file_references": []
     },
     {
       "message_id": "msg_00000000-0000-7000-8000-000000000104",
@@ -80,7 +83,8 @@
       "display_mode": "expanded",
       "duplicate_of": null,
       "occurrence_count": 1,
-      "removed_automatic_contexts": []
+      "removed_automatic_contexts": [],
+      "file_references": []
     }
   ]
 }
