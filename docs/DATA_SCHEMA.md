@@ -317,20 +317,27 @@ Git変更メタデータの正とする。プロジェクトファイルとGit�
 | `repository.branch` | string | 必須 | 可 | detachedまたは失敗時は`null`可 |
 | `repository.head` | string | 必須 | 可 | 取得失敗時は`null` |
 | `repository.session_start_commit` | string | 必須 | 可 | 未取得なら`null` |
+| `repository.session_start_source` | string | 必須 | 可 | `jsonl`、`first_observed`。未取得なら`null` |
 | `repository.clean` | boolean | 必須 | 不可 | 作業ツリー状態 |
+| `repository.retry_required` | boolean | 必須 | 不可 | 一時的な取得失敗を次の定期確認で再試行するか |
 | `files` | array | 必須 | 不可 | 変更ファイル一覧 |
 | `change_id` | string | 必須 | 不可 | 変更レコードID |
 | `path` | string | 必須 | 不可 | プロジェクト相対パス |
 | `old_path` | string | 必須 | 可 | 名前変更以外は`null` |
 | `status.index` | string | 必須 | 不可 | ステージ領域の状態 |
 | `status.worktree` | string | 必須 | 不可 | 作業ツリーの状態 |
-| `numstat.staged` | object | 必須 | 可 | 対象なしなら`null` |
-| `numstat.unstaged` | object | 必須 | 可 | 対象なしなら`null` |
-| `numstat.committed_in_session` | object | 必須 | 可 | 対象なしなら`null` |
-| `binary` | boolean | 必須 | 不可 | バイナリ判定 |
+| `status.committed_in_session` | string | 必須 | 不可 | セッション中にコミットされた状態 |
+| `numstat.staged` | object | 必須 | 不可 | ステージ済み変更の行数取得結果 |
+| `numstat.unstaged` | object | 必須 | 不可 | 未ステージ変更の行数取得結果 |
+| `numstat.committed_in_session` | object | 必須 | 不可 | セッション中にコミットされた変更の行数取得結果 |
+| `binary` | boolean | 必須 | 可 | Gitで判定済みなら真偽、未調査・取得失敗なら`null` |
 | `scopes` | array | 必須 | 不可 | 変更が存在する範囲 |
 
-各`numstat`オブジェクトの`added`と`deleted`はキーを必須とし、テキストファイルでは0以上の整数、Gitが行数を算出しないバイナリでは`null`とする。
+各`numstat`オブジェクトは`state`、`added`、`deleted`を必須とする。`state`は`measured`、`binary`、`not_inspected`、`not_applicable`、`failed`のいずれかとする。`measured`では`added`と`deleted`を0以上の整数とし、それ以外では両方を`null`とする。空のテキストファイルは`measured`かつ0行として、未調査と区別する。
+
+未追跡ファイルは内容を読み取らず、該当scopeを`not_inspected`、`binary`を`null`とする。Gitが`numstat`を`-`で返したファイルだけを`binary: true`とする。Gitコマンド失敗は`failed`とし、取得済みの状態を保持したまま`repository.collection_status: warning`、`repository.retry_required: true`として次回の定期確認で再試行する。
+
+`change_id`は`workspace_id`と大文字小文字を正規化したプロジェクト相対パスをNULで区切り、SHA-256で生成する。時系列情報は含めず、スナップショットIDと取得日時で管理する。名前変更後は新しいパスの別IDとし、変更前のパスを`old_path`へ保持する。
 
 コミット済み変更を別scopeで保持する理由は、コミット後に`git status`から消える変更をセッション履歴として失わないためである。同一ファイルがコミット後に再変更された場合も、コミット済みと現在の未コミット状態を混同しない。
 
@@ -364,6 +371,8 @@ PC生成データ全体のスキーマ、収集状態、スナップショット
 | ファイル | `modified` | 修正 |
 | ファイル | `deleted` | 削除 |
 | ファイル | `renamed` | 名前変更 |
+| ファイル | `copied` | コピー |
+| ファイル | `type_changed` | 種類変更 |
 | ファイル | `conflicted` | 競合 |
 | ファイル | `untracked` | 未追跡 |
 | Codex | `working` | 作業中 |
@@ -407,6 +416,11 @@ PC生成データ全体のスキーマ、収集状態、スナップショット
 | 変更範囲 | `committed_in_session` | セッション中にコミット済み |
 | 変更範囲 | `staged` | コミット予定 |
 | 変更範囲 | `worktree` | 未ステージ |
+| 行数取得 | `measured` | 取得済み |
+| 行数取得 | `binary` | バイナリ |
+| 行数取得 | `not_inspected` | 未調査 |
+| 行数取得 | `not_applicable` | 対象外 |
+| 行数取得 | `failed` | 取得失敗 |
 | エラー分類 | `session_collection` | セッション収集 |
 | エラー分類 | `git_collection` | Git情報取得 |
 | エラー分類 | `data_conversion` | データ変換 |

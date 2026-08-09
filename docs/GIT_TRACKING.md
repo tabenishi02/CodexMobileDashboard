@@ -34,28 +34,41 @@ git -C <workspace> rev-parse HEAD
 
 新しいCodexセッションを検出した時点の`HEAD`を`session_start_commit`として保存する。
 
+ただし、Codex JSONLの`session_meta.git.commit_hash`を取得できる場合はその値を優先する。collectorがセッションを検出する前にコミットが作られても開始位置を失わないためである。JSONLにない場合だけ、collectorが最初に確認した`HEAD`を使用する。
+
+開始コミットは存在確認に加え、次のコマンドで現在の`HEAD`の祖先であることを確認する。
+
+```text
+git -C <workspace> merge-base --is-ancestor <session_start_commit> HEAD
+```
+
+rebaseやresetなどで祖先関係を確認できない場合は、コミット済み変更を推測しない。現在の作業ツリーだけを収集して警告し、Git履歴を自動修正しない。
+
 ## 現在の作業ツリー
 
 変更ファイル一覧は次のコマンドで取得する。
 
 ```text
-git -C <workspace> status --porcelain=v1 -z --untracked-files=all
+git -C <workspace> -c status.renames=copies status --porcelain=v1 -z --untracked-files=all
 ```
 
 - `X`をステージング領域の状態として保持する。
 - `Y`を作業ツリーの状態として保持する。
 - `??`を未追跡ファイルとして扱う。
 - 追加、変更、削除、名前変更、競合を区別する。
+- 種類変更とコピーも区別する。
 - NUL区切りをバイト列として解析する。
 - 名前変更では変更前と変更後のパスを保持する。
 - `.gitignore`対象は一覧に含めない。
+
+コピーはGitが`C`として明示した場合だけ`copied`とする。単純な複製を内容比較で推測せず、Gitが`A`と判定したものは`added`のまま扱う。
 
 ## セッション中のコミット済み変更
 
 タスクごとにコミットする運用でも変更を失わないよう、セッション開始時と現在の`HEAD`を比較する。
 
 ```text
-git -C <workspace> diff --name-status -z --find-renames <session_start_commit>..HEAD
+git -C <workspace> diff --name-status -z --find-renames --find-copies <session_start_commit>..HEAD
 ```
 
 現在の未コミット変更と、セッション中にコミットされた変更を統合して表示する。
@@ -65,22 +78,30 @@ git -C <workspace> diff --name-status -z --find-renames <session_start_commit>..
 未ステージ変更：
 
 ```text
-git -C <workspace> diff --numstat -z
+git -C <workspace> diff --numstat -z --find-renames --find-copies
 ```
 
 ステージ済み変更：
 
 ```text
-git -C <workspace> diff --cached --numstat -z
+git -C <workspace> diff --cached --numstat -z --find-renames --find-copies
 ```
 
 セッション中のコミット済み変更：
 
 ```text
-git -C <workspace> diff --numstat -z <session_start_commit>..HEAD
+git -C <workspace> diff --numstat -z --find-renames --find-copies <session_start_commit>..HEAD
 ```
 
 追加行数と削除行数が`-`の場合はバイナリファイルとして扱う。
+
+各変更範囲の行数取得状態は次のように保持する。
+
+- `measured`：Gitが行数を取得した。空ファイルは追加・削除とも0になる。
+- `binary`：Gitがバイナリと判定し、行数は`null`になる。
+- `not_inspected`：未追跡のため内容を調べず、行数とバイナリ判定を`null`にする。
+- `not_applicable`：その変更範囲には該当しない。
+- `failed`：Gitコマンドが失敗して取得できなかった。
 
 ## ファイル本体と差分本文
 
@@ -127,6 +148,12 @@ JSONLの`task_complete`を検出した後に、`HEAD`と作業ツリーを取得
 - 終了コードと標準エラーを確認する。
 - `stdout`は必要に応じてバイト列のまま解析する。
 - Gitの失敗理由を秘密情報を含めずにログへ記録する。
+
+Gitコマンドは検証系を10秒、変更一覧・行数取得を30秒でタイムアウトする。一部の取得だけ失敗した場合は成功した状態を保持し、取得不能な行数を`failed`、収集全体を`warning`とする。即時に連続実行せず、Codex作業中は30秒、停止中は60秒の定期確認で成功するまで再試行する。恒久的な問題を自動修正せず、同じ警告ログの重複は上位collectorで抑制する。
+
+`change_id`はワークスペースIDと正規化した相対パスからSHA-256で決定的に生成する。同じパスは再収集後も同じIDとし、時系列はスナップショットIDと取得日時で分離する。名前変更後は新しいIDとし、以前のパスを`old_path`に保持する。
+
+サブモジュールは親リポジトリ上の1件の変更として扱い、この処理から内部を再帰収集しない。
 
 ## 対象外とエラー
 

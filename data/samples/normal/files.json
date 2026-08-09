@@ -12,47 +12,61 @@
     "branch": "main",
     "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "session_start_commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-    "clean": false
+    "session_start_source": "jsonl",
+    "clean": false,
+    "retry_required": false
   },
   "files": [
     {
-      "change_id": "change-000001",
+      "change_id": "change_d21c162b14dbf5e491ad9ad73f9c6397021abd1a5aa0439b452d030dfdaee3e3",
       "path": "src/dashboard.py",
       "old_path": null,
-      "status": {"index": "modified", "worktree": "modified"},
+      "status": {"index": "modified", "worktree": "modified", "committed_in_session": "modified"},
       "numstat": {
-        "staged": {"added": 12, "deleted": 2},
-        "unstaged": {"added": 3, "deleted": 1},
-        "committed_in_session": {"added": 40, "deleted": 8}
+        "staged": {"state": "measured", "added": 12, "deleted": 2},
+        "unstaged": {"state": "measured", "added": 3, "deleted": 1},
+        "committed_in_session": {"state": "measured", "added": 40, "deleted": 8}
       },
       "binary": false,
       "scopes": ["committed_in_session", "staged", "worktree"]
     },
     {
-      "change_id": "change-000002",
+      "change_id": "change_e715d46ca65ea3976791aa7cafc1645da362769398ad249cfbea034164e12916",
       "path": "src/old_name.py",
       "old_path": null,
-      "status": {"index": "deleted", "worktree": "none"},
-      "numstat": {"staged": {"added": 0, "deleted": 18}, "unstaged": null, "committed_in_session": null},
+      "status": {"index": "deleted", "worktree": "none", "committed_in_session": "none"},
+      "numstat": {
+        "staged": {"state": "measured", "added": 0, "deleted": 18},
+        "unstaged": {"state": "not_applicable", "added": null, "deleted": null},
+        "committed_in_session": {"state": "not_applicable", "added": null, "deleted": null}
+      },
       "binary": false,
       "scopes": ["staged"]
     },
     {
-      "change_id": "change-000003",
+      "change_id": "change_e72ade33fa7334d0cb01ab31f059acbc67b9e3e9ef216c3ab7d2f5d4edc1d50b",
       "path": "docs/new-guide.md",
       "old_path": "docs/guide.md",
-      "status": {"index": "renamed", "worktree": "none"},
-      "numstat": {"staged": {"added": 1, "deleted": 1}, "unstaged": null, "committed_in_session": null},
+      "status": {"index": "renamed", "worktree": "none", "committed_in_session": "none"},
+      "numstat": {
+        "staged": {"state": "measured", "added": 1, "deleted": 1},
+        "unstaged": {"state": "not_applicable", "added": null, "deleted": null},
+        "committed_in_session": {"state": "not_applicable", "added": null, "deleted": null}
+      },
       "binary": false,
       "scopes": ["staged"]
     },
     {
-      "change_id": "change-000004",
+      "change_id": "change_82d0da6027b425abed851224bb2458cb6f1b6741eb81d53a4ca825478dbb63e0",
       "path": "assets/mockup.png",
       "old_path": null,
-      "status": {"index": "none", "worktree": "untracked"},
-      "numstat": {"staged": null, "unstaged": {"added": null, "deleted": null}, "committed_in_session": null},
-      "binary": true,
+      "status": {"index": "none", "worktree": "untracked", "committed_in_session": "none"},
+      "numstat": {
+        "staged": {"state": "not_applicable", "added": null, "deleted": null},
+        "unstaged": {"state": "not_inspected", "added": null, "deleted": null},
+        "committed_in_session": {"state": "not_applicable", "added": null, "deleted": null}
+      },
+      "binary": null,
       "scopes": ["worktree"]
     }
   ]
