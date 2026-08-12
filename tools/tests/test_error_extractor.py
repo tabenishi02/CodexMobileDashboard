@@ -102,6 +102,7 @@ def work_status(*turns: TurnWorkState) -> CurrentWorkStatus:
 def turn(*, rolled_back: bool) -> TurnWorkState:
     return TurnWorkState(
         turn_id="turn-1",
+        turn_id_source="jsonl",
         status="failed",
         started_at=None,
         started_at_source="missing",

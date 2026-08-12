@@ -79,7 +79,7 @@ msg_019fc728-bdb2-7471-ac9a-370c26f24a2b
 | `codex.current_work` | string | 必須 | 可 | 現在の作業。未取得なら`null` |
 | `latest.user_message_id` | string | 必須 | 可 | 最新ユーザーメッセージ参照 |
 | `latest.assistant_message_id` | string | 必須 | 可 | 最新Codexメッセージ参照 |
-| `latest.summary` | string | 必須 | 可 | 最新やりとりの短い要約 |
+| `latest.summary` | string | 必須 | 可 | 最新の有効な変更要約の`short_summary`。未生成なら`null` |
 | `next_actions` | array | 必須 | 不可 | 明示または推定した次タスク |
 | `errors.open` | integer | 必須 | 不可 | 未解決エラー数 |
 | `errors.critical` | integer | 必須 | 不可 | 未解決重大エラー数 |
@@ -125,6 +125,7 @@ turn要素：
 | フィールド | 型 | 必須 | `null` | 定義 |
 |---|---|---|---|---|
 | `turn_id` | string | 必須 | 不可 | やりとりID |
+| `turn_id_source` | string | 必須 | 不可 | `jsonl`または`generated` |
 | `status` | string | 必須 | 不可 | `in_progress`、`completed`、`failed`、`incomplete` |
 | `started_at` | string | 必須 | 不可 | ユーザー指示日時 |
 | `started_at_source` | string | 必須 | 不可 | 日時の取得元 |
@@ -143,6 +144,47 @@ turn要素：
 `turn_aborted`は`failed`とする。新しいターン開始時に終了イベントのない古いターンが残っている場合は、明示的な失敗と断定せず`incomplete`として警告し、理由を`superseded_by_new_turn`とする。`thread_rolled_back`の対象ターンは履歴から削除せず`rolled_back: true`とし、通常の最新ターンと直近2件の候補からは除外する。
 
 `started_at_source`と`completed_at_source`は、イベント固有のUnixミリ秒を使用した場合に`event_field`、JSONLレコード自体の日時で補完した場合に`record_timestamp`、日時を取得できない場合に`missing`とする。補完値を元イベント固有の値として扱わない。
+
+`turn_id`はJSONLのネイティブ値を優先する。欠損時は`session_id`、固定文字列`turn`、ターンイベントのJSONL内開始バイト位置をNULで区切った値からSHA-256で決定的に生成し、`turn_id_source: generated`とする。同じ元レコードからは同じIDを再生成でき、一意性は`session_id`と`turn_id`の組で保証する。
+
+## Codexセッション由来の変更要約
+
+完了、失敗、記録不完全の各ターンについて、Git差分やプロジェクトファイルを使用せず、秘密情報除外済みのCodexセッション情報だけから変更要約を生成する。応答中ターンは要約せず`codex.current_work`を使用する。ロールバック済み要約は履歴に保持するが、`dashboard.latest.summary`の候補から除外する。
+
+変更要約要素：
+
+| フィールド | 型 | 必須 | `null` | 定義 |
+|---|---|---|---|---|
+| `summary_id` | string | 必須 | 不可 | セッションID、ターンID、根拠メッセージIDから生成するSHA-256 ID |
+| `turn_id` | string | 必須 | 不可 | 対象ターンID |
+| `turn_id_source` | string | 必須 | 不可 | `jsonl`または`generated` |
+| `status` | string | 必須 | 不可 | `completed`、`failed`、`incomplete` |
+| `rolled_back` | boolean | 必須 | 不可 | ロールバック済みか |
+| `title` | string | 必須 | 不可 | 最大80文字の見出し |
+| `short_summary` | string | 必須 | 不可 | 初期画面用の最大160文字の要約 |
+| `details` | string | 必須 | 不可 | 詳細画面用の最大500文字の要約 |
+| `highlights` | array | 必須 | 不可 | 実施内容の要点。最大5件 |
+| `verification` | array | 必須 | 不可 | テストや検証結果。最大5件 |
+| `origin` | string | 必須 | 不可 | `explicit`または`codex_generated` |
+| `confidence` | string | 必須 | 不可 | `high`、`medium`、`low` |
+| `source_session_ids` | array | 必須 | 不可 | 根拠セッションID |
+| `source_message_ids` | array | 必須 | 不可 | 要約全体の根拠メッセージID |
+
+`highlights`と`verification`の各要素は、最大200文字の`text`と1件以上の`source_message_ids`を必須・非`null`とする。CLIが入力にないメッセージIDを返した場合は要約全体を採用しない。コードブロックは生成しない。表示用JSONへの物理的な関連付けは、次工程のJSON変換で確定する。
+
+根拠には次の優先順位と用途制限を設ける。
+
+1. Codex最終回答：実施内容、結果、検証の最優先根拠。
+2. ユーザー指示：作業目的だけの根拠。単独で完了や変更を断定しない。
+3. Codex途中経過：作業過程の補助。単独で完了を断定しない。
+4. 安全化済みツール概要：明示的な成功・失敗だけの補助根拠。
+5. 安全化済みファイル参照：関連名の補助。変更した事実の根拠にはしない。
+
+開発者指示、システム指示、ツール引数・出力本文、コードブロック本文、Git情報は要約入力に含めない。
+
+最終回答に具体的な実施結果があれば規則で抽出し、`origin: explicit`とする。「対応しました」のように単独で内容を特定できない場合だけ、隔離したCodex CLIで`origin: codex_generated`を生成する。CLIは次タスク推定と同じく一時ディレクトリ、読み取り専用sandbox、ユーザー設定・ルール・MCP・プラグイン除外、入力最大128KiB、120秒タイムアウト、即時再試行なしとする。
+
+入力上限超過時は最終回答、ユーザー指示、途中経過、ツール概要の順で推定用入力だけを制限し、元メッセージを変更しない。成功結果は同じ根拠で再利用し、失敗は5分間キャッシュする。CLI失敗時も具体的な最終回答から規則抽出できなければ要約を`null`として警告し、ユーザー指示や以前の要約から成果を推測しない。秘密情報除外済みと確認できない入力は、原文やそのハッシュをキャッシュせず、規則抽出にもCLIにも使用しない。
 
 ## `messages.json`とページ
 

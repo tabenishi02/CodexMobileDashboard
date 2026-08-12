@@ -28,6 +28,7 @@ class WorkStatusIssue:
 @dataclass(frozen=True)
 class TurnWorkState:
     turn_id: str
+    turn_id_source: str
     status: str
     started_at: Optional[str]
     started_at_source: str
@@ -56,6 +57,7 @@ class CurrentWorkStatus:
 @dataclass
 class _TurnBuilder:
     turn_id: str
+    turn_id_source: str
     status: str
     started_at: Optional[str]
     started_at_source: str
@@ -89,6 +91,7 @@ def extract_current_work_status(
             if status not in ("started", "completed", "aborted"):
                 continue
             turn_id = record.turn_id or _fallback_turn_id(session_id, record)
+            turn_id_source = "jsonl" if record.turn_id is not None else "generated"
             if record.turn_id is None:
                 _add_issue(record, issues, "missing_turn_id")
 
@@ -108,6 +111,7 @@ def extract_current_work_status(
                     )
                     builder = _TurnBuilder(
                         turn_id=turn_id,
+                        turn_id_source=turn_id_source,
                         status="in_progress",
                         started_at=started_at,
                         started_at_source=started_at_source,
@@ -139,6 +143,7 @@ def extract_current_work_status(
                     )
                     builder = _TurnBuilder(
                         turn_id=turn_id,
+                        turn_id_source=turn_id_source,
                         status="in_progress",
                         started_at=started_at,
                         started_at_source=started_at_source,
@@ -234,6 +239,7 @@ def _finish_turn(
     )
     return TurnWorkState(
         turn_id=builder.turn_id,
+        turn_id_source=builder.turn_id_source,
         status=builder.status,
         started_at=builder.started_at,
         started_at_source=builder.started_at_source,

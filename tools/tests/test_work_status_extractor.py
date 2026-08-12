@@ -72,6 +72,7 @@ class WorkStatusExtractorTests(unittest.TestCase):
 
         self.assertEqual("working", result.codex_status)
         self.assertEqual("turn-1", result.active_turn_id)
+        self.assertEqual("jsonl", result.turns[0].turn_id_source)
         self.assertEqual("現在の作業を実装してください", result.current_work)
         self.assertEqual("msg-150", result.current_work_message_id)
 
@@ -157,6 +158,18 @@ class WorkStatusExtractorTests(unittest.TestCase):
 
         self.assertEqual("record_timestamp", result.turns[0].started_at_source)
         self.assertEqual("record_timestamp", result.turns[0].completed_at_source)
+
+    def test_missing_turn_id_uses_deterministic_generated_id(self) -> None:
+        record = turn_record("started", turn_id=None, offset=100)
+
+        first = extract_current_work_status([record], [], "session-1")
+        second = extract_current_work_status([record], [], "session-1")
+
+        self.assertEqual(first.turns[0].turn_id, second.turns[0].turn_id)
+        self.assertRegex(first.turns[0].turn_id, r"^turn_[0-9a-f]{64}$")
+        self.assertEqual("generated", first.turns[0].turn_id_source)
+        other_session = extract_current_work_status([record], [], "session-2")
+        self.assertNotEqual(first.turns[0].turn_id, other_session.turns[0].turn_id)
 
 
 if __name__ == "__main__":

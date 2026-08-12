@@ -10,6 +10,7 @@
   "turns": [
     {
       "turn_id": "turn-000002",
+      "turn_id_source": "jsonl",
       "status": "completed",
       "started_at": "2026-08-04T15:20:00+09:00",
       "started_at_source": "event_field",
@@ -23,6 +24,7 @@
     },
     {
       "turn_id": "turn-000001",
+      "turn_id_source": "jsonl",
       "status": "completed",
       "started_at": "2026-08-04T15:10:00+09:00",
       "started_at_source": "event_field",
