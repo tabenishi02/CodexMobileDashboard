@@ -60,6 +60,13 @@ msg_019fc728-bdb2-7471-ac9a-370c26f24a2b
 
 `warnings`の各要素は、`warning_id`、`severity`、`code`、`summary`、`occurred_at`、`source_message_ids`を必須とする。`occurred_at`だけは元日時不明の場合に`null`を許可する。警告本文の全文は重複保存せず、必要なら元メッセージを参照する。
 
+### JSONの文字コードと直列化
+
+- JSONファイルはBOMなしUTF-8で保存する。
+- 日本語や絵文字を`\uXXXX`へ強制変換せず、UTF-8文字として保持する。
+- 改行はLF、インデントは2空白、ファイル末尾はLFとする。
+- ページ索引と`metadata.json`の`byte_size`および`sha256`は、実際に保存する同一バイト列から算出する。
+
 ## 日時
 
 - タイムゾーンを含むISO 8601文字列を使用する。
