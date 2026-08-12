@@ -15,10 +15,17 @@ LOGGER = logging.getLogger("converter")
 
 
 @dataclass(frozen=True)
+class NormalizedRedaction:
+    type: str
+    detector: str
+
+
+@dataclass(frozen=True)
 class NormalizedContentPart:
     kind: str
     text: Optional[str]
     source_type: Optional[str]
+    redactions: Tuple[NormalizedRedaction, ...] = tuple()
 
 
 @dataclass(frozen=True)

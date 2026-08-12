@@ -41,9 +41,16 @@ _AUTOMATIC_PREFIX_PATTERNS = (
 
 
 @dataclass(frozen=True)
+class ChatRedaction:
+    type: str
+    detector: str
+
+
+@dataclass(frozen=True)
 class ChatContentPart:
     kind: str
     text: str
+    redactions: Tuple[ChatRedaction, ...] = tuple()
 
 
 @dataclass(frozen=True)
@@ -362,7 +369,14 @@ def _text_content(
     parts: Iterable[NormalizedContentPart],
 ) -> Tuple[ChatContentPart, ...]:
     return tuple(
-        ChatContentPart(part.kind, part.text)
+        ChatContentPart(
+            part.kind,
+            part.text,
+            tuple(
+                ChatRedaction(redaction.type, redaction.detector)
+                for redaction in part.redactions
+            ),
+        )
         for part in parts
         if part.text is not None
     )
@@ -388,13 +402,43 @@ def _remove_automatic_prefixes(
         removed.append(matched_name)
         remainder = text[matched_end:]
         if remainder:
-            remaining[0] = ChatContentPart("text", remainder)
+            remaining[0] = ChatContentPart(
+                "text",
+                remainder,
+                _redactions_present_in_text(remaining[0].redactions, remainder),
+            )
         else:
             remaining.pop(0)
 
     if not removed:
         return content, tuple()
     return tuple(remaining), tuple(removed)
+
+
+def _redactions_present_in_text(
+    redactions: Tuple[ChatRedaction, ...], text: str
+) -> Tuple[ChatRedaction, ...]:
+    remaining = list(redactions)
+    selected: List[ChatRedaction] = []
+    for redaction_type, marker in (
+        ("api_key", "[REDACTED:API_KEY]"),
+        ("token", "[REDACTED:TOKEN]"),
+        ("password", "[REDACTED:PASSWORD]"),
+        ("private_key", "[REDACTED:PRIVATE_KEY]"),
+        ("url_credential", "[REDACTED:URL_CREDENTIAL]"),
+    ):
+        for _ in range(text.count(marker)):
+            index = next(
+                (
+                    position
+                    for position, value in enumerate(remaining)
+                    if value.type == redaction_type
+                ),
+                None,
+            )
+            if index is not None:
+                selected.append(remaining.pop(index))
+    return tuple(selected)
 
 
 def _content_digest(content: Iterable[ChatContentPart]) -> str:

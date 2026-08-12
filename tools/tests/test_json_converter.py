@@ -12,6 +12,7 @@ from tools.change_summary_generator import (
 from tools.chat_extractor import (
     ChatContentPart,
     ChatExtractionResult,
+    ChatRedaction,
     ExtractedChatMessage,
 )
 from tools.decision_extractor import DecisionExtractionResult, ExtractedDecision
@@ -284,6 +285,30 @@ class JsonConverterTests(unittest.TestCase):
         ]["blocks"]
         self.assertEqual("text", blocks[0]["type"])
         self.assertEqual("```python\nprint(1)", blocks[0]["text"])
+
+    def test_redactions_reference_the_final_content_block(self) -> None:
+        redacted = replace(
+            self.messages[1],
+            content=(
+                ChatContentPart(
+                    "text",
+                    "説明\n```text\ntoken=[REDACTED:TOKEN]\n```",
+                    (ChatRedaction("token", "sensitive_assignment"),),
+                ),
+            ),
+        )
+
+        snapshot = self.build(messages=(self.messages[0], redacted))
+        value = snapshot.document("messages/pages/page-000001.json")["messages"][1]
+
+        self.assertEqual(1, len(value["redactions"]))
+        redaction = value["redactions"][0]
+        code_block = value["content"]["blocks"][1]
+        self.assertEqual(code_block["block_id"], redaction["block_id"])
+        self.assertEqual("token", redaction["type"])
+        self.assertEqual("sensitive_assignment", redaction["detector"])
+        encoded = snapshot.encoded("messages/pages/page-000001.json")
+        self.assertNotIn("token-value", encoded.decode("utf-8"))
 
     def test_rejects_content_not_certified_as_masked(self) -> None:
         with self.assertRaises(UnsafeJsonInputError):

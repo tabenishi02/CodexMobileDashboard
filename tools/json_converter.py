@@ -349,6 +349,7 @@ def _message_value(
     message: ExtractedChatMessage,
     references: Sequence[ExtractedFileReference],
 ) -> Mapping[str, object]:
+    blocks, redactions = _content_blocks(message)
     return {
         "message_id": message.message_id,
         "source_message_id": message.source_message_id,
@@ -360,9 +361,9 @@ def _message_value(
         "turn_id": message.turn_id,
         "content": {
             "kind": "blocks",
-            "blocks": _content_blocks(message),
+            "blocks": blocks,
         },
-        "redactions": [],
+        "redactions": redactions,
         "display_mode": message.display_mode,
         "duplicate_of": message.duplicate_of,
         "occurrence_count": message.occurrence_count,
@@ -371,24 +372,59 @@ def _message_value(
     }
 
 
-def _content_blocks(message: ExtractedChatMessage) -> List[Mapping[str, object]]:
+def _content_blocks(
+    message: ExtractedChatMessage,
+) -> Tuple[List[Mapping[str, object]], List[Mapping[str, object]]]:
     blocks: List[Mapping[str, object]] = []
+    redaction_values: List[Mapping[str, object]] = []
     for part in message.content:
         text = part.text if part.kind == "text" else f"{part.kind}: {part.text}"
         parsed = _parse_fenced_text(text)
         if parsed is None:
             parsed = [("text", None, text)]
+        remaining_redactions = list(part.redactions)
         for block_type, language, block_text in parsed:
             index = len(blocks) + 1
+            block_id = _block_id(message.message_id, index)
             value: Dict[str, object] = {
-                "block_id": _block_id(message.message_id, index),
+                "block_id": block_id,
                 "type": block_type,
                 "text": block_text,
             }
             if block_type == "code":
                 value["language"] = language
             blocks.append(value)
-    return blocks
+            for marker in re.finditer(
+                r"\[REDACTED:(API_KEY|TOKEN|PASSWORD|PRIVATE_KEY|URL_CREDENTIAL)\]",
+                block_text,
+            ):
+                redaction_type = marker.group(1).lower()
+                redaction_index = next(
+                    (
+                        position
+                        for position, redaction in enumerate(remaining_redactions)
+                        if redaction.type == redaction_type
+                    ),
+                    None,
+                )
+                detector = "existing_marker"
+                if redaction_index is not None:
+                    detector = remaining_redactions.pop(redaction_index).detector
+                ordinal = len(redaction_values) + 1
+                identity = (
+                    f"{message.message_id}\0{block_id}\0{redaction_type}\0"
+                    f"{detector}\0{ordinal}"
+                )
+                redaction_values.append(
+                    {
+                        "redaction_id": "redaction_"
+                        + hashlib.sha256(identity.encode("utf-8")).hexdigest(),
+                        "type": redaction_type,
+                        "block_id": block_id,
+                        "detector": detector,
+                    }
+                )
+    return blocks, redaction_values
 
 
 def _parse_fenced_text(

@@ -602,6 +602,18 @@ codex exec --ephemeral --sandbox read-only \
 - クライアントはマーカーを「秘密情報を除外しました」と表示する。
 - 運用ログにはマスク件数と種別だけを記録する。
 
+MVPの検出規則：
+
+- `Authorization`および`Proxy-Authorization`ヘッダーのBearer、Basic、Token値を`token`として除外する。
+- `api_key`、`access_key`、`secret_key`、`client_secret`、各種`token`、`password`、`passwd`、`pwd`、`private_key`への代入を名前に応じて分類する。JSONフィールドと`--password value`形式も対象とする。
+- 環境変数は`OPENAI_API_KEY`、`SERVICE_TOKEN`、`DB_PASSWORD`のように秘密性の高い末尾名を持つ値だけを除外する。`PATH`、`HOME`、`LOCALAPPDATA`などを一律には除外しない。
+- PEM秘密鍵はBEGINからENDまでを1件として除外する。URL userinfoはユーザー名とパスワードの組全体を除外する。
+- OpenAI・Anthropic・AWS・Google・Stripeの既知APIキー形式と、GitHub・Slack・JWTの既知トークン形式を検出する。
+- 未知の長い文字列を長さや文字種だけでは除外しない。GitコミットID、SHA-256、UUID、一般的な識別子を秘密情報として誤検出しないためである。
+- MVPでは氏名、メールアドレス、電話番号、IPアドレスなど一般的な個人情報は自動マスク対象外とする。必要になった場合は、秘密情報規則と分けて検討する。
+
+`redaction_id`はメッセージID、最終ブロックID、種別、検出方法、出現順から決定的に生成する。マスク前の値、そのハッシュ、長さはIDへ使用しない。`type`は`api_key`、`token`、`password`、`private_key`、`url_credential`のいずれかとする。`detector`は`pem_private_key`、`url_userinfo`、`authorization_header`、`json_sensitive_field`、`sensitive_assignment`、`sensitive_command_option`、`known_api_key_format`、`known_token_format`、`existing_marker`のいずれかとする。
+
 例：
 
 ```json
