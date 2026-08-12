@@ -28,6 +28,7 @@ from tools.git_change_collector import (
 from tools.json_converter import (
     CollectorMetadata,
     JsonContext,
+    MESSAGE_CHUNK_MAX_BYTES,
     ProjectPresentation,
     UnsafeJsonInputError,
     build_json_snapshot,
@@ -309,6 +310,84 @@ class JsonConverterTests(unittest.TestCase):
         self.assertEqual("sensitive_assignment", redaction["detector"])
         encoded = snapshot.encoded("messages/pages/page-000001.json")
         self.assertNotIn("token-value", encoded.decode("utf-8"))
+
+    def test_splits_large_message_without_losing_utf8_text(self) -> None:
+        text = ("日本語🙂の長文です。\n" * 40_000) + "末尾です。"
+        large = replace(
+            self.messages[1],
+            message_id="msg/large-日本語",
+            source_message_id="msg/large-日本語",
+            content=(ChatContentPart("text", text),),
+        )
+
+        snapshot = self.build(messages=(self.messages[0], large))
+        message_value = snapshot.document("messages/pages/page-000001.json")[
+            "messages"
+        ][1]
+        content = message_value["content"]
+
+        self.assertEqual("chunked_blocks", content["kind"])
+        self.assertGreater(content["chunk_count"], 1)
+        self.assertEqual(len(text.encode("utf-8")), content["original_byte_size"])
+        self.assertEqual(
+            hashlib.sha256(text.encode("utf-8")).hexdigest(), content["sha256"]
+        )
+        restored = []
+        for expected_part, reference in enumerate(content["chunks"], start=1):
+            self.assertEqual(expected_part, reference["part"])
+            self.assertNotIn("/large", reference["path"])
+            document = snapshot.document(reference["path"])
+            encoded = snapshot.encoded(reference["path"])
+            self.assertLessEqual(len(encoded), MESSAGE_CHUNK_MAX_BYTES)
+            self.assertEqual(len(encoded), reference["byte_size"])
+            self.assertEqual(
+                hashlib.sha256(encoded).hexdigest(), reference["sha256"]
+            )
+            self.assertEqual("message_chunk", document["data_type"])
+            self.assertEqual("msg/large-日本語", document["message_id"])
+            self.assertEqual(expected_part, document["part"])
+            self.assertEqual(content["chunk_count"], document["total_parts"])
+            restored.extend(str(block["text"]) for block in document["blocks"])
+        self.assertEqual(text, "".join(restored))
+
+        metadata_paths = {
+            value["path"]
+            for value in snapshot.document("metadata.json")["snapshot"]["files"]
+        }
+        self.assertTrue(
+            {value["path"] for value in content["chunks"]} <= metadata_paths
+        )
+
+    def test_preserves_code_block_metadata_across_chunks(self) -> None:
+        code = "print('🙂')\n" * 30_000
+        source = f"説明です。\n```python\n{code}```\n完了です。"
+        large = replace(
+            self.messages[1], content=(ChatContentPart("text", source),)
+        )
+
+        snapshot = self.build(messages=(self.messages[0], large))
+        content = snapshot.document("messages/pages/page-000001.json")["messages"][1][
+            "content"
+        ]
+        restored_blocks = []
+        for reference in content["chunks"]:
+            for block in snapshot.document(reference["path"])["blocks"]:
+                if (
+                    restored_blocks
+                    and restored_blocks[-1]["block_id"] == block["block_id"]
+                ):
+                    restored_blocks[-1]["text"] += block["text"]
+                else:
+                    restored_blocks.append(dict(block))
+
+        self.assertEqual(
+            ["text", "code", "text"],
+            [block["type"] for block in restored_blocks],
+        )
+        self.assertEqual("python", restored_blocks[1]["language"])
+        self.assertEqual(code, restored_blocks[1]["text"])
+        self.assertEqual("説明です。\n", restored_blocks[0]["text"])
+        self.assertEqual("完了です。", restored_blocks[2]["text"])
 
     def test_rejects_content_not_certified_as_masked(self) -> None:
         with self.assertRaises(UnsafeJsonInputError):

@@ -34,6 +34,7 @@ LOGGER = logging.getLogger("converter")
 SCHEMA_VERSION = "1.0"
 PAGE_MAX_ITEMS = 100
 PAGE_MAX_BYTES = 512 * 1024
+MESSAGE_CHUNK_MAX_BYTES = 256 * 1024
 PREVIEW_MAX_CHARACTERS = 500
 
 _FENCE = re.compile(
@@ -113,12 +114,13 @@ def build_json_snapshot(
     work_warnings = _warnings("recent", work_status.issues, context)
 
     documents: Dict[str, Mapping[str, object]] = {}
-    message_pages = _build_message_pages(
+    message_pages, message_chunks = _build_message_documents(
         context,
         chats.messages,
         file_references.references,
         message_warnings,
     )
+    documents.update(message_chunks)
     documents.update(message_pages)
     summary_pages = _build_summary_pages(
         context, summaries.summaries, summary_warnings
@@ -196,21 +198,33 @@ def _common(
     }
 
 
-def _build_message_pages(
+def _build_message_documents(
     context: JsonContext,
     messages: Sequence[ExtractedChatMessage],
     references: Sequence[ExtractedFileReference],
     warnings: Sequence[Mapping[str, object]],
-) -> Dict[str, Mapping[str, object]]:
+) -> Tuple[
+    Dict[str, Mapping[str, object]],
+    Dict[str, Mapping[str, object]],
+]:
     references_by_message: Dict[str, List[ExtractedFileReference]] = {}
     for reference in references:
         for message_id in reference.source_message_ids:
             references_by_message.setdefault(message_id, []).append(reference)
-    values = [
-        _message_value(message, references_by_message.get(message.message_id, []))
-        for message in messages
-    ]
-    return _paginate(
+    values: List[Mapping[str, object]] = []
+    chunks: Dict[str, Mapping[str, object]] = {}
+    for message in messages:
+        value, message_chunks = _message_value(
+            context,
+            message,
+            references_by_message.get(message.message_id, []),
+        )
+        values.append(value)
+        for path, document in message_chunks.items():
+            if path in chunks:
+                raise ValueError("duplicate_message_chunk_path")
+            chunks[path] = document
+    pages = _paginate(
         context,
         values,
         "messages_page",
@@ -218,6 +232,7 @@ def _build_message_pages(
         "messages/pages/page-{page:06d}.json",
         warnings,
     )
+    return pages, chunks
 
 
 def _build_summary_pages(
@@ -346,11 +361,12 @@ def _summary_page_index(
 
 
 def _message_value(
+    context: JsonContext,
     message: ExtractedChatMessage,
     references: Sequence[ExtractedFileReference],
-) -> Mapping[str, object]:
+) -> Tuple[Mapping[str, object], Dict[str, Mapping[str, object]]]:
     blocks, redactions = _content_blocks(message)
-    return {
+    value = {
         "message_id": message.message_id,
         "source_message_id": message.source_message_id,
         "sequence": message.sequence,
@@ -368,8 +384,159 @@ def _message_value(
         "duplicate_of": message.duplicate_of,
         "occurrence_count": message.occurrence_count,
         "removed_automatic_contexts": list(message.removed_automatic_contexts),
-        "file_references": [_file_reference_value(value) for value in references],
+        "file_references": [_file_reference_value(item) for item in references],
     }
+    if len(encode_json(value)) <= MESSAGE_CHUNK_MAX_BYTES:
+        return value, {}
+
+    chunk_documents = _chunk_message_blocks(context, message.message_id, blocks)
+    original = "".join(str(block["text"]) for block in blocks).encode("utf-8")
+    chunk_references = []
+    for path, document in chunk_documents.items():
+        encoded = encode_json(document)
+        chunk_references.append(
+            {
+                "part": document["part"],
+                "path": path,
+                "byte_size": len(encoded),
+                "sha256": hashlib.sha256(encoded).hexdigest(),
+            }
+        )
+    value["content"] = {
+        "kind": "chunked_blocks",
+        "original_byte_size": len(original),
+        "chunk_count": len(chunk_documents),
+        "chunks": chunk_references,
+        "sha256": hashlib.sha256(original).hexdigest(),
+    }
+    return value, chunk_documents
+
+
+def _chunk_message_blocks(
+    context: JsonContext,
+    message_id: str,
+    blocks: Sequence[Mapping[str, object]],
+) -> Dict[str, Mapping[str, object]]:
+    total_parts = 1
+    while True:
+        parts = _split_blocks_for_chunks(context, message_id, blocks, total_parts)
+        if len(parts) == total_parts:
+            break
+        total_parts = len(parts)
+
+    stem = _safe_message_filename(message_id)
+    documents: Dict[str, Mapping[str, object]] = {}
+    for part, chunk_blocks in enumerate(parts, start=1):
+        path = f"messages/chunks/{stem}-part-{part:06d}.json"
+        document = _message_chunk_document(
+            context, message_id, part, total_parts, chunk_blocks
+        )
+        if len(encode_json(document)) > MESSAGE_CHUNK_MAX_BYTES:
+            raise ValueError("message_chunk_too_large")
+        documents[path] = document
+    return documents
+
+
+def _split_blocks_for_chunks(
+    context: JsonContext,
+    message_id: str,
+    blocks: Sequence[Mapping[str, object]],
+    total_parts: int,
+) -> List[List[Mapping[str, object]]]:
+    chunks: List[List[Mapping[str, object]]] = []
+    current: List[Mapping[str, object]] = []
+    part = 1
+    for block in blocks:
+        remaining = str(block["text"])
+        pending = True
+        while pending:
+            candidate_block = dict(block)
+            candidate_block["text"] = remaining
+            candidate = current + [candidate_block]
+            document = _message_chunk_document(
+                context, message_id, part, total_parts, candidate
+            )
+            if len(encode_json(document)) <= MESSAGE_CHUNK_MAX_BYTES:
+                current = candidate
+                pending = False
+                continue
+            if current:
+                chunks.append(current)
+                current = []
+                part += 1
+                continue
+            piece, remaining = _largest_fitting_text(
+                context,
+                message_id,
+                part,
+                total_parts,
+                block,
+                remaining,
+            )
+            piece_block = dict(block)
+            piece_block["text"] = piece
+            chunks.append([piece_block])
+            part += 1
+            pending = bool(remaining)
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def _largest_fitting_text(
+    context: JsonContext,
+    message_id: str,
+    part: int,
+    total_parts: int,
+    block: Mapping[str, object],
+    text: str,
+) -> Tuple[str, str]:
+    low = 1
+    high = len(text)
+    fitting = 0
+    while low <= high:
+        middle = (low + high) // 2
+        value = dict(block)
+        value["text"] = text[:middle]
+        document = _message_chunk_document(
+            context, message_id, part, total_parts, [value]
+        )
+        if len(encode_json(document)) <= MESSAGE_CHUNK_MAX_BYTES:
+            fitting = middle
+            low = middle + 1
+        else:
+            high = middle - 1
+    if fitting == 0:
+        raise ValueError("message_chunk_envelope_too_large")
+    return text[:fitting], text[fitting:]
+
+
+def _message_chunk_document(
+    context: JsonContext,
+    message_id: str,
+    part: int,
+    total_parts: int,
+    blocks: Sequence[Mapping[str, object]],
+) -> Mapping[str, object]:
+    result = _common(context, "message_chunk", [])
+    result.update(
+        {
+            "message_id": message_id,
+            "part": part,
+            "total_parts": total_parts,
+            "blocks": list(blocks),
+        }
+    )
+    return result
+
+
+def _safe_message_filename(message_id: str) -> str:
+    normalized = re.sub(r"[^A-Za-z0-9._-]", "_", message_id)
+    if normalized == message_id and len(normalized) <= 120:
+        return normalized
+    digest = hashlib.sha256(message_id.encode("utf-8")).hexdigest()[:16]
+    prefix = normalized[:100].rstrip("._-") or "message"
+    return f"{prefix}-{digest}"
 
 
 def _content_blocks(

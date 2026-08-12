@@ -285,7 +285,7 @@ turn要素：
 - 構文が曖昧または壊れている場合は、メッセージ全体を`plain_text`として保持し、推測で欠落させない。
 - クライアントはコードを実行せず、テキスト要素として表示する。
 
-長文は`kind: chunked_blocks`として、`original_byte_size`、`chunk_count`、`chunks`、`sha256`を条件付き必須とする。`chunks`の各要素は`part`、`path`、`byte_size`、`sha256`を必須・非`null`とする。断片ファイルには共通フィールドに加えて`message_id`、`part`、`total_parts`、`blocks`を必須・非`null`として持たせる。
+長文は`kind: chunked_blocks`として、`original_byte_size`、`chunk_count`、`chunks`、`sha256`を条件付き必須とする。`chunks`の各要素は`part`、`path`、`byte_size`、`sha256`を必須・非`null`とする。断片ファイルには共通フィールドに加えて`message_id`、`part`、`total_parts`、`blocks`を必須・非`null`として持たせる。`byte_size`と断片の`sha256`は断片JSON全体のBOMなしUTF-8表現から算出する。`original_byte_size`と全体の`sha256`は、整理済みブロックの`text`を順番に連結したUTF-8本文から算出する。断片はUTF-8文字の途中で切らず、同じ`block_id`の断片を順番に連結すれば元のブロックを復元できる。各断片JSON全体を256KiB以下とする。
 
 ## `errors.json`
 
