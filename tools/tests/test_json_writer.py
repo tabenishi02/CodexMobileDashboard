@@ -2,6 +2,7 @@ import hashlib
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tools.json_converter import JsonSnapshot, encode_json
 from tools.json_writer import UnsafeJsonPathError, save_json_snapshot
@@ -111,6 +112,7 @@ class JsonWriterTests(unittest.TestCase):
                 save_json_snapshot(source, output)
 
             self.assertFalse(output.exists())
+
     def test_rejects_case_insensitive_duplicate_targets(self) -> None:
         source = snapshot()
         first = source.documents["messages/pages/page-000001.json"]
@@ -127,6 +129,91 @@ class JsonWriterTests(unittest.TestCase):
             with self.assertRaises(UnsafeJsonPathError):
                 save_json_snapshot(source, Path(directory) / "output")
 
+    def test_replaces_from_same_directory_and_metadata_is_last(self) -> None:
+        source = snapshot()
+        calls = []
+
+        def recording_replace(source_path, target_path):
+            source_value = Path(source_path)
+            target_value = Path(target_path)
+            calls.append((source_value, target_value))
+            source_value.replace(target_value)
+
+        with tempfile.TemporaryDirectory() as directory:
+            with patch("tools.json_writer.os.replace", side_effect=recording_replace):
+                save_json_snapshot(source, Path(directory) / "output")
+
+        self.assertEqual("metadata.json", calls[-1][1].name)
+        for temporary_path, target_path in calls:
+            self.assertEqual(target_path.parent, temporary_path.parent)
+            self.assertTrue(temporary_path.name.startswith(f".{target_path.name}."))
+            self.assertTrue(temporary_path.name.endswith(".tmp"))
+
+    def test_uses_documented_snapshot_update_order(self) -> None:
+        source = snapshot()
+        common = dict(source.documents["metadata.json"])
+        paths = (
+            "metadata.json",
+            "dashboard.json",
+            "recent.json",
+            "files.json",
+            "decisions.json",
+            "errors.json",
+            "messages.json",
+            "messages/summaries/summary-page-000001.json",
+            "messages/pages/page-000001.json",
+            "messages/chunks/msg-1-part-000001.json",
+        )
+        documents = {path: dict(common) for path in paths}
+        source = JsonSnapshot(documents)
+        replaced = []
+
+        def recording_replace(source_path, target_path):
+            target_value = Path(target_path)
+            replaced.append(target_value.as_posix())
+            Path(source_path).replace(target_value)
+
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = (Path(directory) / "output" / "sample-project").as_posix()
+            with patch("tools.json_writer.os.replace", side_effect=recording_replace):
+                save_json_snapshot(source, Path(directory) / "output")
+
+        relative = [path.removeprefix(workspace + "/") for path in replaced]
+        self.assertEqual(
+            [
+                "messages/chunks/msg-1-part-000001.json",
+                "messages/pages/page-000001.json",
+                "messages/summaries/summary-page-000001.json",
+                "messages.json",
+                "errors.json",
+                "decisions.json",
+                "files.json",
+                "recent.json",
+                "dashboard.json",
+                "metadata.json",
+            ],
+            relative,
+        )
+    def test_replace_failure_keeps_existing_file_and_removes_temporary(self) -> None:
+        source = snapshot()
+        metadata = source.documents["metadata.json"]
+        source = JsonSnapshot({"metadata.json": metadata})
+
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory) / "output" / "sample-project"
+            workspace.mkdir(parents=True)
+            target = workspace / "metadata.json"
+            target.write_bytes(b"previous snapshot\n")
+
+            with patch(
+                "tools.json_writer.os.replace",
+                side_effect=PermissionError("replace denied"),
+            ):
+                with self.assertRaises(PermissionError):
+                    save_json_snapshot(source, Path(directory) / "output")
+
+            self.assertEqual(b"previous snapshot\n", target.read_bytes())
+            self.assertEqual([], list(workspace.glob(".metadata.json.*.tmp")))
 
 if __name__ == "__main__":
     unittest.main()

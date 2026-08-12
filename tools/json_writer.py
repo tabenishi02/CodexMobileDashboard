@@ -6,6 +6,7 @@ import hashlib
 import logging
 import os
 import re
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Dict, List, Tuple
@@ -35,7 +36,7 @@ class JsonSaveResult:
 
 
 def save_json_snapshot(snapshot: JsonSnapshot, output_directory: Path) -> JsonSaveResult:
-    """Write one workspace snapshot as UTF-8 without performing atomic replacement."""
+    """Atomically replace each workspace JSON file with a complete UTF-8 file."""
 
     workspace_id = _workspace_id(snapshot)
     _validate_document_identity(snapshot)
@@ -45,11 +46,10 @@ def save_json_snapshot(snapshot: JsonSnapshot, output_directory: Path) -> JsonSa
     targets = _validated_targets(snapshot, workspace_directory)
     workspace_directory.mkdir(parents=True, exist_ok=True)
     saved: List[SavedJsonFile] = []
-    for relative_path, target in targets:
+    for relative_path, target in _ordered_targets(targets):
         data = encode_json(snapshot.documents[relative_path])
         target.parent.mkdir(parents=True, exist_ok=True)
-        with target.open("wb") as stream:
-            stream.write(data)
+        _atomic_replace(target, data)
         saved.append(
             SavedJsonFile(
                 path=relative_path,
@@ -64,6 +64,55 @@ def save_json_snapshot(snapshot: JsonSnapshot, output_directory: Path) -> JsonSa
         len(saved),
     )
     return JsonSaveResult(workspace_directory, tuple(saved))
+
+
+def _atomic_replace(target: Path, data: bytes) -> None:
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{target.name}.",
+        suffix=".tmp",
+        dir=str(target.parent),
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary_path, target)
+    except BaseException:
+        try:
+            temporary_path.unlink(missing_ok=True)
+        except OSError:
+            LOGGER.warning(
+                "JSON一時ファイルを削除できません: file=%s",
+                temporary_path.name,
+            )
+        LOGGER.error("JSONの原子的置換に失敗: file=%s", target.name)
+        raise
+
+
+def _ordered_targets(targets: List[Tuple[str, Path]]) -> List[Tuple[str, Path]]:
+    return sorted(targets, key=lambda value: _update_rank(value[0]))
+
+
+def _update_rank(path: str) -> Tuple[int, str]:
+    if path.startswith("messages/chunks/"):
+        rank = 0
+    elif path.startswith("messages/pages/"):
+        rank = 1
+    elif path.startswith("messages/summaries/"):
+        rank = 2
+    else:
+        rank = {
+            "messages.json": 3,
+            "errors.json": 4,
+            "decisions.json": 5,
+            "files.json": 6,
+            "recent.json": 7,
+            "dashboard.json": 8,
+            "metadata.json": 10,
+        }.get(path, 9)
+    return rank, path
 
 
 def _workspace_id(snapshot: JsonSnapshot) -> str:
