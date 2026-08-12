@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0",
+  "data_type": "change_summaries_page",
+  "snapshot_id": "sample-20260804T153000-000001",
+  "generated_at": "2026-08-04T15:30:00+09:00",
+  "workspace_id": "sample-project",
+  "session_id": "00000000-0000-7000-8000-000000000001",
+  "warnings": [],
+  "page": 1,
+  "summaries": [
+    {
+      "summary_id": "summary-000001",
+      "turn_id": "turn-000002",
+      "turn_id_source": "jsonl",
+      "status": "completed",
+      "rolled_back": false,
+      "title": "サンプルJSONを作成",
+      "short_summary": "サンプルJSONの作成方針を確認し、正常・異常データを用意しました。",
+      "details": "架空データによる正常・異常・大容量サンプルを作成し、参照関係を確認しました。",
+      "highlights": [
+        {
+          "text": "正常・異常サンプルJSONを追加",
+          "source_message_ids": ["msg_00000000-0000-7000-8000-000000000104"]
+        }
+      ],
+      "verification": [
+        {
+          "text": "JSON構文と参照関係を確認",
+          "source_message_ids": ["msg_00000000-0000-7000-8000-000000000104"]
+        }
+      ],
+      "origin": "explicit",
+      "confidence": "high",
+      "source_session_ids": ["00000000-0000-7000-8000-000000000001"],
+      "source_message_ids": ["msg_00000000-0000-7000-8000-000000000104"]
+    }
+  ]
+}

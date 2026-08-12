@@ -1,0 +1,347 @@
+import hashlib
+import unittest
+from dataclasses import replace
+from pathlib import Path
+from typing import Optional
+
+from tools.change_summary_generator import (
+    ChangeSummary,
+    ChangeSummaryGenerationResult,
+    SummaryEvidenceItem,
+)
+from tools.chat_extractor import (
+    ChatContentPart,
+    ChatExtractionResult,
+    ExtractedChatMessage,
+)
+from tools.decision_extractor import DecisionExtractionResult, ExtractedDecision
+from tools.error_extractor import ErrorExtractionResult, ExtractedDevelopmentError
+from tools.file_reference_extractor import FileReferenceExtractionResult
+from tools.git_change_collector import (
+    GitCollectionResult,
+    GitFileChange,
+    GitFileStatus,
+    GitNumstat,
+    GitRepositoryState,
+)
+from tools.json_converter import (
+    CollectorMetadata,
+    JsonContext,
+    ProjectPresentation,
+    UnsafeJsonInputError,
+    build_json_snapshot,
+    encode_json,
+)
+from tools.next_task_extractor import NextTask, NextTaskExtractionResult
+from tools.work_status_extractor import CurrentWorkStatus, TurnWorkState
+
+
+def message(
+    sequence: int,
+    role: str,
+    text: str,
+    *,
+    phase: Optional[str] = None,
+    turn_id: str = "turn-1",
+) -> ExtractedChatMessage:
+    return ExtractedChatMessage(
+        message_id=f"msg-{sequence}",
+        source_message_id=f"msg-{sequence}",
+        sequence=sequence,
+        created_at=f"2026-08-13T10:0{sequence}:00+09:00",
+        role=role,
+        message_type="chat",
+        phase=phase,
+        turn_id=turn_id,
+        content=(ChatContentPart("text", text),),
+        display_mode="expanded",
+        duplicate_of=None,
+        occurrence_count=1,
+        removed_automatic_contexts=tuple(),
+        source_path=Path("rollout-sample.jsonl"),
+        source_line_number=sequence,
+        source_start_offset=sequence * 100,
+    )
+
+
+def turn(*, rolled_back: bool = False) -> TurnWorkState:
+    return TurnWorkState(
+        turn_id="turn-1",
+        turn_id_source="jsonl",
+        status="completed",
+        started_at="2026-08-13T10:01:00+09:00",
+        started_at_source="event_field",
+        completed_at="2026-08-13T10:02:00+09:00",
+        completed_at_source="event_field",
+        duration_ms=60_000,
+        reason=None,
+        user_message_id="msg-1",
+        assistant_message_ids=("msg-2",),
+        rolled_back=rolled_back,
+    )
+
+
+def summary(*, rolled_back: bool = False) -> ChangeSummary:
+    evidence = SummaryEvidenceItem("12テストが成功", ("msg-2",))
+    return ChangeSummary(
+        summary_id="summary-1",
+        turn_id="turn-1",
+        turn_id_source="jsonl",
+        status="completed",
+        rolled_back=rolled_back,
+        title="JSON変換を実装",
+        short_summary="各情報をJSONへ変換しました。",
+        details="表示用の文書一式をメモリ内で生成しました。",
+        highlights=(SummaryEvidenceItem("変換処理を追加", ("msg-2",)),),
+        verification=(evidence,),
+        origin="explicit",
+        confidence="high",
+        source_session_ids=("session-1",),
+        source_message_ids=("msg-2",),
+    )
+
+
+def development_error() -> ExtractedDevelopmentError:
+    return ExtractedDevelopmentError(
+        error_id="error-1",
+        fingerprint="a" * 64,
+        kind="command_failure",
+        first_occurred_at="2026-08-13T10:02:00+09:00",
+        last_occurred_at="2026-08-13T10:02:00+09:00",
+        occurred_at_source="record_timestamp",
+        occurrence_count=1,
+        severity="error",
+        category="command",
+        summary="コマンドが失敗しました。",
+        details_preview="失敗内容",
+        details_text="失敗内容の欠落のない全文",
+        details_complete=True,
+        source_message_ids=("msg-2",),
+        source_path=Path("rollout-sample.jsonl"),
+        source_line_number=10,
+        source_start_offset=1000,
+        status="open",
+        resolved_at=None,
+        resolution=None,
+        rolled_back=False,
+        operation_key="operation-1",
+    )
+
+
+def git_result() -> GitCollectionResult:
+    not_applicable = GitNumstat("not_applicable", None, None)
+    change = GitFileChange(
+        change_id="change-1",
+        path="tools/json_converter.py",
+        old_path=None,
+        status=GitFileStatus("modified", "none", "none"),
+        staged=GitNumstat("measured", 10, 0),
+        unstaged=not_applicable,
+        committed_in_session=not_applicable,
+        binary=False,
+        scopes=("staged",),
+    )
+    repository = GitRepositoryState(
+        collection_status="ok",
+        root_name="sample-project",
+        branch="main",
+        head="a" * 40,
+        session_start_commit="b" * 40,
+        session_start_source="jsonl",
+        clean=False,
+    )
+    return GitCollectionResult(repository, (change,), tuple(), False)
+
+
+class JsonConverterTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.messages = (
+            message(1, "user", "JSON変換を実装してください。"),
+            message(
+                2,
+                "assistant",
+                "説明です。\n```python\nprint('ok')\n```\n完了しました。",
+                phase="final_answer",
+            ),
+        )
+        self.context = JsonContext(
+            snapshot_id="snapshot-1",
+            generated_at="2026-08-13T10:05:00+09:00",
+            workspace_id="sample-project",
+            session_id="session-1",
+        )
+
+    def build(self, *, messages=None, rolled_back: bool = False):
+        source_messages = tuple(messages) if messages is not None else self.messages
+        work = CurrentWorkStatus(
+            codex_status="idle",
+            current_work=None,
+            current_work_message_id=None,
+            active_turn_id=None,
+            latest_turn_id="turn-1",
+            latest_turn_status="completed",
+            last_event_at="2026-08-13T10:02:00+09:00",
+            turns=(turn(rolled_back=rolled_back),),
+            issues=tuple(),
+        )
+        next_value = NextTask(
+            task_id="task-1",
+            text="UTF-8でJSONを保存する",
+            status="pending",
+            origin="explicit",
+            confidence="high",
+            reason=None,
+            source_message_ids=("msg-2",),
+        )
+        return build_json_snapshot(
+            self.context,
+            ProjectPresentation("サンプル", "Phase 3"),
+            ChatExtractionResult(source_messages, tuple(), tuple()),
+            work,
+            NextTaskExtractionResult(
+                next_value, tuple(), None, False, 0, False
+            ),
+            ErrorExtractionResult((development_error(),), tuple()),
+            DecisionExtractionResult(
+                (
+                    ExtractedDecision(
+                        decision_id="decision-1",
+                        decided_at="2026-08-13T09:00:00+09:00",
+                        decided_at_source="message_timestamp",
+                        status="adopted",
+                        title="推奨案を採用",
+                        description="変更要約ページを追加します。",
+                        reason=None,
+                        source_session_ids=("session-1",),
+                        source_message_ids=("msg-1",),
+                        supersedes=None,
+                        superseded_by=None,
+                        topic_key="変更要約保存先",
+                    ),
+                ),
+                tuple(),
+            ),
+            FileReferenceExtractionResult(tuple(), tuple()),
+            git_result(),
+            ChangeSummaryGenerationResult(
+                (summary(rolled_back=rolled_back),), tuple(), tuple(), 0
+            ),
+            CollectorMetadata(
+                status="ok",
+                last_checked_at="2026-08-13T10:05:00+09:00",
+                last_data_change_at="2026-08-13T10:02:00+09:00",
+                last_acknowledged_snapshot_id=None,
+                last_send_succeeded_at=None,
+            ),
+            content_is_masked=True,
+        )
+
+    def test_builds_all_documents_and_summary_page_index(self) -> None:
+        snapshot = self.build()
+
+        expected = {
+            "dashboard.json",
+            "recent.json",
+            "messages.json",
+            "messages/pages/page-000001.json",
+            "messages/summaries/summary-page-000001.json",
+            "errors.json",
+            "decisions.json",
+            "files.json",
+            "metadata.json",
+        }
+        self.assertEqual(expected, set(snapshot.documents))
+        index = snapshot.document("messages.json")
+        self.assertEqual(1, index["total_change_summaries"])
+        summary_index = index["summary_pages"][0]
+        page_bytes = snapshot.encoded(summary_index["path"])
+        self.assertEqual(len(page_bytes), summary_index["byte_size"])
+        self.assertEqual(
+            hashlib.sha256(page_bytes).hexdigest(), summary_index["sha256"]
+        )
+        metadata_paths = {
+            value["path"]
+            for value in snapshot.document("metadata.json")["snapshot"]["files"]
+        }
+        self.assertNotIn("metadata.json", metadata_paths)
+        self.assertIn("messages/summaries/summary-page-000001.json", metadata_paths)
+
+    def test_splits_fenced_code_and_preserves_malformed_fence_as_text(self) -> None:
+        snapshot = self.build()
+        page = snapshot.document("messages/pages/page-000001.json")
+        blocks = page["messages"][1]["content"]["blocks"]
+
+        self.assertEqual(["text", "code", "text"], [value["type"] for value in blocks])
+        self.assertEqual("python", blocks[1]["language"])
+        self.assertEqual("print('ok')\n", blocks[1]["text"])
+
+        malformed = replace(
+            self.messages[1], content=(ChatContentPart("text", "```python\nprint(1)"),)
+        )
+        snapshot = self.build(messages=(self.messages[0], malformed))
+        blocks = snapshot.document("messages/pages/page-000001.json")["messages"][1][
+            "content"
+        ]["blocks"]
+        self.assertEqual("text", blocks[0]["type"])
+        self.assertEqual("```python\nprint(1)", blocks[0]["text"])
+
+    def test_rejects_content_not_certified_as_masked(self) -> None:
+        with self.assertRaises(UnsafeJsonInputError):
+            build_json_snapshot(
+                self.context,
+                ProjectPresentation("サンプル", "Phase 3"),
+                ChatExtractionResult(self.messages, tuple(), tuple()),
+                CurrentWorkStatus(
+                    "unknown", None, None, None, None, None, None, tuple(), tuple()
+                ),
+                NextTaskExtractionResult(None, tuple(), None, False, 0, False),
+                ErrorExtractionResult(tuple(), tuple()),
+                DecisionExtractionResult(tuple(), tuple()),
+                FileReferenceExtractionResult(tuple(), tuple()),
+                git_result(),
+                ChangeSummaryGenerationResult(tuple(), tuple(), tuple(), 0),
+                CollectorMetadata("ok", self.context.generated_at, None, None, None),
+                content_is_masked=False,
+            )
+
+    def test_splits_message_pages_at_one_hundred_items(self) -> None:
+        messages = tuple(
+            message(index, "user", f"message {index}", turn_id=f"turn-{index}")
+            for index in range(1, 102)
+        )
+        snapshot = self.build(messages=messages)
+        index = snapshot.document("messages.json")
+
+        self.assertEqual(2, len(index["pages"]))
+        self.assertEqual(100, index["pages"][0]["message_count"])
+        self.assertEqual(1, index["pages"][1]["message_count"])
+
+    def test_keeps_complete_error_details_when_message_only_has_summary(self) -> None:
+        snapshot = self.build()
+        error = snapshot.document("errors.json")["errors"][0]
+
+        self.assertEqual("inline", error["detail_storage"])
+        self.assertEqual("失敗内容の欠落のない全文", error["details"])
+
+    def test_rolled_back_turn_is_not_latest_or_recent(self) -> None:
+        snapshot = self.build(rolled_back=True)
+
+        self.assertEqual([], snapshot.document("recent.json")["turns"])
+        self.assertIsNone(snapshot.document("dashboard.json")["latest"]["summary"])
+        summary_page = snapshot.document(
+            "messages/summaries/summary-page-000001.json"
+        )
+        self.assertTrue(summary_page["summaries"][0]["rolled_back"])
+
+    def test_encoding_is_utf8_deterministic_and_not_ascii_escaped(self) -> None:
+        snapshot = self.build()
+
+        first = encode_json(snapshot.document("dashboard.json"))
+        second = encode_json(snapshot.document("dashboard.json"))
+        self.assertEqual(first, second)
+        self.assertIn("サンプル".encode("utf-8"), first)
+        self.assertNotIn(b"\\u30b5", first)
+
+
+if __name__ == "__main__":
+    unittest.main()

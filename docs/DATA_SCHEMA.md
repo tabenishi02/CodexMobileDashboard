@@ -170,7 +170,7 @@ turn要素：
 | `source_session_ids` | array | 必須 | 不可 | 根拠セッションID |
 | `source_message_ids` | array | 必須 | 不可 | 要約全体の根拠メッセージID |
 
-`highlights`と`verification`の各要素は、最大200文字の`text`と1件以上の`source_message_ids`を必須・非`null`とする。CLIが入力にないメッセージIDを返した場合は要約全体を採用しない。コードブロックは生成しない。表示用JSONへの物理的な関連付けは、次工程のJSON変換で確定する。
+`highlights`と`verification`の各要素は、最大200文字の`text`と1件以上の`source_message_ids`を必須・非`null`とする。CLIが入力にないメッセージIDを返した場合は要約全体を採用しない。コードブロックは生成しない。全変更要約は`messages/summaries/`のページへ保存し、`messages.json`の`summary_pages`から参照する。`dashboard.latest.summary`には最新の非ロールバック要約の`short_summary`だけを複製する。
 
 根拠には次の優先順位と用途制限を設ける。
 
@@ -196,9 +196,13 @@ turn要素：
 |---|---|---|---|---|
 | `total_messages` | integer | 必須 | 不可 | 対象メッセージ総数 |
 | `latest_sequence` | integer | 必須 | 可 | 0件なら`null` |
-| `pages` | array | 必須 | 不可 | ページ索引 |
+| `pages` | array | 必須 | 不可 | メッセージページ索引 |
+| `total_change_summaries` | integer | 必須 | 不可 | 変更要約の総数 |
+| `summary_pages` | array | 必須 | 不可 | 変更要約ページ索引 |
 
-ページ索引要素：`page`、`path`、`first_sequence`、`last_sequence`、`message_count`、`byte_size`、`sha256`をすべて必須・非`null`とする。ページファイルにも共通フィールドを持たせ、加えて`page`と`messages`を必須・非`null`とする。
+メッセージページ索引要素：`page`、`path`、`first_sequence`、`last_sequence`、`message_count`、`byte_size`、`sha256`をすべて必須・非`null`とする。ページファイルにも共通フィールドを持たせ、加えて`page`と`messages`を必須・非`null`とする。
+
+変更要約ページ索引要素：`page`、`path`、`summary_count`、`byte_size`、`sha256`をすべて必須・非`null`とする。変更要約ページは`data_type: change_summaries_page`とし、共通フィールドに加えて`page`と`summaries`を必須・非`null`とする。メッセージページと同じく100件または512KiBの早い方で分割する。
 
 メッセージ要素：
 
@@ -532,6 +536,9 @@ messages/
 ├─ pages/
 │  ├─ page-000001.json
 │  └─ page-000002.json
+├─ summaries/
+│  ├─ summary-page-000001.json
+│  └─ summary-page-000002.json
 └─ chunks/
    ├─ <message-id>-part-000001.json
    └─ <message-id>-part-000002.json
@@ -614,13 +621,14 @@ codex exec --ephemeral --sandbox read-only \
 
 1. メッセージ断片
 2. メッセージページ
-3. `messages.json`
-4. `errors.json`
-5. `decisions.json`
-6. `files.json`
-7. `recent.json`
-8. `dashboard.json`
-9. `metadata.json`
+3. 変更要約ページ
+4. `messages.json`
+5. `errors.json`
+6. `decisions.json`
+7. `files.json`
+8. `recent.json`
+9. `dashboard.json`
+10. `metadata.json`
 
 ブラウザは`snapshot_id`の不一致を検出したら短時間後に再取得し、解消しなければ「更新途中または不整合」と表示する。
 

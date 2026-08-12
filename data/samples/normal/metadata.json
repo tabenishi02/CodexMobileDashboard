@@ -19,8 +19,9 @@
     "files": [
       {"path": "dashboard.json", "byte_size": 1335, "sha256": "9183d8040d0b43629a324cb5887e6b9c08acfb3bebaad25e128d85e2bae18208"},
       {"path": "recent.json", "byte_size": 1634, "sha256": "bb947e0fca0e0d0150543df4fec7edc88ca2a66cfac378ff40333c598835b6c1"},
-      {"path": "messages.json", "byte_size": 594, "sha256": "5e0ca02abb943b1e220fd0ab8d77dd3379899fa9f9f620743cbdfd80b73b3bc4"},
+      {"path": "messages.json", "byte_size": 875, "sha256": "3835d79530ed9e5c22d0ca29092055f571f1ed7da232dd0b744a87f4a70496e9"},
       {"path": "messages/pages/page-000001.json", "byte_size": 3405, "sha256": "49e4ad277a782bdab3c8d49c2e2ee751eaa4cb310e7707b66013a2cf13df1307"},
+      {"path": "messages/summaries/summary-page-000001.json", "byte_size": 1359, "sha256": "d3b71d18bc17229980f06c4da2ec4a2fe16dac3d4d485239374d23d6e0d1978f"},
       {"path": "errors.json", "byte_size": 2382, "sha256": "aab44d741c4c56f24688a680417d1e5f32124db9a8448bcc0fd98c7c6588afd1"},
       {"path": "decisions.json", "byte_size": 1666, "sha256": "5829d8f8c5bcd8fa44464d4040e4137b15963e81bb01b66a674abd6b50d8e519"},
       {"path": "files.json", "byte_size": 2944, "sha256": "a2155b880e948b024328b151502913acc41fdcaa9bcffb3eb518f32e2c4ce406"}
