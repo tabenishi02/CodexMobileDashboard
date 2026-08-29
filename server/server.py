@@ -6,6 +6,7 @@ import argparse
 import configparser
 import json
 import logging
+from logging.handlers import TimedRotatingFileHandler
 import os
 import hashlib
 import hmac
@@ -37,7 +38,9 @@ def configure_server_logging(log_directory: Path) -> tuple[logging.Logger, loggi
         for handler in logger.handlers[:]:
             logger.removeHandler(handler)
             handler.close()
-        handler = logging.FileHandler(log_directory / filename, encoding="utf-8")
+        handler = TimedRotatingFileHandler(
+            log_directory / filename, when="midnight", interval=1, backupCount=7, encoding="utf-8"
+        )
         handler.setFormatter(formatter)
         logger.addHandler(handler)
         result.append(logger)

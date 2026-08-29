@@ -14,7 +14,7 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from server.server import MAX_REQUEST_BODY_BYTES, RequestBodyLengthError, SnapshotJsonValidationError, create_server, load_server_settings, main, parse_snapshot_json_request_path, safe_static_path, store_snapshot_json, validate_request_content_length, validate_snapshot_json_body
+from server.server import configure_server_logging, MAX_REQUEST_BODY_BYTES, RequestBodyLengthError, SnapshotJsonValidationError, create_server, load_server_settings, main, parse_snapshot_json_request_path, safe_static_path, store_snapshot_json, validate_request_content_length, validate_snapshot_json_body
 
 
 class ServerTests(unittest.TestCase):
@@ -145,6 +145,21 @@ class ServerTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, "^token_file_invalid$"):
                 load_server_settings(str(config_file))
+    def test_server_logs_rotate_daily_and_keep_seven_generations(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            access, error = configure_server_logging(Path(directory) / "logs")
+            try:
+                for logger in (access, error):
+                    self.assertEqual(1, len(logger.handlers))
+                    handler = logger.handlers[0]
+                    self.assertEqual("MIDNIGHT", handler.when)
+                    self.assertEqual(7, handler.backupCount)
+                    self.assertEqual("utf-8", handler.encoding)
+            finally:
+                for logger in (access, error):
+                    for handler in logger.handlers:
+                        logger.removeHandler(handler)
+                        handler.close()
     def test_access_and_error_logs_exclude_token_and_body(self) -> None:
         token = "test-secret-token"
         with tempfile.TemporaryDirectory() as directory:
