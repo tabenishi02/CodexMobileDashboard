@@ -144,7 +144,7 @@
 - [x] `POST /api/v1/snapshots/{workspace_id}/{snapshot_id}/commit`を実装する
 - [x] commit時にstaging Snapshotを検証し、publicへ原子的に公開する
 - [x] 未commitのstaging SnapshotをGETで公開しない
-- [ ] POST・commitの正常系、認証失敗、サイズ超過、不正JSON、危険なパス、再送を単体テストする
+- [x] POST・commitの正常系、認証失敗、サイズ超過、不正JSON、危険なパス、再送を単体テストする
 
 ### 4.4 運用・障害対応
 

@@ -8,6 +8,8 @@
 
 ### Added
 
+- Snapshot POST・commitの正常系、認証失敗、サイズ超過、不正JSON、危険URL、Delivery再送をHTTP単体テストで確認した。
+
 - GETがstagingを参照せず、current.jsonで指定されたcommit済みpublic世代だけを配信することを単体テストで保証した。
 
 - commit manifestとstaging内の全JSONを照合・再検証し、世代別public配置とcurrent参照の原子的切替で公開する処理を追加した。

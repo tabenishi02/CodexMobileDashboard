@@ -25,7 +25,7 @@ Snapshot POSTの保存、Delivery IDを含む`stored`応答、冪等な再送、
 
 ### 確認済みテスト
 
-`server/tests/test_server.py`で、ヘルスチェック、ルートindex配信、Content-Type、危険な静的パス拒否、ディレクトリ・存在しないファイルの404を確認している。
+`server/tests/test_server.py`で、ヘルスチェック、ルートindex配信、Content-Type、危険な静的パス拒否、ディレクトリ・存在しないファイルの404、Snapshot POST・commitの正常系、認証失敗、サイズ超過、不正JSON、危険URL、Delivery再送を確認している。
 
 ## 役割
 

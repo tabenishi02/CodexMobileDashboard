@@ -369,6 +369,33 @@ class ServerTests(unittest.TestCase):
             changed["warnings"] = ["changed"]
             connection.request("POST", url, body=json.dumps(changed).encode("utf-8"), headers=headers)
             self.assertEqual(409, connection.getresponse().status)
+    def test_api_post_rejects_invalid_json_body_over_http(self) -> None:
+        self.server.bearer_token = "test-secret-token"
+        headers = {
+            "Authorization": "Bearer test-secret-token",
+            "X-Delivery-Id": "123e4567-e89b-12d3-a456-426614174000",
+        }
+        connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
+        connection.request(
+            "POST", "/api/v1/snapshots/workspace-1/snapshot-1/metadata.json",
+            body=b'{"broken":', headers=headers,
+        )
+        self.assertEqual(400, connection.getresponse().status)
+
+    def test_api_commit_requires_bearer_token_and_rejects_unsafe_url(self) -> None:
+        self.server.bearer_token = "test-secret-token"
+        delivery_id = "123e4567-e89b-12d3-a456-426614174001"
+        connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
+        connection.request(
+            "POST", "/api/v1/snapshots/workspace-1/snapshot-1/commit", body=b"{}",
+            headers={"Authorization": "Bearer wrong", "X-Delivery-Id": delivery_id},
+        )
+        self.assertEqual(401, connection.getresponse().status)
+        connection.request(
+            "POST", "/api/v1/snapshots/workspace%2Fchild/snapshot-1/commit", body=b"{}",
+            headers={"Authorization": "Bearer test-secret-token", "X-Delivery-Id": delivery_id},
+        )
+        self.assertEqual(404, connection.getresponse().status)
     def test_api_commit_returns_committed_and_reuses_receipt(self) -> None:
         self.server.bearer_token = "test-secret-token"
         delivery_id = "123e4567-e89b-12d3-a456-426614174001"
