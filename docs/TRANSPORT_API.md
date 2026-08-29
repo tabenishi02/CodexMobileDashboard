@@ -72,6 +72,12 @@ senderは`[sender].timeout_seconds`（既定10秒、1～120秒）をTLS接続作
 
 HTTP 429で整数秒の`Retry-After`が返った場合は、その値を指数バックオフより優先する。401/403、404、409、413、証明書検証、不正応答などは待機せず失敗として返す。再試行の各回は、ファイルとcommitの同じDelivery IDを再利用する。指数バックオフ完了後の永続キュー処理は別タスクである。
 
+## 未送信キュー
+
+`PendingSnapshotQueue`は、再試行後に失敗したSnapshotを`queue/<workspace_id>/<sequence>-<snapshot_id>/`へ保存する。本文は`files/`にUTF-8生バイト列のまま複製し、`manifest.json`には相対パス、サイズ、SHA-256、各Delivery ID、commit Delivery ID、最後の安全なエラー分類だけを保存する。Token、HTTP本文、応答本文、例外詳細は保存しない。
+
+キュー項目は全ワークスペースで単調なsequence順に処理する。再送ではmanifestのDelivery IDを使い、commit成功を確認した後だけ該当ディレクトリを削除する。再送の失敗、改ざん、途中データは削除せず、SHA-256不一致は送信せずエラーにする。
+
 ## エラー分類
 
 `SenderError`は`kind`、`retryable`、`operation`、HTTPステータス、相対パスを持つ。本文・Token・応答本文は持たない。

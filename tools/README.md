@@ -81,6 +81,7 @@ tools/
 ├─ incremental_collector.py # 追記分の読取・正規化・秘密情報除外・重複排除を接続
 ├─ logging_setup.py # コンポーネント別の安全な日次ローテーションログを設定
 ├─ https_sender.py # 検証済みHTTPSでSnapshotを送信・commit
+├─ pending_snapshot_queue.py # 失敗Snapshotの本文とDelivery IDを永続保存
 ├─ chat_extractor.py   # 会話、ツール概要、開発者指示を抽出
 ├─ work_status_extractor.py # Codex状態とターン進行を抽出
 ├─ next_task_extractor.py # 明示された次タスクの抽出とCodex CLIによる推定
@@ -392,6 +393,7 @@ PC側は1つの共通INIを使用します。JSONLの`cwd`等から候補を抽�
 - ファイルは相対パス昇順に`POST /api/v1/snapshots/{workspace_id}/{snapshot_id}/{relative_json_path}`へ送信し、すべて`stored`の応答を確認した後だけcommit APIを呼び出す。
 - 各送信はBearer TokenとUUIDの`X-Delivery-Id`を使用する。再送では同じDelivery IDを使い、Token・本文・応答本文をログに出力しない。
 - Androidサーバー端末はcommitの受理時だけstagingのSnapshotを公開する。`metadata.json`の受信を公開境界にはしない。
+- 最終送信失敗はqueue_dirへ原子的に保存し、commit成功後だけ削除する。キューは全ワークスペースのsequence順で再送し、本文・Delivery ID・SHA-256を保持する。
 
 平文HTTPは、実セッション、Git状態、本番トークンを使用しない独立したサンプル疎通確認だけに限定します。通常のcollectorは`http://`の送信先を拒否します。
 

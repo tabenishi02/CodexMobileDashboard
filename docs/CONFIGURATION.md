@@ -59,6 +59,8 @@ CodexMobileDashboard/
 | `state` | JSONL読み取り位置、送信状態、ワークスペース登録情報 |
 | `data` | Androidへ送信する前の表示用JSON |
 | `queue` | 受信成功まで保持する未送信スナップショット |
+
+キュー内のSnapshotは<workspace-id>\<sequence>-<snapshot-id>\へ保存し、manifestと本文複製を一緒に管理する。Androidのcommit成功確認前に削除しない。
 | `logs` | PC収集ツールのローテーションログ |
 
 `%LOCALAPPDATA%`は設定ファイルの文字列置換だけに依存せず、実装時に`os.environ["LOCALAPPDATA"]`から取得する。環境変数がない場合は推測で別の場所へ保存せず、起動を中止する。
