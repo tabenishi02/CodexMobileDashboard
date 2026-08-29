@@ -109,45 +109,59 @@
 
 ## Phase 4：Android・Termux側サーバー
 
+### 4.1 基盤・TLS
+
 - [x] Termux用のセットアップ手順を作成する
 - [x] Python 3.10以上で動作するサーバーを実装する
 - [x] プライベートCAと証明書の作成・更新・失効手順を決める
-- [ ] `ssl.SSLContext`によるHTTPSを実装する
+- [x] `ssl.SSLContext`によるHTTPSを実装する
 - [x] 証明書と接続先IPアドレスまたはホスト名を一致させる
-- [ ] 静的ファイル配信を実装する
-  - [x] static_dirを設定し、配信ルートを固定する
-  - [x] `/`を`index.html`へ対応付ける
-  - [x] HTML、CSS、JavaScriptのContent-Typeを設定する
-  - [x] パストラバーサル、絶対パス、バックスラッシュを拒否する
-  - [x] ディレクトリ一覧と存在しないファイルを404で拒否する
-  - [x] 静的配信の単体テストを追加する
-  - [x] 実装・テスト結果をserver/README.mdへ反映する
+
+### 4.2 固定画面・公開JSONの配信
+
+- [x] static_dirを設定し、配信ルートを固定する
+- [x] `/`を`index.html`へ対応付ける
+- [x] HTML、CSS、JavaScriptのContent-Typeを設定する
+- [x] パストラバーサル、絶対パス、バックスラッシュを拒否する
+- [x] ディレクトリ一覧と存在しないファイルを404で拒否する
+- [x] 静的配信の単体テストを追加する
+- [x] 実装・テスト結果をserver/README.mdへ反映する
 - [x] JSON取得用のHTTPS GETを実装する
-- [ ] JSON更新用のHTTPS POSTを実装する
-- [ ] 明示的commit APIとstagingから公開Snapshotへの切替を実装する
-- [ ] Delivery IDによる再送の冪等性を実装する
-- [ ] POST先と対象JSONの対応を定義する
-- [ ] リクエストボディのサイズ制限を設定する
-- [ ] JSON形式を検証する
-- [ ] 許可されたファイル以外への書き込みを防止する
-- [ ] パストラバーサルを防止する
-- [ ] 一時ファイルを利用した安全な更新を実装する
-- [ ] 同時読み書き時の破損を防止する
-- [ ] 不正なリクエストへ適切なステータスを返す
-- [ ] 同一オリジン構成を前提にCORS不要を確認し、必要時だけ最小限に設定する
-- [ ] キャッシュ制御を設定する
-- [ ] API認証を実装する
-- [ ] 認証トークンをリポジトリ外の秘密ファイルから読み込む
-- [ ] トークンをログへ出力しない
-- [ ] アクセスログを実装する
-- [ ] エラーログを実装する
-- [ ] ヘルスチェックを実装する
-- [ ] 保存容量を監視できるようにする
+- [ ] ETagとIf-None-MatchによるJSONキャッシュ制御を実装する
+
+### 4.3 認証付きSnapshot受信
+
+- [ ] 実設定・Bearer Tokenをリポジトリ外の秘密ファイルから読み込む
+- [ ] Tokenをログ・HTTP応答・例外へ出力しない
+- [ ] API認証を実装する（`hmac.compare_digest()`）
+- [ ] POST URL・workspace_id・snapshot_id・relative_json_pathの検証を実装する
+- [ ] リクエストボディの上限を1MiBとして事前に拒否する
+- [ ] JSON UTF-8・スキーマ・Snapshot識別情報の検証を実装する
+- [ ] staging配下への一時ファイル・原子的置換によるJSON保存を実装する
+- [ ] `POST /api/v1/snapshots/{workspace_id}/{snapshot_id}/{relative_json_path}`を実装する
+- [ ] `stored`、delivery_id、snapshot_idを返す応答を実装する
+- [ ] Delivery IDを保存し、同一Deliveryの再送を冪等に処理する
+- [ ] `POST /api/v1/snapshots/{workspace_id}/{snapshot_id}/commit`を実装する
+- [ ] commit時にstaging Snapshotを検証し、publicへ原子的に公開する
+- [ ] 未commitのstaging SnapshotをGETで公開しない
+- [ ] POST・commitの正常系、認証失敗、サイズ超過、不正JSON、危険なパス、再送を単体テストする
+
+### 4.4 運用・障害対応
+
+- [ ] 不正リクエストへ適切なHTTPステータスを返す
+- [ ] アクセスログ・エラーログを実装する
+- [ ] ログローテーションを設定する
+- [ ] ヘルスチェックを運用情報付きで実装する
+- [ ] 保存容量を監視し、容量不足時は新規保存を停止する
 - [ ] サーバー起動スクリプトを用意する
 - [ ] Termux起動時の自動起動方法を用意する
 - [ ] サーバー停止・再起動手順を作成する
-- [ ] ログローテーションを設定する
-- [ ] サーバーの単体テストを作成する
+
+### 4.5 Phase受入確認
+
+- [ ] Android実機でHTTPS、POST、commit、GET、スマートフォン閲覧を通す
+- [ ] PC送信失敗後の再送・冪等性を実機確認する
+- [ ] Phase 4の受入結果を文書化する
 
 ## Phase 5：スマートフォン向け閲覧画面
 
