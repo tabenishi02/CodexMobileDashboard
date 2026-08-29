@@ -62,6 +62,10 @@ Androidサーバー側もURLデコード後に同じ検証を行う。`workspace
 
 PC側は`ca_file`を明示して`ssl.create_default_context()`を作り、通常のホスト名またはIPアドレスSAN検証を行う。Bearer Tokenはリポジトリ外の`token_file`から読み、ログ、例外、設定例、URLへ含めない。
 
+## タイムアウト
+
+senderは`[sender].timeout_seconds`（既定10秒、1～120秒）をTLS接続作成時へ渡す。接続開始中の`socket.timeout`は`connect_timeout`、リクエスト送信後に応答を待つ段階の`socket.timeout`は`read_timeout`として区別する。どちらも`retryable: true`であり、今回の実装は待機・再試行を行わず呼び出し元へ返す。
+
 ## エラー分類
 
 `SenderError`は`kind`、`retryable`、`operation`、HTTPステータス、相対パスを持つ。本文・Token・応答本文は持たない。

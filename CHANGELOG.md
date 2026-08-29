@@ -8,6 +8,7 @@
 
 ### Added
 
+- senderの`timeout_seconds`をTLS接続へ適用し、接続段階と応答待機段階のタイムアウトを`connect_timeout`と`read_timeout`へ区別して将来の再送対象として返すことを明確化した。
 - プライベートCAを検証するHTTPSで表示用JSONをSnapshot単位に送信し、Delivery IDの応答照合、サイズ・相対パス検証、明示的commit、将来の再送可否を扱う`tools/https_sender.py`と単体テストを追加した。
 - PC側コンポーネントごとのUTF-8日次ローテーションログとコンソールログを設定する`tools/logging_setup.py`、および差分更新の安全な処理件数・警告だけを記録するログ出力を追加した。
 - JSONLの保存済み読取位置から完了行だけを読み、正規化、秘密情報除外、重複排除を順に適用して、後続の表示用JSON生成・保存が成功したときだけ永続化できる候補状態を返す`tools/incremental_collector.py`を追加した。

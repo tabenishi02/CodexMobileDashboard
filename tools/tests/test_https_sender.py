@@ -99,6 +99,7 @@ class HttpsSnapshotSenderTests(unittest.TestCase):
         self.assertEqual("Bearer secret-token", headers["Authorization"])
         self.assertEqual(file_delivery, headers["X-Delivery-Id"])
         self.assertEqual("application/json", headers["Content-Type"])
+        self.assertEqual(10, factory.created[0][1]["timeout"])
         self.assertEqual("/api/v1/snapshots/workspace-1/snapshot-1/commit", factory.created[1][2].requests[0][1])
         self.assertIn(b'"messages/page.json"', factory.created[1][2].requests[0][2])
 
