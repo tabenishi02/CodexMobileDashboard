@@ -115,7 +115,7 @@
 - [ ] `ssl.SSLContext`によるHTTPSを実装する
 - [x] 証明書と接続先IPアドレスまたはホスト名を一致させる
 - [ ] 静的ファイル配信を実装する
-  - [ ] static_dirを設定し、配信ルートを固定する
+  - [x] static_dirを設定し、配信ルートを固定する
   - [ ] `/`を`index.html`へ対応付ける
   - [ ] HTML、CSS、JavaScriptのContent-Typeを設定する
   - [ ] パストラバーサル、絶対パス、バックスラッシュを拒否する

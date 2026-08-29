@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import ssl
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Optional, Sequence, Type
 
@@ -30,10 +31,15 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
         return
 
 
-def create_server(host: str = "0.0.0.0", port: int = 8765) -> ThreadingHTTPServer:
+def create_server(host: str = "0.0.0.0", port: int = 8765, static_directory: str = ".") -> ThreadingHTTPServer:
     if not 0 <= port <= 65535:
         raise ValueError("port_invalid")
-    return ThreadingHTTPServer((host, port), DashboardRequestHandler)
+    root = Path(static_directory).resolve(strict=True)
+    if not root.is_dir():
+        raise ValueError("static_directory_invalid")
+    server = ThreadingHTTPServer((host, port), DashboardRequestHandler)
+    server.static_directory = root
+    return server
 
 def create_https_server(certificate_file: str, private_key_file: str, host: str = "0.0.0.0", port: int = 8765) -> ThreadingHTTPServer:
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -49,10 +55,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--port", default=8765, type=int)
     parser.add_argument("--cert")
     parser.add_argument("--key")
+    parser.add_argument("--static-dir", default=".")
     arguments = parser.parse_args(argv)
     if bool(arguments.cert) != bool(arguments.key):
         parser.error("--cert and --key must be specified together")
-    server = create_https_server(arguments.cert, arguments.key, arguments.host, arguments.port) if arguments.cert else create_server(arguments.host, arguments.port)
+    server = create_https_server(arguments.cert, arguments.key, arguments.host, arguments.port) if arguments.cert else create_server(arguments.host, arguments.port, arguments.static_dir)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
