@@ -10,6 +10,7 @@ import hashlib
 import hmac
 import ssl
 import tempfile
+import threading
 import uuid
 import re
 from pathlib import Path, PurePosixPath
@@ -218,9 +219,26 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         try:
-            store_snapshot_json(
-                str(staging_directory), workspace_id, snapshot_id, relative_json_path, body
-            )
+            request_receipt = {
+                "workspace_id": workspace_id,
+                "snapshot_id": snapshot_id,
+                "relative_json_path": relative_json_path,
+                "body_sha256": hashlib.sha256(body).hexdigest(),
+            }
+            with self.server.delivery_lock:
+                receipt = delivery_receipt(str(staging_directory), delivery_id)
+                if receipt is None:
+                    store_snapshot_json(
+                        str(staging_directory), workspace_id, snapshot_id, relative_json_path, body
+                    )
+                    store_delivery_receipt(
+                        str(staging_directory), delivery_id, request_receipt
+                    )
+                elif receipt != request_receipt:
+                    self.send_response(409)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
         except (OSError, ValueError):
             self.send_response(500)
             self.send_header("Content-Length", "0")
@@ -361,6 +379,11 @@ def store_snapshot_json(
     target = _safe_staging_json_target(
         staging_directory, workspace_id, snapshot_id, relative_json_path
     )
+    _atomic_write_bytes(target, body)
+    return target
+
+
+def _atomic_write_bytes(target: Path, body: bytes) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(
         prefix=target.name + ".", suffix=".tmp", dir=target.parent
@@ -375,6 +398,43 @@ def store_snapshot_json(
     finally:
         if temporary_path.exists():
             temporary_path.unlink()
+
+
+def _delivery_receipt_target(staging_directory: str, delivery_id: str) -> Path:
+    try:
+        if str(uuid.UUID(delivery_id)) != delivery_id:
+            raise ValueError("delivery_receipt_invalid")
+    except (AttributeError, ValueError) as error:
+        raise ValueError("delivery_receipt_invalid") from error
+    root = Path(staging_directory).resolve(strict=True)
+    if not root.is_dir():
+        raise ValueError("staging_directory_invalid")
+    return root / ".deliveries" / (delivery_id + ".json")
+
+
+def delivery_receipt(staging_directory: str, delivery_id: str) -> Optional[dict[str, str]]:
+    """Return a persisted idempotency receipt, or None when it has not been seen."""
+    target = _delivery_receipt_target(staging_directory, delivery_id)
+    if not target.is_file():
+        return None
+    try:
+        receipt = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError("delivery_receipt_invalid") from error
+    required = {"workspace_id", "snapshot_id", "relative_json_path", "body_sha256"}
+    if (not isinstance(receipt, dict) or set(receipt) != required or
+            any(not isinstance(receipt[key], str) for key in required)):
+        raise ValueError("delivery_receipt_invalid")
+    return receipt
+
+
+def store_delivery_receipt(
+    staging_directory: str, delivery_id: str, receipt: dict[str, str]
+) -> Path:
+    """Persist an opaque Delivery ID receipt after the matching JSON is stored."""
+    target = _delivery_receipt_target(staging_directory, delivery_id)
+    body = json.dumps(receipt, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    _atomic_write_bytes(target, body)
     return target
 
 def safe_static_path(root: Path, request_path: str) -> Path:
@@ -423,6 +483,7 @@ def create_server(host: str = "0.0.0.0", port: int = 8765, static_directory: str
     server.static_directory = root
     server.public_directory = public_root
     server.staging_directory = staging_root
+    server.delivery_lock = threading.Lock()
     return server
 def create_https_server(certificate_file: str, private_key_file: str, host: str = "0.0.0.0", port: int = 8765, static_directory: str = ".", public_directory: str = ".", staging_directory: Optional[str] = None) -> ThreadingHTTPServer:
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)

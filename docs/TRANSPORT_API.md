@@ -8,7 +8,7 @@
 - **Snapshot**：同じ`workspace_id`と`snapshot_id`を持つ表示用JSON一式。
 - **Commit**：Android端末がstagingのSnapshot全体を公開対象へ切り替える操作。
 
-Delivery IDは未送信キューに保存する値であり、通信切断後の再送でも必ず同じ値を使う。サーバーは同じDelivery IDを安全に再処理し、重複保存してはならない。
+Delivery IDは未送信キューに保存する値であり、通信切断後の再送でも必ず同じ値を使う。サーバーはstaging直下の非公開な`.deliveries/`へ、Delivery ID、送信先、相対パス、本文SHA-256からなるreceiptを原子的に保存する。同じDelivery IDでこれらが一致する再送は、JSONを再保存せず同じ`stored`応答を返す。不一致の再利用は`409 Conflict`で拒否する。
 
 ## ファイル送信
 

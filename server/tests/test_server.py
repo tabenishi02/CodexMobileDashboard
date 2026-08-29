@@ -307,6 +307,43 @@ class ServerTests(unittest.TestCase):
                 (staging / "workspace-1" / "snapshot-1" / "metadata.json").read_bytes(),
             )
 
+    def test_api_post_reuses_persisted_delivery_receipt_without_storing_again(self) -> None:
+        self.server.bearer_token = "test-secret-token"
+        delivery_id = "123e4567-e89b-12d3-a456-426614174000"
+        body = json.dumps(self._valid_snapshot_json()).encode("utf-8")
+        headers = {"Authorization": "Bearer test-secret-token", "X-Delivery-Id": delivery_id}
+        with tempfile.TemporaryDirectory() as directory:
+            staging = Path(directory) / "staging"
+            staging.mkdir()
+            self.server.staging_directory = staging
+            connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
+            url = "/api/v1/snapshots/workspace-1/snapshot-1/metadata.json"
+            connection.request("POST", url, body=body, headers=headers)
+            self.assertEqual(200, connection.getresponse().status)
+            with patch("server.server.store_snapshot_json") as store:
+                connection.request("POST", url, body=body, headers=headers)
+                response = connection.getresponse()
+                self.assertEqual(200, response.status)
+                self.assertEqual(delivery_id, json.loads(response.read())["delivery_id"])
+            store.assert_not_called()
+            self.assertTrue((staging / ".deliveries" / (delivery_id + ".json")).is_file())
+
+    def test_api_post_rejects_reused_delivery_id_with_different_body(self) -> None:
+        self.server.bearer_token = "test-secret-token"
+        delivery_id = "123e4567-e89b-12d3-a456-426614174000"
+        headers = {"Authorization": "Bearer test-secret-token", "X-Delivery-Id": delivery_id}
+        with tempfile.TemporaryDirectory() as directory:
+            staging = Path(directory) / "staging"
+            staging.mkdir()
+            self.server.staging_directory = staging
+            connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
+            url = "/api/v1/snapshots/workspace-1/snapshot-1/metadata.json"
+            connection.request("POST", url, body=json.dumps(self._valid_snapshot_json()).encode("utf-8"), headers=headers)
+            self.assertEqual(200, connection.getresponse().status)
+            changed = self._valid_snapshot_json()
+            changed["warnings"] = ["changed"]
+            connection.request("POST", url, body=json.dumps(changed).encode("utf-8"), headers=headers)
+            self.assertEqual(409, connection.getresponse().status)
     def test_api_post_rejects_missing_delivery_id(self) -> None:
         self.server.bearer_token = "test-secret-token"
         body = json.dumps(self._valid_snapshot_json()).encode("utf-8")

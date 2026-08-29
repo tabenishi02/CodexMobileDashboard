@@ -8,6 +8,8 @@
 
 ### Added
 
+- Delivery IDのreceiptをstaging内の非公開領域へ保存し、同一送信の再送を再保存せず冪等に処理する機能を追加した。不一致のDelivery ID再利用は409で拒否する。
+
 - Snapshotファイル保存成功時にX-Delivery-IdとURL由来snapshot_idを照合可能な`stored` JSON応答で返す処理を追加した。
 
 - 認証・URL・本文検証済みJSONをstagingへ保存するSnapshotファイルPOST APIを追加し、保存成功時は204を返すようにした。
