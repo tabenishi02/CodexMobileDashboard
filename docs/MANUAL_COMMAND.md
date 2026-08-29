@@ -43,3 +43,12 @@ python -m tools.collector --config "$env:LOCALAPPDATA\CodexMobileDashboard\confi
 | `2` | 設定、キュー、通信、認証、証明書のいずれかで失敗 |
 
 未送信キューの定期再送はWindows タスク スケジューラで登録できる。手順は[`SCHEDULED_EXECUTION.md`](SCHEDULED_EXECUTION.md)を参照する。JSONL収集・変換・新規Snapshot送信をまとめて行うcollector本体は後続タスクで追加する。
+
+
+## 収集・変換を1回実行
+
+```powershell
+python -m tools.collector --config "$env:LOCALAPPDATA\CodexMobileDashboard\config\collector.ini" collect-once
+```
+
+HTTPS送信を行わず、ローカルJSON、読取位置、マスク済み履歴だけを更新する確認には`--no-send`を付ける。

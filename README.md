@@ -3,7 +3,7 @@
 VSCode Codexで進めている開発の状況を、スマートフォンから短時間で確認するためのダッシュボードです。
 
 > [!IMPORTANT]
-> 収集ツール本体、Androidサーバー、閲覧画面は未実装です。ただし、未送信Snapshotの状態確認、手動再送、Windows タスク スケジューラによる定期再送は実行できます。進捗は[`TASKS.md`](TASKS.md)で管理しています。
+> Androidサーバーと閲覧画面は未実装です。作業用PCでは、Codex JSONLを収集して表示用Snapshotを生成するcollector本体、未送信Snapshotの状態確認・手動再送・定期再送を実行できます。進捗は[`TASKS.md`](TASKS.md)で管理しています。
 
 ## 目的
 
@@ -150,7 +150,7 @@ CodexMobileDashboard/
 ├─ config/             # 秘密を含まない設定例
 ├─ server/             # Android・Termux側サーバー（実装予定）
 ├─ client/             # スマートフォン向け画面（実装予定）
-├─ tools/              # PC側の収集・変換・送信ツール（実装予定）
+├─ tools/              # PC側の収集・変換・送信ツール
 ├─ data/               # テスト用サンプルとローカル動作確認用データ
 └─ docs/               # 詳細設計
 ```
@@ -180,7 +180,7 @@ CodexMobileDashboard/
 
 収集ツール、サーバー、閲覧画面を実装した後に、PCとAndroidサーバー端末のセットアップ手順、起動・停止方法、秘密情報の配置、障害復旧手順をここから参照できるようにします。
 
-現時点では実行可能なプログラムがないため、仮の起動コマンドは掲載していません。
+PC側collectorは`python -m tools.collector --config <collector.ini> collect-once`で1回実行できます。
 
 ## MVPの範囲外
 

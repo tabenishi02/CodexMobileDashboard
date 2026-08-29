@@ -3,7 +3,7 @@
 このディレクトリには、作業用PCでCodexセッションとGit状態を収集し、スマートフォン表示用JSONへ変換してAndroidサーバー端末へ送信するツールを配置します。
 
 > [!IMPORTANT]
-> Codex JSONLの探索・索引化・差分更新、既知形式のメモリ内正規化、秘密情報除外、各情報の抽出、Git変更メタデータ取得、変更要約生成、表示用JSONへのメモリ内変換と原子的なUTF-8保存、HTTPS送信、失敗Snapshotの保持と再送を実装済みです。これらをまとめて実行するcollector本体は未実装です。
+> Codex JSONLの探索・索引化・差分更新、既知形式のメモリ内正規化、秘密情報除外、各情報の抽出、Git変更メタデータ取得、変更要約生成、表示用JSONへのメモリ内変換と原子的なUTF-8保存、HTTPS送信、失敗Snapshotの保持と再送を実装済みです。これらをまとめて実行するcollector本体を実装済みです。`python -m tools.collector --config <collector.ini> collect-once`で1回実行し、`--no-send`で送信せずに生成を確認できます。
 
 ## 役割
 
