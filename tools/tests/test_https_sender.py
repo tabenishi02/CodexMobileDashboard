@@ -173,11 +173,22 @@ class HttpsSnapshotSenderTests(unittest.TestCase):
 
     def test_token_is_not_in_sender_error_or_log_message(self):
         token = "very-secret-token"
-        factory = FakeConnectionFactory([FakeConnection(request_error=socket.gaierror())])
-        sender = HttpsSnapshotSender("https://dashboard.example.test", token, Path("unused-ca.crt"), connection_factory=factory, ssl_context=object())
+        failed_factory = FakeConnectionFactory([FakeConnection(request_error=socket.gaierror())])
+        failed_sender = HttpsSnapshotSender("https://dashboard.example.test", token, Path("unused-ca.crt"), connection_factory=failed_factory, ssl_context=object())
         with self.assertRaises(SenderError) as raised:
-            sender.send_snapshot("workspace-1", "snapshot-1", [SnapshotUpload("data.json", b"{}", new_delivery_id())], commit_delivery_id=new_delivery_id())
+            failed_sender.send_snapshot("workspace-1", "snapshot-1", [SnapshotUpload("data.json", b"{}", new_delivery_id())], commit_delivery_id=new_delivery_id())
         self.assertNotIn(token, str(raised.exception))
+
+        file_delivery = new_delivery_id()
+        commit_delivery = new_delivery_id()
+        success_factory = FakeConnectionFactory([
+            FakeConnection(response("stored", file_delivery, "snapshot-1")),
+            FakeConnection(response("committed", commit_delivery, "snapshot-1")),
+        ])
+        success_sender = HttpsSnapshotSender("https://dashboard.example.test", token, Path("unused-ca.crt"), connection_factory=success_factory, ssl_context=object())
+        with self.assertLogs("sender", level="INFO") as captured:
+            success_sender.send_snapshot("workspace-1", "snapshot-1", [SnapshotUpload("data.json", b"{}", file_delivery)], commit_delivery_id=commit_delivery)
+        self.assertNotIn(token, "\n".join(captured.output))
 
 
 if __name__ == "__main__":
