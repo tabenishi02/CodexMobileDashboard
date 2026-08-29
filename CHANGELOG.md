@@ -8,6 +8,8 @@
 
 ### Added
 
+- Android実機への一時的な送信失敗後、PC未送信キューの再送と同一Delivery IDの冪等処理を受入確認した。
+
 - Android実機でHTTPS、認証付きPOST、commit、公開JSON GETの受入確認を実施し、画面閲覧はPhase 5へ分離した。
 
 - PIDと実行コマンドを照合する安全なTermuxサーバー停止・再起動スクリプトと手順を追加した。
