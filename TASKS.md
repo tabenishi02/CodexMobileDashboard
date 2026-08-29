@@ -163,6 +163,8 @@
 - [x] PC送信失敗後の再送・冪等性を実機確認する（結果は`docs/PHASE4_ACCEPTANCE.md`）
 - [x] Phase 4の受入結果を文書化する（結果は`docs/PHASE4_ACCEPTANCE.md`）
 
+**Phase 4完了: 2026-08-30。受入結果はdocs/PHASE4_ACCEPTANCE.mdを参照。**
+
 ## Phase 5：スマートフォン向け閲覧画面
 
 - [ ] 画面構成を設計する

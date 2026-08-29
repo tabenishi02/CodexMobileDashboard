@@ -2,7 +2,7 @@
 
 ## 前提
 
-TermuxはF-Droidまたは公式GitHub配布版を使用し、同じ配布元のTermux:Bootを使用する。Google Play版は使用しない。実サーバーは未実装のため、本手順はPhase 4の実装・起動前準備である。
+TermuxはF-Droidまたは公式GitHub配布版を使用し、同じ配布元のTermux:Bootを使用する。Google Play版は使用しない。本手順は実装済みのPhase 4サーバーをAndroid端末へ配置・起動するための手順である。
 
 ## 初期準備
 

@@ -3,7 +3,7 @@
 このディレクトリには、Androidサーバー端末のTermux上で動作するHTTPSサーバーを配置します。
 
 > [!IMPORTANT]
-> Python 3.10以上で動作する最小サーバー基盤と`/health`を実装済みです。HTTPS、認証、Snapshot API、静的配信は後続タスクです。
+> Python 3.10以上・標準ライブラリで動作するHTTPSサーバー、認証付きSnapshot API、静的ファイル・公開JSON配信、運用スクリプトを実装済みです。
 
 ## 実装・テスト結果
 
@@ -67,7 +67,7 @@ Androidサーバー端末は、作業用PCが生成した表示用JSONと固定�
 
 ## 静的配信ルート
 
-サーバーは`--static-dir`で指定された実在ディレクトリを解決済みの固定ルートとして保持する。未指定時は起動ディレクトリを使用する。`/`はstatic_dir直下の`index.html`だけを配信する。存在しない場合は404を返す。HTMLは`text/html; charset=utf-8`、CSSは`text/css; charset=utf-8`、JavaScriptは`text/javascript; charset=utf-8`として配信する。静的パスはURLデコード後に検証し、`..`、絶対パス、Windowsドライブ指定子、バックスラッシュを拒否する。ディレクトリURLと存在しない静的ファイルは一覧や詳細を返さず404で拒否する。static_dirの`index.html`配信、Content-Type、404、危険なパス拒否は単体テストで確認する。その他の固定ファイル配信規則は後続タスクで追加する。
+サーバーは`--static-dir`で指定された実在ディレクトリを解決済みの固定ルートとして保持する。未指定時は起動ディレクトリを使用する。`/`はstatic_dir直下の`index.html`だけを配信する。存在しない場合は404を返す。HTMLは`text/html; charset=utf-8`、CSSは`text/css; charset=utf-8`、JavaScriptは`text/javascript; charset=utf-8`として配信する。静的パスはURLデコード後に検証し、`..`、絶対パス、Windowsドライブ指定子、バックスラッシュを拒否する。ディレクトリURLと存在しない静的ファイルは一覧や詳細を返さず404で拒否する。static_dirの`index.html`配信、Content-Type、404、危険なパス拒否は単体テストで確認する。許可されたstatic_dir配下だけを固定ファイルとして配信する。
 
 ## 予定構成
 
@@ -187,7 +187,7 @@ chmod 700 start_server.sh
 # または ./start_server.sh "$HOME/CodexMobileDashboard/config/server.ini"
 ```
 
-設定ファイルが存在しない・読み取れない場合は固定エラーコードだけを標準エラーへ出して終了する。スクリプトは`exec`で`python server.py --config`へ置き換わるため、停止時はサーバープロセスも終了する。自動起動は次のTermux:Boot手順で登録する。停止・再起動手順は後続タスクで扱う。
+設定ファイルが存在しない・読み取れない場合は固定エラーコードだけを標準エラーへ出して終了する。スクリプトは`exec`で`python server.py --config`へ置き換わるため、停止時はサーバープロセスも終了する。自動起動は次のTermux:Boot手順で登録する。停止・再起動は後述のスクリプトで扱う。
 ### Termux:Bootへの登録
 
 Termux:BootをTermux本体と同じ配布元から導入して一度開いた後、次で自動起動エントリーを登録する。
@@ -215,7 +215,7 @@ Snapshot JSON POSTのURLは/api/v1/snapshots/{workspace_id}/{snapshot_id}/{relat
 設定読込の失敗は固定の安全なエラーコードだけを表示する。HTTP要求のAuthorizationヘッダーおよびURL中にTokenらしき値があっても、サーバーの標準ログとHTTPエラー応答には出力しないことを単体テストで確認している。
 ## 受信JSONの事前検証
 
-API POSTは保存前に、BOMなしUTF-8、JSONオブジェクト、重複キーなし、共通必須フィールド、`1.x`スキーマ、URLとの`workspace_id`・`snapshot_id`一致を確認する。不正値は本文や詳細を返さず400で拒否する。個別ファイルの保存は後続タスクで追加する。
+API POSTは保存前に、BOMなしUTF-8、JSONオブジェクト、重複キーなし、共通必須フィールド、`1.x`スキーマ、URLとの`workspace_id`・`snapshot_id`一致を確認する。不正値は本文や詳細を返さず400で拒否する。検証済みの個別JSONはstagingへ原子的に保存し、commit成功後だけpublicへ公開する。
 ## staging配下の原子的保存
 
 `staging_directory`は実在する専用ディレクトリとして設定し、`public_directory`と同一または親子関係にしてはならない。検証済みJSONは`<staging_directory>/<workspace_id>/<snapshot_id>/`配下へだけ保存し、親ディレクトリ内の一時ファイルを`os.replace()`で置換する。保存関数は公開先を操作しないため、commit実装までブラウザへは公開されない。
