@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import hashlib
 import http.client
+import time
 import json
 import logging
 import socket
 import ssl
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from enum import Enum
 from pathlib import Path, PurePosixPath
 from typing import Callable, Iterable, Optional, Tuple
@@ -57,6 +60,7 @@ class SenderError(RuntimeError):
         operation: str,
         status_code: Optional[int] = None,
         relative_path: Optional[str] = None,
+        retry_after_seconds: Optional[float] = None,
     ) -> None:
         super().__init__(kind.value)
         self.kind = kind
@@ -64,6 +68,7 @@ class SenderError(RuntimeError):
         self.operation = operation
         self.status_code = status_code
         self.relative_path = relative_path
+        self.retry_after_seconds = retry_after_seconds
 
 
 @dataclass(frozen=True)
@@ -87,6 +92,13 @@ class SnapshotSendResult:
     snapshot_id: str
     files: Tuple[StoredFile, ...]
     commit_delivery_id: str
+
+
+@dataclass(frozen=True)
+class SnapshotRetryResult:
+    result: SnapshotSendResult
+    attempts: int
+    retry_delays_seconds: Tuple[float, ...]
 
 
 def new_delivery_id() -> str:
@@ -173,6 +185,10 @@ class HttpsSnapshotSender:
         *,
         timeout_seconds: float = 10,
         request_max_bytes: int = DEFAULT_REQUEST_MAX_BYTES,
+        max_attempts: int = 5,
+        backoff_initial_seconds: float = 1,
+        backoff_max_seconds: float = 16,
+        sleep: Callable[[float], None] = time.sleep,
         connection_factory: Callable[..., http.client.HTTPSConnection] = http.client.HTTPSConnection,
         ssl_context: Optional[ssl.SSLContext] = None,
     ) -> None:
@@ -188,7 +204,13 @@ class HttpsSnapshotSender:
             raise SenderError(SendErrorKind.INVALID_INPUT, retryable=False, operation="configuration")
         if not token or "\r" in token or "\n" in token:
             raise SenderError(SendErrorKind.INVALID_INPUT, retryable=False, operation="configuration")
-        if timeout_seconds <= 0 or request_max_bytes <= 0:
+        if (
+            timeout_seconds <= 0
+            or request_max_bytes <= 0
+            or not 1 <= max_attempts <= 10
+            or not 1 <= backoff_initial_seconds <= 60
+            or not backoff_initial_seconds <= backoff_max_seconds <= 300
+        ):
             raise SenderError(SendErrorKind.INVALID_INPUT, retryable=False, operation="configuration")
         self._host = parsed.hostname
         self._port = parsed.port or 443
@@ -196,6 +218,10 @@ class HttpsSnapshotSender:
         self._token = token
         self._timeout_seconds = timeout_seconds
         self._request_max_bytes = request_max_bytes
+        self._max_attempts = max_attempts
+        self._backoff_initial_seconds = backoff_initial_seconds
+        self._backoff_max_seconds = backoff_max_seconds
+        self._sleep = sleep
         self._connection_factory = connection_factory
         self._ssl_context = ssl_context if ssl_context is not None else build_ssl_context(ca_file)
 
@@ -247,6 +273,59 @@ class HttpsSnapshotSender:
         LOGGER.info("snapshot_committed workspace_id=%s snapshot_id=%s files=%d", workspace_id, snapshot_id, len(stored))
         return SnapshotSendResult(workspace_id, snapshot_id, tuple(stored), commit_delivery_id)
 
+    def send_snapshot_with_retry(
+        self,
+        workspace_id: str,
+        snapshot_id: str,
+        uploads: Iterable[SnapshotUpload],
+        *,
+        commit_delivery_id: str,
+    ) -> SnapshotRetryResult:
+        """Retry only transient failures without changing any delivery identifier."""
+
+        stable_uploads = tuple(uploads)
+        delays = []
+        for attempt in range(1, self._max_attempts + 1):
+            try:
+                result = self.send_snapshot(
+                    workspace_id,
+                    snapshot_id,
+                    stable_uploads,
+                    commit_delivery_id=commit_delivery_id,
+                )
+                return SnapshotRetryResult(result, attempt, tuple(delays))
+            except SenderError as error:
+                if not error.retryable or attempt == self._max_attempts:
+                    LOGGER.warning(
+                        "snapshot_send_failed workspace_id=%s snapshot_id=%s operation=%s kind=%s attempts=%d retryable=%s",
+                        workspace_id,
+                        snapshot_id,
+                        error.operation,
+                        error.kind.value,
+                        attempt,
+                        error.retryable,
+                    )
+                    raise
+                delay = (
+                    error.retry_after_seconds
+                    if error.retry_after_seconds is not None
+                    else min(
+                        self._backoff_initial_seconds * (2 ** (attempt - 1)),
+                        self._backoff_max_seconds,
+                    )
+                )
+                delays.append(delay)
+                LOGGER.warning(
+                    "snapshot_send_retry workspace_id=%s snapshot_id=%s operation=%s kind=%s attempt=%d delay_seconds=%s",
+                    workspace_id,
+                    snapshot_id,
+                    error.operation,
+                    error.kind.value,
+                    attempt,
+                    delay,
+                )
+                self._sleep(delay)
+
     def _file_path(self, workspace_id: str, snapshot_id: str, relative_path: str) -> str:
         segments = ["api", "v1", "snapshots", workspace_id, snapshot_id, *relative_path.split("/")]
         return self._url_path(segments)
@@ -290,7 +369,8 @@ class HttpsSnapshotSender:
         if len(payload) > _RESPONSE_MAX_BYTES:
             raise SenderError(SendErrorKind.RESPONSE_TOO_LARGE, retryable=False, operation=operation, status_code=response.status, relative_path=relative_path)
         if not 200 <= response.status < 300:
-            raise _http_error(response.status, operation, relative_path)
+            retry_after = _retry_after_seconds(response.getheader("Retry-After"))
+            raise _http_error(response.status, operation, relative_path, retry_after)
         return response.status, payload
 
     def _validate_response(self, response: Tuple[int, bytes], expected_status: str, delivery_id: str, snapshot_id: str, operation: str, relative_path: Optional[str]) -> None:
@@ -322,7 +402,22 @@ def _validate_delivery_id(value: str) -> None:
         raise SenderError(SendErrorKind.INVALID_INPUT, retryable=False, operation="delivery") from error
 
 
-def _http_error(status_code: int, operation: str, relative_path: Optional[str]) -> SenderError:
+def _retry_after_seconds(value: Optional[str]) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        return max(0.0, float(int(value)))
+    except ValueError:
+        try:
+            target = parsedate_to_datetime(value)
+        except (TypeError, ValueError):
+            return None
+        if target.tzinfo is None:
+            target = target.replace(tzinfo=timezone.utc)
+        return max(0.0, (target - datetime.now(timezone.utc)).total_seconds())
+
+
+def _http_error(status_code: int, operation: str, relative_path: Optional[str], retry_after_seconds: Optional[float] = None) -> SenderError:
     if status_code in (401, 403):
         kind, retryable = SendErrorKind.HTTP_401_403, False
     elif status_code == 404:
@@ -341,4 +436,4 @@ def _http_error(status_code: int, operation: str, relative_path: Optional[str]) 
         kind, retryable = SendErrorKind.HTTP_400, False
     else:
         kind, retryable = SendErrorKind.HTTP_OTHER, False
-    return SenderError(kind, retryable=retryable, operation=operation, status_code=status_code, relative_path=relative_path)
+    return SenderError(kind, retryable=retryable, operation=operation, status_code=status_code, relative_path=relative_path, retry_after_seconds=retry_after_seconds)

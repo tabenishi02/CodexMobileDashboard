@@ -66,6 +66,12 @@ PC側は`ca_file`を明示して`ssl.create_default_context()`を作り、通常
 
 senderは`[sender].timeout_seconds`（既定10秒、1～120秒）をTLS接続作成時へ渡す。接続開始中の`socket.timeout`は`connect_timeout`、リクエスト送信後に応答を待つ段階の`socket.timeout`は`read_timeout`として区別する。どちらも`retryable: true`であり、今回の実装は待機・再試行を行わず呼び出し元へ返す。
 
+## 再試行
+
+`send_snapshot_with_retry()`は、`retryable: true`の`SenderError`だけを再試行する。`max_attempts`は初回送信を含み、既定値5回では待機が1、2、4、8秒となる。待機時間は`backoff_initial_seconds * 2^(失敗回数 - 1)`を`backoff_max_seconds`で上限化する。
+
+HTTP 429で整数秒の`Retry-After`が返った場合は、その値を指数バックオフより優先する。401/403、404、409、413、証明書検証、不正応答などは待機せず失敗として返す。再試行の各回は、ファイルとcommitの同じDelivery IDを再利用する。指数バックオフ完了後の永続キュー処理は別タスクである。
+
 ## エラー分類
 
 `SenderError`は`kind`、`retryable`、`operation`、HTTPステータス、相対パスを持つ。本文・Token・応答本文は持たない。

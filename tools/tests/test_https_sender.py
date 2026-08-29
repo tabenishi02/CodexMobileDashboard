@@ -19,12 +19,16 @@ from tools.https_sender import (
 
 
 class FakeResponse:
-    def __init__(self, status, body):
+    def __init__(self, status, body, headers=None):
         self.status = status
+        self.headers = headers or {}
         self._body = body
 
     def read(self, amount):
         return self._body
+
+    def getheader(self, name):
+        return self.headers.get(name)
 
 
 class FakeConnection:
@@ -70,13 +74,14 @@ def response(status, delivery_id, snapshot_id):
 
 
 class HttpsSnapshotSenderTests(unittest.TestCase):
-    def sender(self, factory):
+    def sender(self, factory, **options):
         return HttpsSnapshotSender(
             "https://dashboard.example.test:8765",
             "secret-token",
             Path("unused-ca.crt"),
             connection_factory=factory,
             ssl_context=object(),
+            **options,
         )
 
     def test_posts_utf8_file_with_auth_delivery_and_then_commits(self):
@@ -154,6 +159,73 @@ class HttpsSnapshotSenderTests(unittest.TestCase):
         with patch("tools.https_sender.ssl.create_default_context", return_value=FakeTlsContext()) as create:
             self.assertIsInstance(build_ssl_context(Path("unused-ca.crt")), FakeTlsContext)
         self.assertEqual(str(Path("unused-ca.crt")), create.call_args.kwargs["cafile"])
+
+    def test_retry_reuses_delivery_ids_and_exponential_delays(self):
+        file_delivery = new_delivery_id()
+        commit_delivery = new_delivery_id()
+        factory = FakeConnectionFactory([
+            FakeConnection(request_error=socket.timeout()),
+            FakeConnection(response("stored", file_delivery, "snapshot-1")),
+            FakeConnection(response("committed", commit_delivery, "snapshot-1")),
+        ])
+        delays = []
+
+        result = self.sender(factory, max_attempts=5, sleep=delays.append).send_snapshot_with_retry(
+            "workspace-1", "snapshot-1", [SnapshotUpload("data.json", b"{}", file_delivery)], commit_delivery_id=commit_delivery
+        )
+
+        self.assertEqual(2, result.attempts)
+        self.assertEqual((1,), result.retry_delays_seconds)
+        self.assertEqual([1], delays)
+        self.assertEqual(file_delivery, factory.created[1][2].requests[0][3]["X-Delivery-Id"])
+        self.assertEqual(commit_delivery, factory.created[2][2].requests[0][3]["X-Delivery-Id"])
+
+    def test_retry_after_overrides_exponential_delay(self):
+        file_delivery = new_delivery_id()
+        commit_delivery = new_delivery_id()
+        factory = FakeConnectionFactory([
+            FakeConnection(FakeResponse(429, b"{}", {"Retry-After": "7"})),
+            FakeConnection(response("stored", file_delivery, "snapshot-1")),
+            FakeConnection(response("committed", commit_delivery, "snapshot-1")),
+        ])
+        delays = []
+
+        result = self.sender(factory, sleep=delays.append).send_snapshot_with_retry(
+            "workspace-1", "snapshot-1", [SnapshotUpload("data.json", b"{}", file_delivery)], commit_delivery_id=commit_delivery
+        )
+
+        self.assertEqual((7.0,), result.retry_delays_seconds)
+        self.assertEqual([7.0], delays)
+
+    def test_non_retryable_failure_does_not_sleep_or_commit(self):
+        factory = FakeConnectionFactory([FakeConnection(FakeResponse(401, b"{}"))])
+        delays = []
+
+        with self.assertRaises(SenderError) as raised:
+            self.sender(factory, sleep=delays.append).send_snapshot_with_retry(
+                "workspace-1", "snapshot-1", [SnapshotUpload("data.json", b"{}", new_delivery_id())], commit_delivery_id=new_delivery_id()
+            )
+
+        self.assertEqual(SendErrorKind.HTTP_401_403, raised.exception.kind)
+        self.assertEqual([], delays)
+        self.assertEqual(1, len(factory.created))
+
+    def test_retry_stops_at_max_attempts(self):
+        factory = FakeConnectionFactory([
+            FakeConnection(request_error=socket.timeout()),
+            FakeConnection(request_error=socket.timeout()),
+            FakeConnection(request_error=socket.timeout()),
+        ])
+        delays = []
+
+        with self.assertRaises(SenderError) as raised:
+            self.sender(factory, max_attempts=3, sleep=delays.append).send_snapshot_with_retry(
+                "workspace-1", "snapshot-1", [SnapshotUpload("data.json", b"{}", new_delivery_id())], commit_delivery_id=new_delivery_id()
+            )
+
+        self.assertEqual(SendErrorKind.CONNECT_TIMEOUT, raised.exception.kind)
+        self.assertEqual([1, 2], delays)
+        self.assertEqual(3, len(factory.created))
 
     def test_path_validation_and_windows_relative_paths(self):
         self.assertEqual("messages/pages/page.json", normalize_relative_json_path(r"messages\pages\page.json"))
