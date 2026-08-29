@@ -8,6 +8,8 @@
 
 ### Added
 
+- `/api/`配下のPOSTにBearer Token認証を追加し、`hmac.compare_digest()`による比較、不正時の401と`WWW-Authenticate: Bearer`を実装した。
+
 - サーバー設定エラーを固定の安全なコードへ正規化し、Tokenが標準ログ、HTTPエラー応答、起動時の例外表示に含まれないことを回帰テストで確認した。
 
 - AndroidサーバーがGit管理外のUTF-8 INIからHTTPS実設定と別ファイルのBearer Tokenを読み込み、`--config`で起動できるようにした。

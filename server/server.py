@@ -7,6 +7,7 @@ import configparser
 import json
 import os
 import hashlib
+import hmac
 import ssl
 import re
 from pathlib import Path, PurePosixPath
@@ -41,6 +42,28 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def do_POST(self) -> None:  # noqa: N802
+        if not self.path.startswith("/api/"):
+            self.send_error(404)
+            return
+        if not self._api_token_is_valid():
+            self.send_response(401)
+            self.send_header("WWW-Authenticate", "Bearer")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        # The authenticated Snapshot endpoints are added in the following task.
+        self.send_error(404)
+
+    def _api_token_is_valid(self) -> bool:
+        expected = getattr(self.server, "bearer_token", None)
+        authorization = self.headers.get("Authorization")
+        if not isinstance(expected, str) or not expected:
+            return False
+        if not authorization or not authorization.startswith("Bearer "):
+            return False
+        supplied = authorization[len("Bearer "):]
+        return hmac.compare_digest(supplied, expected)
     def _serve_json(self) -> None:
         parts = self.path.split("?", 1)[0].split("/")[2:]
         if len(parts) < 2 or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", parts[0]):

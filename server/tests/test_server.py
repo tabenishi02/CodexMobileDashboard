@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import http.client
+import hmac
 import io
 import threading
 import tempfile
 from contextlib import redirect_stderr
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 from server.server import create_server, load_server_settings, main, safe_static_path
 
@@ -150,5 +152,26 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(2, raised.exception.code)
         self.assertIn("configuration_invalid", captured.getvalue())
         self.assertNotIn(token, captured.getvalue())
+    def test_api_post_requires_bearer_token(self) -> None:
+        token = "test-secret-token"
+        self.server.bearer_token = token
+        connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
+        connection.request("POST", "/api/v1/snapshots/example", headers={"Authorization": "Bearer wrong"})
+        response = connection.getresponse()
+        body = response.read().decode("utf-8")
+        self.assertEqual(401, response.status)
+        self.assertEqual("Bearer", response.getheader("WWW-Authenticate"))
+        self.assertNotIn(token, body)
+
+    def test_api_post_uses_constant_time_token_comparison(self) -> None:
+        token = "test-secret-token"
+        self.server.bearer_token = token
+        with patch("server.server.hmac.compare_digest", wraps=hmac.compare_digest) as compare:
+            connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
+            connection.request("POST", "/api/v1/snapshots/example", headers={"Authorization": "Bearer " + token})
+            response = connection.getresponse()
+            response.read()
+        self.assertEqual(404, response.status)
+        compare.assert_called_once_with(token, token)
 if __name__ == "__main__":
     unittest.main()
