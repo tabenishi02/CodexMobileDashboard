@@ -159,7 +159,8 @@
 
 ### 4.5 Phase受入確認
 
-- [ ] Android実機でHTTPS、POST、commit、GET、スマートフォン閲覧を通す
+- [x] Android実機でHTTPS、POST、commit、GETを通す（結果は`docs/PHASE4_ACCEPTANCE.md`）
+- [ ] Phase 5完了後に、閲覧スマートフォンでダッシュボード画面を確認する
 - [ ] PC送信失敗後の再送・冪等性を実機確認する
 - [ ] Phase 4の受入結果を文書化する
 
