@@ -16,6 +16,42 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Optional, Sequence, Type
 
 
+_IDENTIFIER_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+_JSON_PATH_COMPONENT_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+
+
+def parse_snapshot_json_request_path(request_path: str) -> tuple[str, str, str]:
+    """Validate and split a Snapshot JSON POST path after URL decoding."""
+    if "?" in request_path:
+        raise ValueError("snapshot_request_path_invalid")
+    parts = request_path.split("/")
+    if len(parts) < 7 or parts[:4] != ["", "api", "v1", "snapshots"]:
+        raise ValueError("snapshot_request_path_invalid")
+
+    def decode_identifier(value: str) -> str:
+        decoded = unquote(value, errors="strict")
+        if not _IDENTIFIER_PATTERN.fullmatch(decoded) or decoded in (".", ".."):
+            raise ValueError("snapshot_request_path_invalid")
+        return decoded
+
+    try:
+        workspace_id = decode_identifier(parts[4])
+        snapshot_id = decode_identifier(parts[5])
+        relative_parts = [unquote(value, errors="strict") for value in parts[6:]]
+    except UnicodeDecodeError as error:
+        raise ValueError("snapshot_request_path_invalid") from error
+    if (
+        not relative_parts
+        or any(
+            not _JSON_PATH_COMPONENT_PATTERN.fullmatch(value)
+            or value in (".", "..")
+            for value in relative_parts
+        )
+        or not relative_parts[-1].endswith(".json")
+    ):
+        raise ValueError("snapshot_request_path_invalid")
+    return workspace_id, snapshot_id, "/".join(relative_parts)
+
 class ServerConfigurationError(ValueError):
     """Safe error whose message never contains a configured Token."""
 
@@ -52,9 +88,13 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
-        # The authenticated Snapshot endpoints are added in the following task.
+        try:
+            parse_snapshot_json_request_path(self.path)
+        except ValueError:
+            self.send_error(404)
+            return
+        # Safe storage of the validated Snapshot JSON is added in the following task.
         self.send_error(404)
-
     def _api_token_is_valid(self) -> bool:
         expected = getattr(self.server, "bearer_token", None)
         authorization = self.headers.get("Authorization")

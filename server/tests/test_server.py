@@ -10,7 +10,7 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from server.server import create_server, load_server_settings, main, safe_static_path
+from server.server import create_server, load_server_settings, main, parse_snapshot_json_request_path, safe_static_path
 
 
 class ServerTests(unittest.TestCase):
@@ -173,5 +173,36 @@ class ServerTests(unittest.TestCase):
             response.read()
         self.assertEqual(404, response.status)
         compare.assert_called_once_with(token, token)
+    def test_snapshot_json_request_path_accepts_safe_components(self) -> None:
+        self.assertEqual(
+            ("workspace-1", "snapshot-20260829", "messages/chunks/page-0001.json"),
+            parse_snapshot_json_request_path(
+                "/api/v1/snapshots/workspace-1/snapshot-20260829/messages/chunks/page-0001.json"
+            ),
+        )
+
+    def test_snapshot_json_request_path_rejects_unsafe_values(self) -> None:
+        unsafe_paths = (
+            "/api/v1/snapshots//snapshot/metadata.json",
+            "/api/v1/snapshots/workspace%2Fchild/snapshot/metadata.json",
+            "/api/v1/snapshots/workspace/%2e%2e/metadata.json",
+            "/api/v1/snapshots/workspace/snapshot/../metadata.json",
+            "/api/v1/snapshots/workspace/snapshot/folder%5Cmetadata.json",
+            "/api/v1/snapshots/workspace/snapshot//metadata.json",
+            "/api/v1/snapshots/workspace/snapshot/metadata.txt",
+            "/api/v1/snapshots/workspace/snapshot/metadata.json?unexpected=1",
+        )
+        for request_path in unsafe_paths:
+            with self.assertRaisesRegex(ValueError, "^snapshot_request_path_invalid$"):
+                parse_snapshot_json_request_path(request_path)
+
+    def test_api_post_rejects_invalid_snapshot_path_after_authentication(self) -> None:
+        self.server.bearer_token = "test-secret-token"
+        connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
+        connection.request(
+            "POST", "/api/v1/snapshots/workspace/snapshot/%2e%2e/metadata.json",
+            headers={"Authorization": "Bearer test-secret-token"},
+        )
+        self.assertEqual(404, connection.getresponse().status)
 if __name__ == "__main__":
     unittest.main()

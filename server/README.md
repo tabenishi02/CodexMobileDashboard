@@ -178,4 +178,6 @@ python server.py --config ~/.config/codex-mobile-dashboard/server.ini
 
 `/api/`配下のPOSTは`Authorization: Bearer <token>`を必須とし、設定済みTokenとの比較には`hmac.compare_digest()`を使用する。Token未設定、ヘッダー欠落、形式不正、不一致は`401 Unauthorized`と`WWW-Authenticate: Bearer`だけを返す。認証済みでも、まだ実装されていないSnapshot APIは404を返す。
 
+Snapshot JSON POSTのURLは/api/v1/snapshots/{workspace_id}/{snapshot_id}/{relative_json_path}だけを受理候補とする。IDとパス要素をURLデコード後に検証し、危険な区切り文字、空要素、..、非JSONファイル、クエリ文字列を404で拒否する。
+
 設定読込の失敗は固定の安全なエラーコードだけを表示する。HTTP要求のAuthorizationヘッダーおよびURL中にTokenらしき値があっても、サーバーの標準ログとHTTPエラー応答には出力しないことを単体テストで確認している。
