@@ -47,5 +47,24 @@ class ServerTests(unittest.TestCase):
             connection.request("GET", path)
             self.assertEqual(404, connection.getresponse().status)
 
+    def test_root_serves_static_index(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "index.html").write_bytes(b"<h1>Dashboard</h1>")
+            server = create_server("127.0.0.1", 0, str(root))
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            try:
+                connection = http.client.HTTPConnection("127.0.0.1", server.server_port)
+                connection.request("GET", "/")
+                response = connection.getresponse()
+                self.assertEqual(200, response.status)
+                self.assertEqual("text/html; charset=utf-8", response.getheader("Content-Type"))
+                self.assertEqual(b"<h1>Dashboard</h1>", response.read())
+            finally:
+                server.shutdown()
+                thread.join()
+                server.server_close()
+
 if __name__ == "__main__":
     unittest.main()
