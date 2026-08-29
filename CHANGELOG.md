@@ -8,6 +8,8 @@
 
 ### Added
 
+- GETがstagingを参照せず、current.jsonで指定されたcommit済みpublic世代だけを配信することを単体テストで保証した。
+
 - commit manifestとstaging内の全JSONを照合・再検証し、世代別public配置とcurrent参照の原子的切替で公開する処理を追加した。
 
 - Snapshot commit POSTのURL・manifest・Delivery IDを検証し、再送可能なcommit receiptを保存して`committed`応答を返す入口を追加した。

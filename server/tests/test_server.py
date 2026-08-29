@@ -89,6 +89,28 @@ class ServerTests(unittest.TestCase):
             finally:
                 server.shutdown(); thread.join(); server.server_close()
 
+    def test_json_get_does_not_expose_uncommitted_staging_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            static = root / "static"
+            public = root / "public"
+            staging = root / "staging"
+            static.mkdir()
+            public.mkdir()
+            staged = staging / "workspace-1" / "snapshot-1" / "dashboard.json"
+            staged.parent.mkdir(parents=True)
+            staged.write_bytes(b'{"uncommitted":true}')
+            server = create_server("127.0.0.1", 0, str(static), str(public), str(staging))
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            try:
+                connection = http.client.HTTPConnection("127.0.0.1", server.server_port)
+                connection.request("GET", "/data/workspace-1/dashboard.json")
+                self.assertEqual(404, connection.getresponse().status)
+            finally:
+                server.shutdown()
+                thread.join()
+                server.server_close()
     def test_load_server_settings_reads_external_token(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

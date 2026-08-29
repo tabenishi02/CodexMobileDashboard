@@ -86,7 +86,7 @@ server/
 
 PCは`POST /api/v1/snapshots/{workspace_id}/{snapshot_id}/{relative_json_path}`へ、Bearer Token、UUIDの`X-Delivery-Id`、UTF-8 JSON生バイト列を送信する。サーバーは永続化完了後に`status: stored`、同じDelivery ID、Snapshot IDをJSONで返す。
 
-全ファイルの保存後にPCは`POST /api/v1/snapshots/{workspace_id}/{snapshot_id}/commit`を呼ぶ。commit時にはmanifestとstaging内の全JSONのパス・サイズ・SHA-256・スキーマ・識別情報を照合し、`public/<workspace>/snapshots/<snapshot>/`へ世代として配置する。最後に`current.json`を原子的に置換するため、GETは常に公開済み世代だけを参照する。`metadata.json`受信だけで公開してはならない。同じDelivery IDの再送は、staging内の非公開receiptを参照してJSONを再保存せず冪等に扱う。異なる送信先・本文での同一ID再利用は409で拒否する。
+全ファイルの保存後にPCは`POST /api/v1/snapshots/{workspace_id}/{snapshot_id}/commit`を呼ぶ。commit時にはmanifestとstaging内の全JSONのパス・サイズ・SHA-256・スキーマ・識別情報を照合し、`public/<workspace>/snapshots/<snapshot>/`へ世代として配置する。最後に`current.json`を原子的に置換するため、GETは常に公開済み世代だけを参照する。staging内に同じworkspace・ファイル名があってもGETは404とし、未commitデータを公開しない。`metadata.json`受信だけで公開してはならない。同じDelivery IDの再送は、staging内の非公開receiptを参照してJSONを再保存せず冪等に扱う。異なる送信先・本文での同一ID再利用は409で拒否する。
 
 URLデコード後にもworkspace ID、snapshot ID、相対JSONパスを検証し、絶対パス、`..`、`\\`、保存ルート外への解決を拒否する。詳細は[`../docs/TRANSPORT_API.md`](../docs/TRANSPORT_API.md)を正とする。
 
