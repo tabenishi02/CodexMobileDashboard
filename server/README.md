@@ -197,7 +197,17 @@ chmod 700 termux_boot_start_server.sh install_termux_boot.sh
 ./install_termux_boot.sh
 ```
 
-[`install_termux_boot.sh`](install_termux_boot.sh)は`~/.termux/boot/codex-mobile-dashboard`を新規作成し、[`termux_boot_start_server.sh`](termux_boot_start_server.sh)から既存の`start_server.sh`を実行する。既存ファイルは上書きしない。再起動後は`/health`で確認する。停止・再起動手順は後続タスクで扱う。
+[`install_termux_boot.sh`](install_termux_boot.sh)は`~/.termux/boot/codex-mobile-dashboard`を新規作成し、[`termux_boot_start_server.sh`](termux_boot_start_server.sh)から既存の`start_server.sh`を実行する。既存ファイルは上書きしない。再起動後は`/health`で確認する。
+
+### 停止・再起動
+
+[`stop_server.sh`](stop_server.sh)は`~/.cache/codex-mobile-dashboard/server.pid`を読み、対象が`server.py --config`のプロセスであることを確認してから`SIGTERM`を送る。20秒待っても終了しない場合は強制終了せず停止する。[`restart_server.sh`](restart_server.sh)は停止成功後にだけ起動する。
+
+```sh
+./stop_server.sh
+./restart_server.sh
+# または ./restart_server.sh /path/to/server.ini
+```
 `/api/`配下のPOSTは`Authorization: Bearer <token>`を必須とし、設定済みTokenとの比較には`hmac.compare_digest()`を使用する。Token未設定、ヘッダー欠落、形式不正、不一致は`401 Unauthorized`と`WWW-Authenticate: Bearer`だけを返す。認証済みでも、まだ実装されていないSnapshot APIは404を返す。
 
 Snapshot JSON POSTのURLは/api/v1/snapshots/{workspace_id}/{snapshot_id}/{relative_json_path}だけを受理候補とする。IDとパス要素をURLデコード後に検証し、危険な区切り文字、空要素、..、非JSONファイル、クエリ文字列を404で拒否する。

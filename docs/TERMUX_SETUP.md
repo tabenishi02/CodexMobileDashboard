@@ -71,3 +71,17 @@ chmod 700 termux_boot_start_server.sh install_termux_boot.sh
 ```
 
 インストーラーは`~/.termux/boot/codex-mobile-dashboard`へ起動ファイルを作成する。既に同名のファイルがある場合は上書きせず、`boot_entry_already_exists`で停止する。端末を再起動後、`ps -ef | grep '[s]erver.py'`と`https://<Android端末IP>:<port>/health`で起動を確認する。自動起動の失敗時はTermux:Bootを一度開き、`$HOME/.termux/boot/codex-mobile-dashboard`の実行権と、実設定・証明書の読取権を確認する。
+## 停止・再起動
+
+通常の停止は、PIDファイルと実行コマンドを照合してから`SIGTERM`を送るスクリプトを使う。別プロセスへの誤送信を避けるため、PID不正または`server.py --config`以外のプロセスだった場合は停止しない。20秒以内に終了しない場合も強制終了せず、`server_stop_timeout`で停止する。
+
+```sh
+cd "$HOME/CodexMobileDashboard/app/server"
+chmod 700 stop_server.sh restart_server.sh
+./stop_server.sh
+./restart_server.sh
+# 別の実INIで再起動する場合だけ指定する
+# ./restart_server.sh "$HOME/CodexMobileDashboard/config/server.ini"
+```
+
+停止済みの場合は`server_not_running`を表示して正常終了する。再起動は停止処理が成功した後だけ起動する。PIDファイルは`~/.cache/codex-mobile-dashboard/server.pid`にあり、手作業で削除するのは、端末再起動後などにスクリプトが停止済みと確認できない場合だけにする。
