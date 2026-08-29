@@ -122,7 +122,7 @@
   - [x] ディレクトリ一覧と存在しないファイルを404で拒否する
   - [x] 静的配信の単体テストを追加する
   - [x] 実装・テスト結果をserver/README.mdへ反映する
-- [ ] JSON取得用のHTTPS GETを実装する
+- [x] JSON取得用のHTTPS GETを実装する
 - [ ] JSON更新用のHTTPS POSTを実装する
 - [ ] 明示的commit APIとstagingから公開Snapshotへの切替を実装する
 - [ ] Delivery IDによる再送の冪等性を実装する

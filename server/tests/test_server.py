@@ -66,5 +66,18 @@ class ServerTests(unittest.TestCase):
                 thread.join()
                 server.server_close()
 
+    def test_json_get_reads_only_public_json(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            static = root / "static"; public = root / "public"; (public / "workspace-1").mkdir(parents=True); static.mkdir()
+            (public / "workspace-1" / "dashboard.json").write_bytes(b"{}")
+            server = create_server("127.0.0.1", 0, str(static), str(public))
+            thread = threading.Thread(target=server.serve_forever); thread.start()
+            try:
+                connection = http.client.HTTPConnection("127.0.0.1", server.server_port); connection.request("GET", "/data/workspace-1/dashboard.json")
+                response = connection.getresponse(); self.assertEqual(200, response.status); self.assertEqual("application/json; charset=utf-8", response.getheader("Content-Type")); self.assertEqual(b"{}", response.read())
+            finally:
+                server.shutdown(); thread.join(); server.server_close()
+
 if __name__ == "__main__":
     unittest.main()
