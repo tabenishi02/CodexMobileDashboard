@@ -10,6 +10,7 @@ import hashlib
 import hmac
 import ssl
 import tempfile
+import uuid
 import re
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote
@@ -132,6 +133,20 @@ class ServerConfigurationError(ValueError):
     """Safe error whose message never contains a configured Token."""
 
 
+def validate_delivery_id(headers: object) -> str:
+    """Require one canonical UUID delivery identifier without logging it."""
+    values = getattr(headers, "get_all")("X-Delivery-Id")
+    if not values or len(values) != 1:
+        raise ValueError("delivery_id_invalid")
+    value = values[0]
+    try:
+        parsed = uuid.UUID(value)
+    except (AttributeError, ValueError) as error:
+        raise ValueError("delivery_id_invalid") from error
+    if str(parsed) != value:
+        raise ValueError("delivery_id_invalid")
+    return value
+
 class DashboardRequestHandler(BaseHTTPRequestHandler):
     """Expose only a non-sensitive health endpoint until API tasks are added."""
 
@@ -172,6 +187,13 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         try:
+            delivery_id = validate_delivery_id(self.headers)
+        except ValueError:
+            self.send_response(400)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        try:
             workspace_id, snapshot_id, relative_json_path = parse_snapshot_json_request_path(self.path)
         except ValueError:
             self.send_error(404)
@@ -204,9 +226,15 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
-        self.send_response(204)
-        self.send_header("Content-Length", "0")
+        response_body = json.dumps(
+            {"status": "stored", "delivery_id": delivery_id, "snapshot_id": snapshot_id},
+            ensure_ascii=False, separators=(",", ":"),
+        ).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(response_body)))
         self.end_headers()
+        self.wfile.write(response_body)
     def _api_token_is_valid(self) -> bool:
         expected = getattr(self.server, "bearer_token", None)
         authorization = self.headers.get("Authorization")

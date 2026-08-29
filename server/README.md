@@ -189,4 +189,4 @@ API POSTは保存前に、BOMなしUTF-8、JSONオブジェクト、重複キー
 `staging_directory`は実在する専用ディレクトリとして設定し、`public_directory`と同一または親子関係にしてはならない。検証済みJSONは`<staging_directory>/<workspace_id>/<snapshot_id>/`配下へだけ保存し、親ディレクトリ内の一時ファイルを`os.replace()`で置換する。保存関数は公開先を操作しないため、commit実装までブラウザへは公開されない。
 ## Snapshot POST保存入口
 
-`POST /api/v1/snapshots/{workspace_id}/{snapshot_id}/{relative_json_path}`は、検証済み本文を専用stagingへ保存する。staging未設定は503、保存失敗は500、保存成功は現段階では空本文の204を返す。`stored`応答とDelivery IDの処理は後続タスクで追加する。
+`POST /api/v1/snapshots/{workspace_id}/{snapshot_id}/{relative_json_path}`は、検証済み本文を専用stagingへ保存する。小文字ハイフン形式UUIDの`X-Delivery-Id`を必須とし、欠落・不正は400、staging未設定は503、保存失敗は500を返す。成功時は200と`status: stored`、要求と同じ`delivery_id`、URLと同じ`snapshot_id`を含むUTF-8 JSONを返す。

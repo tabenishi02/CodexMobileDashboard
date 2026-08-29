@@ -32,7 +32,7 @@ Content-Type: application/json
 サーバーは保存前に、本文をBOMなしUTF-8として厳密に復号し、JSONオブジェクトとして解析する。JSONの重複キー、構文不正、UTF-8不正を許可しない。共通必須フィールドである`schema_version`、`data_type`、`snapshot_id`、`generated_at`、`workspace_id`、`session_id`は空でない文字列、`warnings`は配列とする。対応する`schema_version`は`1.x`だけとし、互換性規則に従い未知の任意フィールドは保持対象とする。
 
 本文の`workspace_id`と`snapshot_id`はURLの値と完全一致しなければならない。不正本文、未対応スキーマ、識別情報不一致は詳細や本文を返さず、保存前に空本文の`400 Bad Request`で拒否する。
-`POST /api/v1/snapshots/{workspace_id}/{snapshot_id}/{relative_json_path}`は、認証、URL、サイズ、UTF-8 JSON、スキーマ、識別情報の検証後にstagingへ原子的保存する。staging未設定時は`503 Service Unavailable`、保存失敗時は詳細を返さず`500 Internal Server Error`とする。現段階の保存成功応答は空本文の`204 No Content`であり、次タスクでDelivery IDを検証し、下記の`stored` JSON応答へ移行する。
+`POST /api/v1/snapshots/{workspace_id}/{snapshot_id}/{relative_json_path}`は、認証、URL、サイズ、UTF-8 JSON、スキーマ、識別情報、単一の小文字ハイフン形式UUIDである`X-Delivery-Id`を検証後にstagingへ原子的保存する。Delivery ID欠落・不正は`400 Bad Request`、staging未設定時は`503 Service Unavailable`、保存失敗時は詳細を返さず`500 Internal Server Error`とする。保存成功時は`200 OK`とUTF-8 JSONを返し、`delivery_id`は要求ヘッダー値、`snapshot_id`はURL値と完全一致する。
 
 ```json
 {"status":"stored","delivery_id":"...","snapshot_id":"..."}

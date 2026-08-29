@@ -171,7 +171,7 @@ class ServerTests(unittest.TestCase):
         self.server.bearer_token = token
         with patch("server.server.hmac.compare_digest", wraps=hmac.compare_digest) as compare:
             connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
-            connection.request("POST", "/api/v1/snapshots/example", body=b"", headers={"Authorization": "Bearer " + token})
+            connection.request("POST", "/api/v1/snapshots/example", body=b"", headers={"Authorization": "Bearer " + token, "X-Delivery-Id": "123e4567-e89b-12d3-a456-426614174000"})
             response = connection.getresponse()
             response.read()
         self.assertEqual(404, response.status)
@@ -204,7 +204,7 @@ class ServerTests(unittest.TestCase):
         connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
         connection.request(
             "POST", "/api/v1/snapshots/workspace/snapshot/%2e%2e/metadata.json", body=b"",
-            headers={"Authorization": "Bearer test-secret-token"},
+            headers={"Authorization": "Bearer test-secret-token", "X-Delivery-Id": "123e4567-e89b-12d3-a456-426614174000"},
         )
         self.assertEqual(404, connection.getresponse().status)
     def test_request_body_length_accepts_one_mebibyte(self) -> None:
@@ -274,12 +274,13 @@ class ServerTests(unittest.TestCase):
         connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
         connection.request(
             "POST", "/api/v1/snapshots/workspace-1/other-snapshot/metadata.json",
-            body=body, headers={"Authorization": "Bearer test-secret-token"},
+            body=body, headers={"Authorization": "Bearer test-secret-token", "X-Delivery-Id": "123e4567-e89b-12d3-a456-426614174000"},
         )
         self.assertEqual(400, connection.getresponse().status)
 
-    def test_api_post_stores_validated_snapshot_json_in_staging(self) -> None:
+    def test_api_post_stores_and_returns_delivery_response(self) -> None:
         self.server.bearer_token = "test-secret-token"
+        delivery_id = "123e4567-e89b-12d3-a456-426614174000"
         body = json.dumps(self._valid_snapshot_json()).encode("utf-8")
         with tempfile.TemporaryDirectory() as directory:
             staging = Path(directory) / "staging"
@@ -288,15 +289,33 @@ class ServerTests(unittest.TestCase):
             connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
             connection.request(
                 "POST", "/api/v1/snapshots/workspace-1/snapshot-1/metadata.json",
-                body=body, headers={"Authorization": "Bearer test-secret-token"},
+                body=body,
+                headers={
+                    "Authorization": "Bearer test-secret-token",
+                    "X-Delivery-Id": delivery_id,
+                },
             )
             response = connection.getresponse()
-            self.assertEqual(204, response.status)
-            self.assertEqual(b"", response.read())
+            self.assertEqual(200, response.status)
+            self.assertEqual("application/json; charset=utf-8", response.getheader("Content-Type"))
+            self.assertEqual(
+                {"status": "stored", "delivery_id": delivery_id, "snapshot_id": "snapshot-1"},
+                json.loads(response.read().decode("utf-8")),
+            )
             self.assertEqual(
                 body,
                 (staging / "workspace-1" / "snapshot-1" / "metadata.json").read_bytes(),
             )
+
+    def test_api_post_rejects_missing_delivery_id(self) -> None:
+        self.server.bearer_token = "test-secret-token"
+        body = json.dumps(self._valid_snapshot_json()).encode("utf-8")
+        connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
+        connection.request(
+            "POST", "/api/v1/snapshots/workspace-1/snapshot-1/metadata.json",
+            body=body, headers={"Authorization": "Bearer test-secret-token"},
+        )
+        self.assertEqual(400, connection.getresponse().status)
 
     def test_api_post_returns_503_without_staging_configuration(self) -> None:
         self.server.bearer_token = "test-secret-token"
@@ -304,7 +323,7 @@ class ServerTests(unittest.TestCase):
         connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
         connection.request(
             "POST", "/api/v1/snapshots/workspace-1/snapshot-1/metadata.json",
-            body=body, headers={"Authorization": "Bearer test-secret-token"},
+            body=body, headers={"Authorization": "Bearer test-secret-token", "X-Delivery-Id": "123e4567-e89b-12d3-a456-426614174000"},
         )
         self.assertEqual(503, connection.getresponse().status)
 

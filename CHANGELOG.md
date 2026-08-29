@@ -8,6 +8,8 @@
 
 ### Added
 
+- Snapshotファイル保存成功時にX-Delivery-IdとURL由来snapshot_idを照合可能な`stored` JSON応答で返す処理を追加した。
+
 - 認証・URL・本文検証済みJSONをstagingへ保存するSnapshotファイルPOST APIを追加し、保存成功時は204を返すようにした。
 
 - 検証済みSnapshot JSONをstaging専用ルートへ一時ファイル・flush・fsync・os.replaceで原子的に保存する関数と設定を追加した。
