@@ -8,6 +8,7 @@
 
 ### Added
 
+- 未送信Snapshotの安全な状態確認、最古1件または全件の順次再送を行う`python -m tools.collector`と手動実行手順を追加した。
 - 再試行後に失敗したSnapshotの本文、順序、Delivery ID、commit ID、整合性情報を原子的に永続化し、commit確認後だけ削除する`tools/pending_snapshot_queue.py`と単体テストを追加した。
 - 再送可能なHTTPS送信失敗を最大試行回数と指数バックオフで再試行し、HTTP 429の`Retry-After`を優先しつつ各Delivery IDを維持する`send_snapshot_with_retry()`と単体テストを追加した。
 - senderの`timeout_seconds`をTLS接続へ適用し、接続段階と応答待機段階のタイムアウトを`connect_timeout`と`read_timeout`へ区別して将来の再送対象として返すことを明確化した。

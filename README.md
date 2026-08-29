@@ -3,7 +3,7 @@
 VSCode Codexで進めている開発の状況を、スマートフォンから短時間で確認するためのダッシュボードです。
 
 > [!IMPORTANT]
-> 現在は設計確定・実装準備段階です。収集ツール、Androidサーバー、閲覧画面はまだ実装されていないため、現時点では起動できません。進捗は[`TASKS.md`](TASKS.md)で管理しています。
+> 収集ツール本体、Androidサーバー、閲覧画面は未実装です。ただし、未送信Snapshotの状態確認・手動再送は実行できます。進捗は[`TASKS.md`](TASKS.md)で管理しています。
 
 ## 目的
 
@@ -168,6 +168,7 @@ CodexMobileDashboard/
 | [`docs/DATA_LIMITS.md`](docs/DATA_LIMITS.md) | データ量、分割、送信対象 |
 | [`docs/UPDATE_POLICY.md`](docs/UPDATE_POLICY.md) | 更新頻度、ハートビート、保存期間 |
 | [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | 設定ファイルと秘密情報の管理 |
+| [`docs/MANUAL_COMMAND.md`](docs/MANUAL_COMMAND.md) | 未送信Snapshotの手動確認・再送 |
 | [`docs/TRANSPORT_API.md`](docs/TRANSPORT_API.md) | PC・Android間のHTTPS Snapshot送信契約 |
 | [`docs/LOGGING.md`](docs/LOGGING.md) | ログ出力とローテーション |
 | [`docs/ERROR_HANDLING.md`](docs/ERROR_HANDLING.md) | エラー分類、保存、再試行 |

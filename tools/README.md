@@ -72,7 +72,7 @@ Gitを、実際の変更ファイルと変更状態の正とします。
 ```text
 tools/
 ├─ README.md           # 本書
-├─ collector.py        # 収集・変換・送信の起動点（予定）
+├─ collector.py        # 未送信キューの手動確認・再送コマンド
 ├─ session_reader.py   # Codex JSONLの探索・索引化・差分読み取り
 ├─ record_normalizer.py # 既知のログ形式をメモリ内の共通形式へ正規化
 ├─ secret_redactor.py # 正規化本文から認証秘密を固定マーカーへ置換
@@ -96,6 +96,10 @@ tools/
 ```
 
 処理が大きくなった場合だけ、JSONL読み取り、Git取得、JSON生成、HTTP送信を個別モジュールへ分割します。
+
+## 手動実行
+
+`python -m tools.collector --config <collector.ini> queue-status`で未送信キューの安全な要約を確認できる。`retry-queued`は最古の1件、`retry-queued --all`は成功する限り全件を順に再送する。現時点ではJSONL収集・変換をまとめて実行する手動コマンドは未実装である。詳細は[`../docs/MANUAL_COMMAND.md`](../docs/MANUAL_COMMAND.md)を参照する。
 
 ## 実装済みのJSONL読み取り
 
