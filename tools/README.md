@@ -77,6 +77,7 @@ tools/
 ├─ record_normalizer.py # 既知のログ形式をメモリ内の共通形式へ正規化
 ├─ secret_redactor.py # 正規化本文から認証秘密を固定マーカーへ置換
 ├─ record_deduplicator.py # 再読込された同一レコードを除外
+├─ collector_state.py # JSONL読取位置と重複排除状態を原子的に保存
 ├─ chat_extractor.py   # 会話、ツール概要、開発者指示を抽出
 ├─ work_status_extractor.py # Codex状態とターン進行を抽出
 ├─ next_task_extractor.py # 明示された次タスクの抽出とCodex CLIによる推定
@@ -242,7 +243,16 @@ tools/
 - ネイティブIDがない場合は、安全化済み内容のフィンガープリントと同一内容の出現順を使用する。
 - 同じ本文でも別IDまたは別の出現順なら、意図的な反復として保持する。
 - 未マスク入力はフィンガープリント作成前に拒否する。
-- 重複判定状態の永続化は、次の「前回処理位置を記録する」タスクで実装する。
+- セッションごとの読取位置と重複判定状態は`collector-state.json`へ原子的に保存する。
+
+## 実装済みの前回処理位置保存
+
+`collector_state.py`は`%LOCALAPPDATA%\CodexMobileDashboard\state\collector-state.json`へ、セッションIDごとの最後に読んだ完全行のバイト位置・行番号・先頭部分のSHA-256・重複排除状態を保存する。
+
+- JSONLに追記された場合は保存済み位置から続けて読む。
+- `sessions`から`archived_sessions`へ移動しても、保存済み部分が一致すれば同じ位置から再開する。
+- ファイル短縮・置換・状態ファイル破損を検出した場合は、状態を推測せず先頭から再解析または起動失敗とする。
+- 保存失敗時は既存の正常な状態ファイルを保持する。
 
 ## 実装済みの変更要約生成
 
