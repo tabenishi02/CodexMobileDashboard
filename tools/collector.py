@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from typing import Optional, Sequence
 
+from tools.collector_runtime import CollectorRuntimeSettings, run_once
 from tools.https_sender import HttpsSnapshotSender, SenderError, read_bearer_token
 from tools.logging_setup import configure_component_logging
 from tools.pending_snapshot_queue import InvalidPendingSnapshotError, PendingSnapshotQueue
@@ -28,10 +29,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     commands.add_parser("queue-status", help="未送信Snapshotの件数と安全な要約を表示")
     retry = commands.add_parser("retry-queued", help="最古の未送信Snapshotを再送")
     retry.add_argument("--all", action="store_true", help="成功する限りキューを順に再送")
+    collect = commands.add_parser("collect-once", help="表示用Snapshotを1回生成")
+    collect.add_argument("--no-send", action="store_true", help="HTTPS送信を行わない")
     arguments = parser.parse_args(argv)
 
     try:
         settings = _load_settings(arguments.config)
+        if arguments.command == "collect-once":
+            _configure_logging(settings)
+            sender = None if arguments.no_send else _sender(settings)
+            count = run_once(_runtime_settings(arguments.config, settings), sender)
+            print(json.dumps({"processed_workspaces": count}, sort_keys=True))
+            return 0
         queue = PendingSnapshotQueue(settings["queue_dir"])
         if arguments.command == "queue-status":
             _print_queue_status(queue)
@@ -83,6 +92,16 @@ def _path_value(parser: configparser.ConfigParser, section: str, key: str) -> Pa
     return Path(value)
 
 
+def _runtime_settings(config_path: Path, settings: dict) -> CollectorRuntimeSettings:
+    parser = configparser.ConfigParser(interpolation=None)
+    with Path(config_path).open("r", encoding="utf-8") as stream:
+        parser.read_file(stream)
+    roots = tuple(Path(os.path.expandvars(value.strip())).resolve(strict=False) for value in parser.get("discovery", "allowed_roots").splitlines() if value.strip())
+    if not roots:
+        raise ValueError("allowed_roots_missing")
+    history_value = parser.get("storage", "history_file", fallback="").strip()
+    history_file = Path(os.path.expandvars(history_value)) if history_value else settings["queue_dir"].parent / "state" / "collector-history.json"
+    return CollectorRuntimeSettings(roots, _path_value(parser, "discovery", "sessions_dir"), _path_value(parser, "discovery", "archived_sessions_dir"), parser.getboolean("discovery", "scan_archived_sessions", fallback=True), _path_value(parser, "storage", "state_file"), history_file, _path_value(parser, "storage", "output_dir"), settings["queue_dir"], Path.cwd() / "TASKS.md")
 def _configure_logging(settings: dict) -> None:
     directory = settings.get("log_directory")
     if directory is None:
