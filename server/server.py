@@ -16,12 +16,27 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
     server_version = "CodexMobileDashboard/0.1"
 
     def do_GET(self) -> None:  # noqa: N802
+        if self.path == "/":
+            self._serve_index()
+            return
         if self.path != "/health":
             self.send_error(404)
             return
         body = b'{"status":"ok"}\n'
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _serve_index(self) -> None:
+        target = self.server.static_directory / "index.html"
+        if not target.is_file():
+            self.send_error(404)
+            return
+        body = target.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
