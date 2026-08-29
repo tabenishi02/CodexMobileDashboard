@@ -41,5 +41,11 @@ class ServerTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     safe_static_path(root, value)
 
+    def test_directories_and_missing_files_are_not_listed(self) -> None:
+        for path in ("/assets/", "/missing.css"):
+            connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
+            connection.request("GET", path)
+            self.assertEqual(404, connection.getresponse().status)
+
 if __name__ == "__main__":
     unittest.main()
