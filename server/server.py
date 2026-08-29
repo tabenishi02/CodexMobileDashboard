@@ -264,7 +264,16 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
         if self.path != "/health":
             self.send_error(404)
             return
-        body = b'{"status":"ok"}\n'
+        staging = getattr(self.server, "staging_directory", None)
+        health = {
+            "status": "ok",
+            "server_version": self.server_version,
+            "uptime_seconds": int(max(0, time.monotonic() - self.server.started_at)),
+            "public_available": self.server.public_directory.is_dir(),
+            "staging_available": isinstance(staging, Path) and staging.is_dir(),
+            "logging_available": bool(self.server.access_logger.handlers and self.server.error_logger.handlers),
+        }
+        body = json.dumps(health, ensure_ascii=False, separators=(",", ":")).encode("utf-8") + b"\n"
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
@@ -770,6 +779,7 @@ def create_server(host: str = "0.0.0.0", port: int = 8765, static_directory: str
     server.public_directory = public_root
     server.staging_directory = staging_root
     server.delivery_lock = threading.Lock()
+    server.started_at = time.monotonic()
     if log_directory is None:
         server.access_logger = logging.getLogger("codex_mobile_dashboard.server.null.access")
         server.error_logger = logging.getLogger("codex_mobile_dashboard.server.null.error")

@@ -11,7 +11,7 @@
 
 - Python 3.10以上・標準ライブラリの`ThreadingHTTPServer`基盤
 - UTF-8 INIの`--config`による実設定読込と、リポジトリ外Tokenファイルの読込
-- `GET /health`
+- `GET /health`（バージョン、稼働秒数、public・staging・ログの利用可否）
 - `GET /data/{workspace_id}/{relative_json_path}`でcommit済みpublic配下のJSONだけを返す（ETagとIf-None-Matchによる304対応）
 - `--static-dir`で固定する実在ディレクトリ
 - `GET /`からstatic_dir直下の`index.html`配信

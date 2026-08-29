@@ -33,7 +33,13 @@ class ServerTests(unittest.TestCase):
         connection.request("GET", "/health")
         response = connection.getresponse()
         self.assertEqual(200, response.status)
-        self.assertEqual(b'{"status":"ok"}\n', response.read())
+        health = json.loads(response.read())
+        self.assertEqual("ok", health["status"])
+        self.assertEqual("CodexMobileDashboard/0.1", health["server_version"])
+        self.assertIsInstance(health["uptime_seconds"], int)
+        self.assertTrue(health["public_available"])
+        self.assertFalse(health["staging_available"])
+        self.assertTrue(health["logging_available"])
 
     def test_unknown_path_is_not_found(self) -> None:
         connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
