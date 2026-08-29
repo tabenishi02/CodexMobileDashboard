@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import http.client
 import hmac
 import io
@@ -77,7 +78,9 @@ class ServerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             static = root / "static"; public = root / "public"; (public / "workspace-1").mkdir(parents=True); static.mkdir()
-            (public / "workspace-1" / "dashboard.json").write_bytes(b"{}")
+            (public / "workspace-1" / "snapshots" / "snapshot-1").mkdir(parents=True)
+            (public / "workspace-1" / "snapshots" / "snapshot-1" / "dashboard.json").write_bytes(b"{}")
+            (public / "workspace-1" / "current.json").write_text("{\"snapshot_id\":\"snapshot-1\"}", encoding="utf-8")
             server = create_server("127.0.0.1", 0, str(static), str(public))
             thread = threading.Thread(target=server.serve_forever); thread.start()
             try:
@@ -347,11 +350,18 @@ class ServerTests(unittest.TestCase):
     def test_api_commit_returns_committed_and_reuses_receipt(self) -> None:
         self.server.bearer_token = "test-secret-token"
         delivery_id = "123e4567-e89b-12d3-a456-426614174001"
-        body = json.dumps({"files": [{"path": "metadata.json", "byte_size": 1, "sha256": "a" * 64}]}, separators=(",", ":")).encode("utf-8")
+        snapshot_body = json.dumps(self._valid_snapshot_json(), separators=(",", ":")).encode("utf-8")
+        body = json.dumps({"files": [{"path": "metadata.json", "byte_size": len(snapshot_body), "sha256": hashlib.sha256(snapshot_body).hexdigest()}]}, separators=(",", ":")).encode("utf-8")
         headers = {"Authorization": "Bearer test-secret-token", "X-Delivery-Id": delivery_id}
         with tempfile.TemporaryDirectory() as directory:
             staging = Path(directory) / "staging"
             staging.mkdir()
+            public = Path(directory) / "public"
+            public.mkdir()
+            self.server.public_directory = public
+            target = staging / "workspace-1" / "snapshot-1" / "metadata.json"
+            target.parent.mkdir(parents=True)
+            target.write_bytes(snapshot_body)
             self.server.staging_directory = staging
             connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
             url = "/api/v1/snapshots/workspace-1/snapshot-1/commit"
@@ -362,20 +372,27 @@ class ServerTests(unittest.TestCase):
                 {"status": "committed", "delivery_id": delivery_id, "snapshot_id": "snapshot-1"},
                 json.loads(response.read()),
             )
+            self.assertTrue((self.server.public_directory / "workspace-1" / "current.json").is_file())
             with patch("server.server.store_commit_receipt") as store:
                 connection.request("POST", url, body=body, headers=headers)
                 self.assertEqual(200, connection.getresponse().status)
             store.assert_not_called()
             self.assertTrue((staging / ".commits" / (delivery_id + ".json")).is_file())
-
     def test_api_commit_rejects_invalid_manifest_and_reused_id(self) -> None:
         self.server.bearer_token = "test-secret-token"
         delivery_id = "123e4567-e89b-12d3-a456-426614174001"
         headers = {"Authorization": "Bearer test-secret-token", "X-Delivery-Id": delivery_id}
-        valid = json.dumps({"files": [{"path": "metadata.json", "byte_size": 1, "sha256": "a" * 64}]}).encode("utf-8")
+        snapshot_body = json.dumps(self._valid_snapshot_json(), separators=(",", ":")).encode("utf-8")
+        valid = json.dumps({"files": [{"path": "metadata.json", "byte_size": len(snapshot_body), "sha256": hashlib.sha256(snapshot_body).hexdigest()}]}).encode("utf-8")
         with tempfile.TemporaryDirectory() as directory:
             staging = Path(directory) / "staging"
             staging.mkdir()
+            public = Path(directory) / "public"
+            public.mkdir()
+            self.server.public_directory = public
+            target = staging / "workspace-1" / "snapshot-1" / "metadata.json"
+            target.parent.mkdir(parents=True)
+            target.write_bytes(snapshot_body)
             self.server.staging_directory = staging
             connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
             url = "/api/v1/snapshots/workspace-1/snapshot-1/commit"
