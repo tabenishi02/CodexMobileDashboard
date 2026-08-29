@@ -3,6 +3,7 @@ from __future__ import annotations
 import http.client
 import hmac
 import io
+import json
 import threading
 import tempfile
 from contextlib import redirect_stderr
@@ -11,7 +12,7 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from server.server import MAX_REQUEST_BODY_BYTES, RequestBodyLengthError, create_server, load_server_settings, main, parse_snapshot_json_request_path, safe_static_path, validate_request_content_length
+from server.server import MAX_REQUEST_BODY_BYTES, RequestBodyLengthError, SnapshotJsonValidationError, create_server, load_server_settings, main, parse_snapshot_json_request_path, safe_static_path, validate_request_content_length, validate_snapshot_json_body
 
 
 class ServerTests(unittest.TestCase):
@@ -235,5 +236,55 @@ class ServerTests(unittest.TestCase):
         response = connection.getresponse()
         self.assertEqual(413, response.status)
         self.assertEqual(b"", response.read())
+    def _valid_snapshot_json(self) -> dict[str, object]:
+        return {
+            "schema_version": "1.0",
+            "data_type": "dashboard",
+            "snapshot_id": "snapshot-1",
+            "generated_at": "2026-08-29T12:00:00+09:00",
+            "workspace_id": "workspace-1",
+            "session_id": "00000000-0000-7000-8000-000000000001",
+            "warnings": [],
+        }
+
+    def test_snapshot_json_body_accepts_utf8_common_schema_and_identifiers(self) -> None:
+        document = self._valid_snapshot_json()
+        document["title"] = "日本語"
+        body = json.dumps(document, ensure_ascii=False).encode("utf-8")
+        self.assertEqual(document, validate_snapshot_json_body(body, "workspace-1", "snapshot-1"))
+
+    def test_snapshot_json_body_rejects_invalid_or_mismatched_content(self) -> None:
+        document = self._valid_snapshot_json()
+        cases = (
+            b"\xff",
+            b"{}",
+            b'{"schema_version":"1.0","schema_version":"1.0"}',
+            json.dumps({**document, "schema_version": "2.0"}).encode("utf-8"),
+            json.dumps({**document, "workspace_id": "other-workspace"}).encode("utf-8"),
+            json.dumps({**document, "snapshot_id": "other-snapshot"}).encode("utf-8"),
+        )
+        for body in cases:
+            with self.assertRaises(SnapshotJsonValidationError):
+                validate_snapshot_json_body(body, "workspace-1", "snapshot-1")
+
+    def test_api_post_rejects_snapshot_identifier_mismatch(self) -> None:
+        self.server.bearer_token = "test-secret-token"
+        body = json.dumps(self._valid_snapshot_json()).encode("utf-8")
+        connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
+        connection.request(
+            "POST", "/api/v1/snapshots/workspace-1/other-snapshot/metadata.json",
+            body=body, headers={"Authorization": "Bearer test-secret-token"},
+        )
+        self.assertEqual(400, connection.getresponse().status)
+
+    def test_api_post_accepts_validated_snapshot_json_before_storage(self) -> None:
+        self.server.bearer_token = "test-secret-token"
+        body = json.dumps(self._valid_snapshot_json()).encode("utf-8")
+        connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
+        connection.request(
+            "POST", "/api/v1/snapshots/workspace-1/snapshot-1/metadata.json",
+            body=body, headers={"Authorization": "Bearer test-secret-token"},
+        )
+        self.assertEqual(404, connection.getresponse().status)
 if __name__ == "__main__":
     unittest.main()

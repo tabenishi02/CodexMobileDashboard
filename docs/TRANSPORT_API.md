@@ -26,6 +26,12 @@ Content-Type: application/json
 
 本文は表示用JSONを保存したBOMなしUTF-8の生バイト列であり、PC側senderは再整形・再エンコードしない。1リクエストは最大1MiBとし、PC側は送信前に確認する。Androidサーバー側もAPI POSTの本文を読む前に単一の10進数`Content-Length`を検査し、1MiB超過は`413 Payload Too Large`、長さ欠落は`411 Length Required`、不正値・重複値・`Transfer-Encoding`は`400 Bad Request`で空本文として拒否する。
 
+
+## 受信JSONの検証
+
+サーバーは保存前に、本文をBOMなしUTF-8として厳密に復号し、JSONオブジェクトとして解析する。JSONの重複キー、構文不正、UTF-8不正を許可しない。共通必須フィールドである`schema_version`、`data_type`、`snapshot_id`、`generated_at`、`workspace_id`、`session_id`は空でない文字列、`warnings`は配列とする。対応する`schema_version`は`1.x`だけとし、互換性規則に従い未知の任意フィールドは保持対象とする。
+
+本文の`workspace_id`と`snapshot_id`はURLの値と完全一致しなければならない。不正本文、未対応スキーマ、識別情報不一致は詳細や本文を返さず、保存前に空本文の`400 Bad Request`で拒否する。
 成功は実際にstagingへ原子的保存を終えてから、HTTP 2xxと次のJSONで返す。
 
 ```json

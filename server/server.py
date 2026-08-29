@@ -52,6 +52,56 @@ def parse_snapshot_json_request_path(request_path: str) -> tuple[str, str, str]:
         raise ValueError("snapshot_request_path_invalid")
     return workspace_id, snapshot_id, "/".join(relative_parts)
 
+_SUPPORTED_SCHEMA_VERSION_PATTERN = re.compile(r"1\.[0-9]+")
+_COMMON_JSON_STRING_FIELDS = (
+    "schema_version",
+    "data_type",
+    "snapshot_id",
+    "generated_at",
+    "workspace_id",
+    "session_id",
+)
+
+
+class SnapshotJsonValidationError(ValueError):
+    """A safe validation error that does not include request content."""
+
+
+def _reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise SnapshotJsonValidationError("snapshot_json_invalid")
+        result[key] = value
+    return result
+
+
+def validate_snapshot_json_body(
+    body: bytes, expected_workspace_id: str, expected_snapshot_id: str
+) -> dict[str, object]:
+    """Validate one UTF-8 display JSON document against its Snapshot URL."""
+    try:
+        text = body.decode("utf-8")
+        document = json.loads(text, object_pairs_hook=_reject_duplicate_json_keys)
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
+        raise SnapshotJsonValidationError("snapshot_json_invalid") from error
+    if not isinstance(document, dict):
+        raise SnapshotJsonValidationError("snapshot_json_invalid")
+    for field in _COMMON_JSON_STRING_FIELDS:
+        if not isinstance(document.get(field), str) or not document[field]:
+            raise SnapshotJsonValidationError("snapshot_json_invalid")
+    if not _SUPPORTED_SCHEMA_VERSION_PATTERN.fullmatch(document["schema_version"]):
+        raise SnapshotJsonValidationError("snapshot_json_schema_unsupported")
+    if not _IDENTIFIER_PATTERN.fullmatch(document["data_type"]):
+        raise SnapshotJsonValidationError("snapshot_json_invalid")
+    if not isinstance(document.get("warnings"), list):
+        raise SnapshotJsonValidationError("snapshot_json_invalid")
+    if document["workspace_id"] != expected_workspace_id:
+        raise SnapshotJsonValidationError("snapshot_workspace_mismatch")
+    if document["snapshot_id"] != expected_snapshot_id:
+        raise SnapshotJsonValidationError("snapshot_id_mismatch")
+    return document
+
 MAX_REQUEST_BODY_BYTES = 1024 * 1024
 
 
@@ -108,7 +158,7 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             self.send_error(404)
             return
         try:
-            validate_request_content_length(self.headers)
+            body_length = validate_request_content_length(self.headers)
         except RequestBodyLengthError as error:
             self.send_response(error.status)
             self.send_header("Content-Length", "0")
@@ -121,9 +171,22 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         try:
-            parse_snapshot_json_request_path(self.path)
+            workspace_id, snapshot_id, _ = parse_snapshot_json_request_path(self.path)
         except ValueError:
             self.send_error(404)
+            return
+        body = self.rfile.read(body_length)
+        if len(body) != body_length:
+            self.send_response(400)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        try:
+            validate_snapshot_json_body(body, workspace_id, snapshot_id)
+        except SnapshotJsonValidationError:
+            self.send_response(400)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
             return
         # Safe storage of the validated Snapshot JSON is added in the following task.
         self.send_error(404)

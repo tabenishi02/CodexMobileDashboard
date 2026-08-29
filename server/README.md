@@ -181,3 +181,6 @@ python server.py --config ~/.config/codex-mobile-dashboard/server.ini
 Snapshot JSON POSTのURLは/api/v1/snapshots/{workspace_id}/{snapshot_id}/{relative_json_path}だけを受理候補とする。IDとパス要素をURLデコード後に検証し、危険な区切り文字、空要素、..、非JSONファイル、クエリ文字列を404で拒否する。
 
 設定読込の失敗は固定の安全なエラーコードだけを表示する。HTTP要求のAuthorizationヘッダーおよびURL中にTokenらしき値があっても、サーバーの標準ログとHTTPエラー応答には出力しないことを単体テストで確認している。
+## 受信JSONの事前検証
+
+API POSTは保存前に、BOMなしUTF-8、JSONオブジェクト、重複キーなし、共通必須フィールド、`1.x`スキーマ、URLとの`workspace_id`・`snapshot_id`一致を確認する。不正値は本文や詳細を返さず400で拒否する。個別ファイルの保存は後続タスクで追加する。

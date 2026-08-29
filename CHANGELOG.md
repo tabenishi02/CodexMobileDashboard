@@ -8,6 +8,8 @@
 
 ### Added
 
+- Snapshot JSONを保存前にUTF-8・厳密JSON・共通スキーマ・URLとのworkspace/snapshot識別情報一致で検証し、不正値を400で拒否する処理を追加した。
+
 - API POSTの本文を読む前にContent-Lengthを検査し、1MiB超過を413、長さ欠落を411、不正な長さ・Transfer-Encodingを400で拒否する処理を追加した。
 
 - Snapshot JSON POSTのURL、workspace ID、snapshot ID、相対JSONパスをURLデコード後に検証し、危険なパス・非JSON・クエリを拒否する処理を追加した。
