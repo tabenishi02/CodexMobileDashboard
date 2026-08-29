@@ -59,7 +59,7 @@ chmod 700 start_server.sh
 # ./start_server.sh "$HOME/CodexMobileDashboard/config/server.ini"
 ```
 
-設定ファイルがない場合は`server_config_not_found`、読めない場合は`server_config_unreadable`だけを表示して停止する。`Ctrl+C`で前面のサーバーを停止できる。Termux起動時の自動起動は後続タスクで追加する。
+設定ファイルがない場合は`server_config_not_found`、読めない場合は`server_config_unreadable`だけを表示して停止する。`Ctrl+C`で前面のサーバーを停止できる。Termux起動時の自動起動は次の手順で登録する。
 ## Termux起動時の自動起動
 
 手動起動とHTTPS疎通確認が済んだ後、Termux:BootをF-Droidまたは公式GitHub配布版から、Termux本体と同じ配布元で導入する。Termux:Bootを一度開いてから、次を実行する。

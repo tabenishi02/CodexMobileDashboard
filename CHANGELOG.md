@@ -8,6 +8,8 @@
 
 ### Added
 
+- Termux:Bootへ安全に自動起動エントリーを登録するスクリプトと手順を追加した。
+
 - Androidサーバーが保存先の空き容量を監視し、既定1GiBの予約値を下回る場合または容量取得不能時に、新規POST・commitを`507 Insufficient Storage`で停止する処理を追加した。
 
 - `/health`へサーバーバージョン、稼働秒数、public・staging・ログの利用可否を追加した。

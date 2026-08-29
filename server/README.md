@@ -187,7 +187,7 @@ chmod 700 start_server.sh
 # または ./start_server.sh "$HOME/CodexMobileDashboard/config/server.ini"
 ```
 
-設定ファイルが存在しない・読み取れない場合は固定エラーコードだけを標準エラーへ出して終了する。スクリプトは`exec`で`python server.py --config`へ置き換わるため、停止時はサーバープロセスも終了する。自動起動、停止・再起動手順は後続タスクで扱う。
+設定ファイルが存在しない・読み取れない場合は固定エラーコードだけを標準エラーへ出して終了する。スクリプトは`exec`で`python server.py --config`へ置き換わるため、停止時はサーバープロセスも終了する。自動起動は次のTermux:Boot手順で登録する。停止・再起動手順は後続タスクで扱う。
 ### Termux:Bootへの登録
 
 Termux:BootをTermux本体と同じ配布元から導入して一度開いた後、次で自動起動エントリーを登録する。
