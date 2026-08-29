@@ -115,6 +115,13 @@
 - [ ] `ssl.SSLContext`によるHTTPSを実装する
 - [x] 証明書と接続先IPアドレスまたはホスト名を一致させる
 - [ ] 静的ファイル配信を実装する
+  - [ ] static_dirを設定し、配信ルートを固定する
+  - [ ] `/`を`index.html`へ対応付ける
+  - [ ] HTML、CSS、JavaScriptのContent-Typeを設定する
+  - [ ] パストラバーサル、絶対パス、バックスラッシュを拒否する
+  - [ ] ディレクトリ一覧と存在しないファイルを404で拒否する
+  - [ ] 静的配信の単体テストを追加する
+  - [ ] 実装・テスト結果をserver/README.mdへ反映する
 - [ ] JSON取得用のHTTPS GETを実装する
 - [ ] JSON更新用のHTTPS POSTを実装する
 - [ ] 明示的commit APIとstagingから公開Snapshotへの切替を実装する
