@@ -112,9 +112,6 @@ MAX_REQUEST_BODY_BYTES = 1024 * 1024
 class SnapshotCommitConflictError(ValueError):
     """A staged Snapshot cannot satisfy the commit manifest."""
 
-class SnapshotCommitConflictError(ValueError):
-    """A staged Snapshot cannot satisfy the commit manifest."""
-
 class RequestBodyLengthError(ValueError):
     """A safe HTTP status for a body rejected before reading it."""
 
