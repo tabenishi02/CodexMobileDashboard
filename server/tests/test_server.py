@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import http.client
 import threading
+import tempfile
+from pathlib import Path
 import unittest
 
-from server.server import create_server
+from server.server import create_server, safe_static_path
 
 
 class ServerTests(unittest.TestCase):
@@ -30,6 +32,14 @@ class ServerTests(unittest.TestCase):
         connection.request("GET", "/unknown")
         self.assertEqual(404, connection.getresponse().status)
 
+
+    def test_static_path_rejects_unsafe_values(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assertEqual(root / "app.css", safe_static_path(root, "/app.css"))
+            for value in ("../secret", "/../secret", "C:/secret", "app\\secret", "%2e%2e/secret"):
+                with self.assertRaises(ValueError):
+                    safe_static_path(root, value)
 
 if __name__ == "__main__":
     unittest.main()

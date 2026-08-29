@@ -5,7 +5,8 @@ from __future__ import annotations
 import argparse
 import json
 import ssl
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from urllib.parse import unquote
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Optional, Sequence, Type
 
@@ -45,6 +46,20 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
         """Avoid logging request bodies; detailed logging is added later."""
         return
 
+
+def safe_static_path(root: Path, request_path: str) -> Path:
+    decoded = unquote(request_path)
+    if not decoded or "\\" in decoded or ":" in decoded:
+        raise ValueError("static_path_invalid")
+    path = PurePosixPath(decoded.lstrip("/"))
+    if path.is_absolute() or ".." in path.parts or not path.parts:
+        raise ValueError("static_path_invalid")
+    target = root.joinpath(*path.parts).resolve(strict=False)
+    try:
+        target.relative_to(root.resolve(strict=True))
+    except ValueError as error:
+        raise ValueError("static_path_invalid") from error
+    return target
 
 def content_type_for(path: Path) -> str:
     return {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8"}.get(path.suffix.lower(), "application/octet-stream")
