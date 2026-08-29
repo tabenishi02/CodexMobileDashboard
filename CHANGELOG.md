@@ -8,6 +8,8 @@
 
 ### Added
 
+- Snapshot commit POSTのURL・manifest・Delivery IDを検証し、再送可能なcommit receiptを保存して`committed`応答を返す入口を追加した。
+
 - Delivery IDのreceiptをstaging内の非公開領域へ保存し、同一送信の再送を再保存せず冪等に処理する機能を追加した。不一致のDelivery ID再利用は409で拒否する。
 
 - Snapshotファイル保存成功時にX-Delivery-IdとURL由来snapshot_idを照合可能な`stored` JSON応答で返す処理を追加した。

@@ -21,7 +21,7 @@
 
 ### 未実装
 
-Snapshot POSTの保存入口を実装済み。commit、Delivery IDを含む`stored`応答、冪等性、ログ、容量監視は後続タスクで追加する。
+Snapshot POSTの保存、Delivery IDを含む`stored`応答、冪等な再送、commit POST入口を実装済み。commit時のstaging全体照合とpublicへの原子的公開、ログ、容量監視は後続タスクで追加する。
 
 ### 確認済みテスト
 
@@ -86,7 +86,7 @@ server/
 
 PCは`POST /api/v1/snapshots/{workspace_id}/{snapshot_id}/{relative_json_path}`へ、Bearer Token、UUIDの`X-Delivery-Id`、UTF-8 JSON生バイト列を送信する。サーバーは永続化完了後に`status: stored`、同じDelivery ID、Snapshot IDをJSONで返す。
 
-全ファイルの保存後にPCは`POST /api/v1/snapshots/{workspace_id}/{snapshot_id}/commit`を呼ぶ。サーバーはstaging内のファイルを検証し、commitを受理したSnapshotだけを公開する。`metadata.json`受信だけで公開してはならない。同じDelivery IDの再送は、staging内の非公開receiptを参照してJSONを再保存せず冪等に扱う。異なる送信先・本文での同一ID再利用は409で拒否する。
+全ファイルの保存後にPCは`POST /api/v1/snapshots/{workspace_id}/{snapshot_id}/commit`を呼ぶ。現在のcommit入口はmanifest形式とDelivery IDを検証してreceiptを保存する。staging内ファイルとの照合とcommit済みSnapshotの公開は後続タスクで実装する。`metadata.json`受信だけで公開してはならない。同じDelivery IDの再送は、staging内の非公開receiptを参照してJSONを再保存せず冪等に扱う。異なる送信先・本文での同一ID再利用は409で拒否する。
 
 URLデコード後にもworkspace ID、snapshot ID、相対JSONパスを検証し、絶対パス、`..`、`\\`、保存ルート外への解決を拒否する。詳細は[`../docs/TRANSPORT_API.md`](../docs/TRANSPORT_API.md)を正とする。
 

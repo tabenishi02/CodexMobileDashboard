@@ -148,6 +148,52 @@ def validate_delivery_id(headers: object) -> str:
         raise ValueError("delivery_id_invalid")
     return value
 
+def parse_snapshot_commit_request_path(request_path: str) -> tuple[str, str]:
+    """Validate and split an explicit Snapshot commit endpoint path."""
+    if "?" in request_path:
+        raise ValueError("snapshot_commit_path_invalid")
+    parts = request_path.split("/")
+    if len(parts) != 7 or parts[:4] != ["", "api", "v1", "snapshots"] or parts[6] != "commit":
+        raise ValueError("snapshot_commit_path_invalid")
+    try:
+        workspace_id = unquote(parts[4], errors="strict")
+        snapshot_id = unquote(parts[5], errors="strict")
+    except UnicodeDecodeError as error:
+        raise ValueError("snapshot_commit_path_invalid") from error
+    if any(not _IDENTIFIER_PATTERN.fullmatch(value) or value in (".", "..") for value in (workspace_id, snapshot_id)):
+        raise ValueError("snapshot_commit_path_invalid")
+    return workspace_id, snapshot_id
+
+
+def validate_snapshot_commit_body(body: bytes) -> tuple[dict[str, object], ...]:
+    """Validate the sender's complete, path-sorted commit manifest."""
+    try:
+        document = json.loads(body.decode("utf-8"), object_pairs_hook=_reject_duplicate_json_keys)
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
+        raise SnapshotJsonValidationError("snapshot_commit_invalid") from error
+    if not isinstance(document, dict) or set(document) != {"files"} or not isinstance(document["files"], list) or not document["files"]:
+        raise SnapshotJsonValidationError("snapshot_commit_invalid")
+    files = document["files"]
+    normalized_paths: list[str] = []
+    for entry in files:
+        if not isinstance(entry, dict) or set(entry) != {"path", "sha256", "byte_size"}:
+            raise SnapshotJsonValidationError("snapshot_commit_invalid")
+        path = entry["path"]
+        digest = entry["sha256"]
+        size = entry["byte_size"]
+        if (not isinstance(path, str) or not isinstance(digest, str) or isinstance(size, bool) or not isinstance(size, int) or size < 0):
+            raise SnapshotJsonValidationError("snapshot_commit_invalid")
+        try:
+            _, _, normalized_path = parse_snapshot_json_request_path("/api/v1/snapshots/a/b/" + path)
+        except ValueError as error:
+            raise SnapshotJsonValidationError("snapshot_commit_invalid") from error
+        if normalized_path != path or not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise SnapshotJsonValidationError("snapshot_commit_invalid")
+        normalized_paths.append(path)
+    if normalized_paths != sorted(normalized_paths) or len(set(normalized_paths)) != len(normalized_paths):
+        raise SnapshotJsonValidationError("snapshot_commit_invalid")
+    return tuple(files)
+
 class DashboardRequestHandler(BaseHTTPRequestHandler):
     """Expose only a non-sensitive health endpoint until API tasks are added."""
 
@@ -193,6 +239,13 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             self.send_response(400)
             self.send_header("Content-Length", "0")
             self.end_headers()
+            return
+        try:
+            workspace_id, snapshot_id = parse_snapshot_commit_request_path(self.path)
+        except ValueError:
+            workspace_id = snapshot_id = None
+        if workspace_id is not None and snapshot_id is not None:
+            self._handle_snapshot_commit(workspace_id, snapshot_id, delivery_id, body_length)
             return
         try:
             workspace_id, snapshot_id, relative_json_path = parse_snapshot_json_request_path(self.path)
@@ -246,6 +299,57 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             return
         response_body = json.dumps(
             {"status": "stored", "delivery_id": delivery_id, "snapshot_id": snapshot_id},
+            ensure_ascii=False, separators=(",", ":"),
+        ).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(response_body)))
+        self.end_headers()
+        self.wfile.write(response_body)
+    def _handle_snapshot_commit(
+        self, workspace_id: str, snapshot_id: str, delivery_id: str, body_length: int
+    ) -> None:
+        body = self.rfile.read(body_length)
+        if len(body) != body_length:
+            self.send_response(400)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        try:
+            validate_snapshot_commit_body(body)
+        except SnapshotJsonValidationError:
+            self.send_response(400)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        staging_directory = getattr(self.server, "staging_directory", None)
+        if not isinstance(staging_directory, Path):
+            self.send_response(503)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        request_receipt = {
+            "workspace_id": workspace_id,
+            "snapshot_id": snapshot_id,
+            "body_sha256": hashlib.sha256(body).hexdigest(),
+        }
+        try:
+            with self.server.delivery_lock:
+                receipt = commit_receipt(str(staging_directory), delivery_id)
+                if receipt is None:
+                    store_commit_receipt(str(staging_directory), delivery_id, request_receipt)
+                elif receipt != request_receipt:
+                    self.send_response(409)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+        except (OSError, ValueError):
+            self.send_response(500)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        response_body = json.dumps(
+            {"status": "committed", "delivery_id": delivery_id, "snapshot_id": snapshot_id},
             ensure_ascii=False, separators=(",", ":"),
         ).encode("utf-8")
         self.send_response(200)
@@ -433,6 +537,34 @@ def store_delivery_receipt(
 ) -> Path:
     """Persist an opaque Delivery ID receipt after the matching JSON is stored."""
     target = _delivery_receipt_target(staging_directory, delivery_id)
+    body = json.dumps(receipt, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    _atomic_write_bytes(target, body)
+    return target
+
+def _commit_receipt_target(staging_directory: str, delivery_id: str) -> Path:
+    target = _delivery_receipt_target(staging_directory, delivery_id)
+    return target.parent.parent / ".commits" / target.name
+
+
+def commit_receipt(staging_directory: str, delivery_id: str) -> Optional[dict[str, str]]:
+    target = _commit_receipt_target(staging_directory, delivery_id)
+    if not target.is_file():
+        return None
+    try:
+        receipt = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError("commit_receipt_invalid") from error
+    required = {"workspace_id", "snapshot_id", "body_sha256"}
+    if (not isinstance(receipt, dict) or set(receipt) != required or
+            any(not isinstance(receipt[key], str) for key in required)):
+        raise ValueError("commit_receipt_invalid")
+    return receipt
+
+
+def store_commit_receipt(
+    staging_directory: str, delivery_id: str, receipt: dict[str, str]
+) -> Path:
+    target = _commit_receipt_target(staging_directory, delivery_id)
     body = json.dumps(receipt, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     _atomic_write_bytes(target, body)
     return target

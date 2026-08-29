@@ -56,7 +56,7 @@ POST /api/v1/snapshots/{workspace_id}/{snapshot_id}/commit
 {"status":"committed","delivery_id":"...","snapshot_id":"..."}
 ```
 
-サーバーはcommitを受理するまで新しいSnapshotを公開してはならない。受理時に、`staging/{workspace_id}/{snapshot_id}/`の全ファイルを検証し、current/public側を原子的に切り替える。
+サーバーはcommitを受理するまで新しいSnapshotを公開してはならない。現時点のcommit APIは、`files`配列の相対パス昇順、SHA-256（小文字16進64文字）、非負のバイト数を検証し、Delivery ID・URL・本文SHA-256を非公開`.commits/`receiptとして保存する。同じ内容の再送は同じ`committed`応答を返し、不一致の同一Delivery IDは409で拒否する。`staging/{workspace_id}/{snapshot_id}/`の全ファイル照合とcurrent/public側の原子的切替は後続タスクで実装する。
 
 検証済みの各JSONはstaging_directory/{workspace_id}/{snapshot_id}/{relative_json_path}だけへ保存する。保存時は同じ親ディレクトリに一時ファイルを作成し、UTF-8生バイト列を書込み・flush・fsyncした後、os.replace()で対象ファイルを原子的に置換する。stagingは公開先ではなく、この保存だけではブラウザに新しいSnapshotを公開しない。
 
