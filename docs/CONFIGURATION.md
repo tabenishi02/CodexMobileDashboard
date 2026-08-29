@@ -185,6 +185,13 @@ C:\codex
 | `page_max_items` | 必須 | integer、`100` | 1ページの最大件数 |
 | `page_max_bytes` | 必須 | integer、`524288` | 最大512KiB |
 
+### Androidサーバーの`[storage]`
+
+| キー | 必須 | 型・既定値 | 規則 |
+|---|---|---|---|
+| `minimum_free_bytes` | 任意 | integer、`1073741824`（1GiB） | staging・publicへの新規書込み前に残す空き容量。0以上。 |
+
+空き容量が予約値と今回の書込み量の合計を下回る場合、既存データを削除せず、ファイルPOSTとcommitを`507 Insufficient Storage`で拒否する。空き容量を取得できない場合も安全側で同じく停止する。
 ### `[logging]`
 
 | キー | 必須 | 型・既定値 | 規則 |
@@ -304,7 +311,7 @@ CA秘密鍵はAndroidサーバーの通常実行場所へ常置せず、証明�
 
 ## Androidサーバーの実設定
 
-Androidサーバーは、リポジトリ外の`~/.config/codex-mobile-dashboard/server.ini`を`python server.py --config`で指定する。INIはUTF-8、補間無効で読み取る。`[server]`の`host`、`port`、`certificate_file`、`private_key_file`、`static_directory`、`public_directory`、`staging_directory`と、`[auth]`の`token_file`を必須とする。`[logging] directory`は指定時に使用し、未指定時はserver.iniと同階層の`logs/`を使用する。`token_file`はUTF-8の1行Tokenであり、前後の空白と改行を除去して読む。空のTokenファイルは起動を中止する。
+Androidサーバーは、リポジトリ外の`~/.config/codex-mobile-dashboard/server.ini`を`python server.py --config`で指定する。INIはUTF-8、補間無効で読み取る。`[server]`の`host`、`port`、`certificate_file`、`private_key_file`、`static_directory`、`public_directory`、`staging_directory`と、`[auth]`の`token_file`を必須とする。`[logging] directory`は指定時に使用し、未指定時はserver.iniと同階層の`logs/`を使用する。`[storage] minimum_free_bytes`は任意で、未指定時は1GiBの空き容量を予約する。`token_file`はUTF-8の1行Tokenであり、前後の空白と改行を除去して読む。空のTokenファイルは起動を中止する。
 
 `server.ini`、`server.token`、TLS秘密鍵はGit管理せず、同じユーザーだけが読める権限にする。設定例は`config/server.example.ini`を使用する。環境変数と`~`はパスに限り展開する。Tokenの値はINI、コマンドライン、ログ、例外、HTTP応答へ出力しない。
 

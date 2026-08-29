@@ -139,10 +139,25 @@ def validate_snapshot_json_body(
     return document
 
 MAX_REQUEST_BODY_BYTES = 1024 * 1024
+DEFAULT_MINIMUM_FREE_BYTES = 1024 * 1024 * 1024
+
+
+def has_storage_capacity(directory: Path, minimum_free_bytes: int, required_bytes: int = 0) -> bool:
+    """Keep a free-space reserve before a write; an unknown capacity is unsafe."""
+    if minimum_free_bytes < 0 or required_bytes < 0:
+        raise ValueError("storage_capacity_invalid")
+    try:
+        return shutil.disk_usage(directory).free >= minimum_free_bytes + required_bytes
+    except OSError:
+        return False
 
 
 class SnapshotCommitConflictError(ValueError):
     """A staged Snapshot cannot satisfy the commit manifest."""
+
+class InsufficientStorageError(OSError):
+    """A new write would violate the configured free-space reserve."""
+
 
 class RequestBodyLengthError(ValueError):
     """A safe HTTP status for a body rejected before reading it."""
@@ -272,6 +287,8 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             "public_available": self.server.public_directory.is_dir(),
             "staging_available": isinstance(staging, Path) and staging.is_dir(),
             "logging_available": bool(self.server.access_logger.handlers and self.server.error_logger.handlers),
+            "storage_available": has_storage_capacity(self.server.public_directory, self.server.minimum_free_bytes) and (not isinstance(staging, Path) or has_storage_capacity(staging, self.server.minimum_free_bytes)),
+            "minimum_free_bytes": self.server.minimum_free_bytes,
         }
         body = json.dumps(health, ensure_ascii=False, separators=(",", ":")).encode("utf-8") + b"\n"
         self.send_response(200)
@@ -345,6 +362,8 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             with self.server.delivery_lock:
                 receipt = delivery_receipt(str(staging_directory), delivery_id)
                 if receipt is None:
+                    if not has_storage_capacity(staging_directory, self.server.minimum_free_bytes, body_length):
+                        raise InsufficientStorageError("storage_capacity_unavailable")
                     store_snapshot_json(
                         str(staging_directory), workspace_id, snapshot_id, relative_json_path, body
                     )
@@ -356,6 +375,12 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
                     self.send_header("Content-Length", "0")
                     self.end_headers()
                     return
+        except InsufficientStorageError:
+            self.server.error_logger.warning("server_warning event=storage_capacity_unavailable")
+            self.send_response(507)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         except (OSError, ValueError):
             self.server.error_logger.error("server_error event=snapshot_store_failed")
             self.send_response(500)
@@ -393,6 +418,7 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
+        required_public_bytes = sum(int(entry["byte_size"]) for entry in manifest_files)
         request_receipt = {
             "workspace_id": workspace_id,
             "snapshot_id": snapshot_id,
@@ -406,12 +432,23 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
                     self.send_header("Content-Length", "0")
                     self.end_headers()
                     return
+                if receipt is None and (
+                    not has_storage_capacity(staging_directory, self.server.minimum_free_bytes)
+                    or not has_storage_capacity(self.server.public_directory, self.server.minimum_free_bytes, required_public_bytes)
+                ):
+                    raise InsufficientStorageError("storage_capacity_unavailable")
                 publish_snapshot(
                     self.server.public_directory, str(staging_directory), workspace_id,
                     snapshot_id, manifest_files,
                 )
                 if receipt is None:
                     store_commit_receipt(str(staging_directory), delivery_id, request_receipt)
+        except InsufficientStorageError:
+            self.server.error_logger.warning("server_warning event=storage_capacity_unavailable")
+            self.send_response(507)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         except SnapshotCommitConflictError:
             self.send_response(409)
             self.send_header("Content-Length", "0")
@@ -511,6 +548,9 @@ def load_server_settings(config_file: str) -> dict:
         port = parser.getint("server", "port")
         if not 1 <= port <= 65535:
             raise ServerConfigurationError("port_invalid")
+        minimum_free_bytes = parser.getint("storage", "minimum_free_bytes", fallback=DEFAULT_MINIMUM_FREE_BYTES)
+        if minimum_free_bytes < 0:
+            raise ServerConfigurationError("minimum_free_bytes_invalid")
         return {
             "host": parser.get("server", "host"),
             "port": port,
@@ -520,6 +560,7 @@ def load_server_settings(config_file: str) -> dict:
             "public_directory": read_path("server", "public_directory"),
             "staging_directory": read_path("server", "staging_directory"),
             "log_directory": (read_path("logging", "directory") if parser.has_option("logging", "directory") else Path(config_file).parent / "logs"),
+            "minimum_free_bytes": minimum_free_bytes,
             "token": token,
             "token_file": token_file,
         }
@@ -749,9 +790,11 @@ def safe_static_path(root: Path, request_path: str) -> Path:
 def content_type_for(path: Path) -> str:
     return {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8"}.get(path.suffix.lower(), "application/octet-stream")
 
-def create_server(host: str = "0.0.0.0", port: int = 8765, static_directory: str = ".", public_directory: str = ".", staging_directory: Optional[str] = None, log_directory: Optional[str] = None) -> ThreadingHTTPServer:
+def create_server(host: str = "0.0.0.0", port: int = 8765, static_directory: str = ".", public_directory: str = ".", staging_directory: Optional[str] = None, log_directory: Optional[str] = None, minimum_free_bytes: int = DEFAULT_MINIMUM_FREE_BYTES) -> ThreadingHTTPServer:
     if not 0 <= port <= 65535:
         raise ValueError("port_invalid")
+    if minimum_free_bytes < 0:
+        raise ValueError("minimum_free_bytes_invalid")
     root = Path(static_directory).resolve(strict=True)
     if not root.is_dir():
         raise ValueError("static_directory_invalid")
@@ -780,6 +823,7 @@ def create_server(host: str = "0.0.0.0", port: int = 8765, static_directory: str
     server.staging_directory = staging_root
     server.delivery_lock = threading.Lock()
     server.started_at = time.monotonic()
+    server.minimum_free_bytes = minimum_free_bytes
     if log_directory is None:
         server.access_logger = logging.getLogger("codex_mobile_dashboard.server.null.access")
         server.error_logger = logging.getLogger("codex_mobile_dashboard.server.null.error")
@@ -788,10 +832,10 @@ def create_server(host: str = "0.0.0.0", port: int = 8765, static_directory: str
     else:
         server.access_logger, server.error_logger = configure_server_logging(Path(log_directory))
     return server
-def create_https_server(certificate_file: str, private_key_file: str, host: str = "0.0.0.0", port: int = 8765, static_directory: str = ".", public_directory: str = ".", staging_directory: Optional[str] = None, log_directory: Optional[str] = None) -> ThreadingHTTPServer:
+def create_https_server(certificate_file: str, private_key_file: str, host: str = "0.0.0.0", port: int = 8765, static_directory: str = ".", public_directory: str = ".", staging_directory: Optional[str] = None, log_directory: Optional[str] = None, minimum_free_bytes: int = DEFAULT_MINIMUM_FREE_BYTES) -> ThreadingHTTPServer:
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(certificate_file, private_key_file)
-    server = create_server(host, port, static_directory, public_directory, staging_directory, log_directory)
+    server = create_server(host, port, static_directory, public_directory, staging_directory, log_directory, minimum_free_bytes)
     server.socket = context.wrap_socket(server.socket, server_side=True)
     return server
 
@@ -815,6 +859,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             str(settings["certificate_file"]), str(settings["private_key_file"]),
             settings["host"], settings["port"], str(settings["static_directory"]),
             str(settings["public_directory"]), str(settings["staging_directory"]), str(settings["log_directory"]),
+            settings["minimum_free_bytes"],
         )
         server.bearer_token = settings["token"]
     else:

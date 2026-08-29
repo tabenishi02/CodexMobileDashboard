@@ -11,10 +11,11 @@ import tempfile
 from contextlib import redirect_stderr
 from email.message import Message
 from pathlib import Path
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from server.server import configure_server_logging, MAX_REQUEST_BODY_BYTES, RequestBodyLengthError, SnapshotJsonValidationError, create_server, load_server_settings, main, parse_snapshot_json_request_path, safe_static_path, store_snapshot_json, validate_request_content_length, validate_snapshot_json_body
+from server.server import configure_server_logging, DEFAULT_MINIMUM_FREE_BYTES, has_storage_capacity, MAX_REQUEST_BODY_BYTES, RequestBodyLengthError, SnapshotJsonValidationError, create_server, load_server_settings, main, parse_snapshot_json_request_path, safe_static_path, store_snapshot_json, validate_request_content_length, validate_snapshot_json_body
 
 
 class ServerTests(unittest.TestCase):
@@ -588,5 +589,44 @@ class ServerTests(unittest.TestCase):
             public.mkdir()
             with self.assertRaisesRegex(ValueError, "^staging_directory_overlaps_public$"):
                 create_server("127.0.0.1", 0, str(static), str(public), str(public))
+    def test_storage_capacity_reserves_configured_free_space(self) -> None:
+        with patch("server.server.shutil.disk_usage", return_value=SimpleNamespace(free=100)):
+            self.assertTrue(has_storage_capacity(Path("."), 90, 10))
+            self.assertFalse(has_storage_capacity(Path("."), 90, 11))
+        with patch("server.server.shutil.disk_usage", side_effect=OSError("unavailable")):
+            self.assertFalse(has_storage_capacity(Path("."), 0))
+
+    def test_api_post_stops_new_storage_when_capacity_is_below_reserve(self) -> None:
+        self.server.bearer_token = "test-secret-token"
+        body = json.dumps(self._valid_snapshot_json()).encode("utf-8")
+        with tempfile.TemporaryDirectory() as directory:
+            staging = Path(directory) / "staging"
+            staging.mkdir()
+            self.server.staging_directory = staging
+            with patch("server.server.shutil.disk_usage", return_value=SimpleNamespace(free=DEFAULT_MINIMUM_FREE_BYTES + len(body) - 1)):
+                connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
+                connection.request("POST", "/api/v1/snapshots/workspace-1/snapshot-1/metadata.json", body=body, headers={"Authorization": "Bearer test-secret-token", "X-Delivery-Id": "123e4567-e89b-12d3-a456-426614174000"})
+                self.assertEqual(507, connection.getresponse().status)
+            self.assertFalse((staging / "workspace-1" / "snapshot-1" / "metadata.json").exists())
+
+    def test_api_commit_stops_publication_when_capacity_is_below_reserve(self) -> None:
+        self.server.bearer_token = "test-secret-token"
+        snapshot_body = json.dumps(self._valid_snapshot_json(), separators=(",", ":")).encode("utf-8")
+        body = json.dumps({"files": [{"path": "metadata.json", "byte_size": len(snapshot_body), "sha256": hashlib.sha256(snapshot_body).hexdigest()}]}).encode("utf-8")
+        with tempfile.TemporaryDirectory() as directory:
+            staging = Path(directory) / "staging"
+            public = Path(directory) / "public"
+            staging.mkdir()
+            public.mkdir()
+            target = staging / "workspace-1" / "snapshot-1" / "metadata.json"
+            target.parent.mkdir(parents=True)
+            target.write_bytes(snapshot_body)
+            self.server.staging_directory = staging
+            self.server.public_directory = public
+            with patch("server.server.shutil.disk_usage", return_value=SimpleNamespace(free=DEFAULT_MINIMUM_FREE_BYTES + len(snapshot_body) - 1)):
+                connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
+                connection.request("POST", "/api/v1/snapshots/workspace-1/snapshot-1/commit", body=body, headers={"Authorization": "Bearer test-secret-token", "X-Delivery-Id": "123e4567-e89b-12d3-a456-426614174001"})
+                self.assertEqual(507, connection.getresponse().status)
+            self.assertFalse((public / "workspace-1" / "current.json").exists())
 if __name__ == "__main__":
     unittest.main()

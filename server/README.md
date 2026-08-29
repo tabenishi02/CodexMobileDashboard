@@ -11,7 +11,7 @@
 
 - Python 3.10以上・標準ライブラリの`ThreadingHTTPServer`基盤
 - UTF-8 INIの`--config`による実設定読込と、リポジトリ外Tokenファイルの読込
-- `GET /health`（バージョン、稼働秒数、public・staging・ログの利用可否）
+- `GET /health`（バージョン、稼働秒数、public・staging・ログ・保存容量の利用可否と空き容量予約値）
 - `GET /data/{workspace_id}/{relative_json_path}`でcommit済みpublic配下のJSONだけを返す（ETagとIf-None-Matchによる304対応）
 - `--static-dir`で固定する実在ディレクトリ
 - `GET /`からstatic_dir直下の`index.html`配信
@@ -21,11 +21,11 @@
 
 ### 未実装
 
-Snapshot POSTの保存、Delivery IDを含む`stored`応答、冪等な再送、commit時のstaging全体照合とpublicへの原子的公開を実装済み。ログ、容量監視は後続タスクで追加する。
+保存容量は`[storage] minimum_free_bytes`（既定1GiB）を予約し、空き容量不足または取得不能時は既存データを削除せず、新規POST・commitを`507 Insufficient Storage`で停止する。
 
 ### 確認済みテスト
 
-`server/tests/test_server.py`で、ヘルスチェック、ルートindex配信、Content-Type、危険な静的パス拒否、ディレクトリ・存在しないファイルの404、Snapshot POST・commitの正常系、認証失敗、サイズ超過、不正JSON、危険URL、Delivery再送を確認している。
+`server/tests/test_server.py`で、ヘルスチェック、ルートindex配信、Content-Type、危険な静的パス拒否、ディレクトリ・存在しないファイルの404、Snapshot POST・commitの正常系、認証失敗、サイズ超過、不正JSON、危険URL、Delivery再送、容量不足時のPOST・commit停止を確認している。
 
 ## 役割
 
@@ -174,7 +174,7 @@ chmod 600 ~/.config/codex-mobile-dashboard/server.ini ~/.config/codex-mobile-das
 python server.py --config ~/.config/codex-mobile-dashboard/server.ini
 ```
 
-`[server]`には接続先、ポート、証明書・秘密鍵、静的画面、公開JSONの各パスを設定する。`[logging] directory`にはアクセス・エラーログ用のディレクトリを指定する。未指定時はserver.iniと同階層の`logs/`を使用する。`[auth] token_file`にはTokenを1行だけ保存した別ファイルを指定する。Tokenの値をINI、コマンドライン、ログ、Gitへ置かない。読み込み時には前後の空白・改行を除去し、空ファイルは`token_file_invalid`として起動を中止する。`--config`起動はHTTPS証明書と秘密鍵を必須とし、平文HTTPへフォールバックしない。
+`[server]`には接続先、ポート、証明書・秘密鍵、静的画面、公開JSONの各パスを設定する。`[logging] directory`にはアクセス・エラーログ用のディレクトリを指定する。`[storage] minimum_free_bytes`には書込み前に確保する空き容量（既定1GiB）を指定する。未指定時はserver.iniと同階層の`logs/`を使用する。`[auth] token_file`にはTokenを1行だけ保存した別ファイルを指定する。Tokenの値をINI、コマンドライン、ログ、Gitへ置かない。読み込み時には前後の空白・改行を除去し、空ファイルは`token_file_invalid`として起動を中止する。`--config`起動はHTTPS証明書と秘密鍵を必須とし、平文HTTPへフォールバックしない。
 
 `/api/`配下のPOSTは`Authorization: Bearer <token>`を必須とし、設定済みTokenとの比較には`hmac.compare_digest()`を使用する。Token未設定、ヘッダー欠落、形式不正、不一致は`401 Unauthorized`と`WWW-Authenticate: Bearer`だけを返す。認証済みでも、まだ実装されていないSnapshot APIは404を返す。
 
