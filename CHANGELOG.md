@@ -8,6 +8,8 @@
 
 ### Added
 
+- 認証・URL・本文検証済みJSONをstagingへ保存するSnapshotファイルPOST APIを追加し、保存成功時は204を返すようにした。
+
 - 検証済みSnapshot JSONをstaging専用ルートへ一時ファイル・flush・fsync・os.replaceで原子的に保存する関数と設定を追加した。
 
 - Snapshot JSONを保存前にUTF-8・厳密JSON・共通スキーマ・URLとのworkspace/snapshot識別情報一致で検証し、不正値を400で拒否する処理を追加した。

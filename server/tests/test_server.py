@@ -278,7 +278,27 @@ class ServerTests(unittest.TestCase):
         )
         self.assertEqual(400, connection.getresponse().status)
 
-    def test_api_post_accepts_validated_snapshot_json_before_storage(self) -> None:
+    def test_api_post_stores_validated_snapshot_json_in_staging(self) -> None:
+        self.server.bearer_token = "test-secret-token"
+        body = json.dumps(self._valid_snapshot_json()).encode("utf-8")
+        with tempfile.TemporaryDirectory() as directory:
+            staging = Path(directory) / "staging"
+            staging.mkdir()
+            self.server.staging_directory = staging
+            connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
+            connection.request(
+                "POST", "/api/v1/snapshots/workspace-1/snapshot-1/metadata.json",
+                body=body, headers={"Authorization": "Bearer test-secret-token"},
+            )
+            response = connection.getresponse()
+            self.assertEqual(204, response.status)
+            self.assertEqual(b"", response.read())
+            self.assertEqual(
+                body,
+                (staging / "workspace-1" / "snapshot-1" / "metadata.json").read_bytes(),
+            )
+
+    def test_api_post_returns_503_without_staging_configuration(self) -> None:
         self.server.bearer_token = "test-secret-token"
         body = json.dumps(self._valid_snapshot_json()).encode("utf-8")
         connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
@@ -286,7 +306,8 @@ class ServerTests(unittest.TestCase):
             "POST", "/api/v1/snapshots/workspace-1/snapshot-1/metadata.json",
             body=body, headers={"Authorization": "Bearer test-secret-token"},
         )
-        self.assertEqual(404, connection.getresponse().status)
+        self.assertEqual(503, connection.getresponse().status)
+
     def test_store_snapshot_json_uses_staging_and_atomic_replace(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             staging = Path(directory) / "staging"

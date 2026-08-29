@@ -172,7 +172,7 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         try:
-            workspace_id, snapshot_id, _ = parse_snapshot_json_request_path(self.path)
+            workspace_id, snapshot_id, relative_json_path = parse_snapshot_json_request_path(self.path)
         except ValueError:
             self.send_error(404)
             return
@@ -189,8 +189,24 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
-        # Safe storage of the validated Snapshot JSON is added in the following task.
-        self.send_error(404)
+        staging_directory = getattr(self.server, "staging_directory", None)
+        if not isinstance(staging_directory, Path):
+            self.send_response(503)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        try:
+            store_snapshot_json(
+                str(staging_directory), workspace_id, snapshot_id, relative_json_path, body
+            )
+        except (OSError, ValueError):
+            self.send_response(500)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        self.send_response(204)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
     def _api_token_is_valid(self) -> bool:
         expected = getattr(self.server, "bearer_token", None)
         authorization = self.headers.get("Authorization")
