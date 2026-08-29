@@ -8,6 +8,8 @@
 
 ### Added
 
+- Phase 4の実機受入結果を整理し、サーバー受信・公開経路を合格、閲覧画面受入をPhase 5へ移管として記録した。
+
 - Android実機への一時的な送信失敗後、PC未送信キューの再送と同一Delivery IDの冪等処理を受入確認した。
 
 - Android実機でHTTPS、認証付きPOST、commit、公開JSON GETの受入確認を実施し、画面閲覧はPhase 5へ分離した。
