@@ -16,10 +16,11 @@ Gitには秘密情報を含まない設定例だけを登録する。
 ```text
 CodexMobileDashboard/
 └─ config/
-   └─ collector.example.ini
+   ├─ collector.example.ini
+   └─ server.example.ini
 ```
 
-`collector.example.ini`は設定の説明とテストに使用し、実設定として直接編集しない。
+`collector.example.ini`と`server.example.ini`は設定の説明に使用し、実設定として直接編集しない。
 
 ## PC側のローカル保存構成
 
@@ -300,3 +301,9 @@ CA秘密鍵はAndroidサーバーの通常実行場所へ常置せず、証明�
 - [Android cleartext communications](https://developer.android.com/privacy-and-security/risks/cleartext-communications)：平文通信の盗聴・改ざんリスク
 - [RFC 6750](https://www.rfc-editor.org/info/rfc6750/)：BearerトークンをTLSで保護する要件
 - [Python `ssl`](https://docs.python.org/3.10/library/ssl.html)：Python 3.10標準ライブラリのTLS機能
+
+## Androidサーバーの実設定
+
+Androidサーバーは、リポジトリ外の`~/.config/codex-mobile-dashboard/server.ini`を`python server.py --config`で指定する。INIはUTF-8、補間無効で読み取る。`[server]`の`host`、`port`、`certificate_file`、`private_key_file`、`static_directory`、`public_directory`と、`[auth]`の`token_file`を必須とする。`token_file`はUTF-8の1行Tokenであり、前後の空白と改行を除去して読む。空のTokenファイルは起動を中止する。
+
+`server.ini`、`server.token`、TLS秘密鍵はGit管理せず、同じユーザーだけが読める権限にする。設定例は`config/server.example.ini`を使用する。環境変数と`~`はパスに限り展開する。Tokenの値はINI、コマンドライン、ログ、例外、HTTP応答へ出力しない。

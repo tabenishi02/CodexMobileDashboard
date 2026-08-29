@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 import unittest
 
-from server.server import create_server, safe_static_path
+from server.server import create_server, load_server_settings, safe_static_path
 
 
 class ServerTests(unittest.TestCase):
@@ -79,5 +79,39 @@ class ServerTests(unittest.TestCase):
             finally:
                 server.shutdown(); thread.join(); server.server_close()
 
+    def test_load_server_settings_reads_external_token(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            token_file = root / "server.token"
+            token_file.write_text("test-token-value\n", encoding="utf-8")
+            config_file = root / "server.ini"
+            config_file.write_text(
+                "[server]\nhost = 127.0.0.1\nport = 8765\n"
+                "certificate_file = ~/tls/server.crt\nprivate_key_file = ~/tls/server.key\n"
+                "static_directory = .\npublic_directory = .\n\n"
+                "[auth]\ntoken_file = " + str(token_file) + "\n",
+                encoding="utf-8",
+            )
+            settings = load_server_settings(str(config_file))
+            self.assertEqual("127.0.0.1", settings["host"])
+            self.assertEqual(8765, settings["port"])
+            self.assertEqual("test-token-value", settings["token"])
+            self.assertEqual(token_file, settings["token_file"])
+
+    def test_load_server_settings_rejects_empty_token(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            token_file = root / "server.token"
+            token_file.write_text("\n", encoding="utf-8")
+            config_file = root / "server.ini"
+            config_file.write_text(
+                "[server]\nhost = 127.0.0.1\nport = 8765\n"
+                "certificate_file = server.crt\nprivate_key_file = server.key\n"
+                "static_directory = .\npublic_directory = .\n\n"
+                "[auth]\ntoken_file = " + str(token_file) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "^token_file_invalid$"):
+                load_server_settings(str(config_file))
 if __name__ == "__main__":
     unittest.main()

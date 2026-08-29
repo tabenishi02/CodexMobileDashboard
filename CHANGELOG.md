@@ -8,6 +8,8 @@
 
 ### Added
 
+- AndroidサーバーがGit管理外のUTF-8 INIからHTTPS実設定と別ファイルのBearer Tokenを読み込み、`--config`で起動できるようにした。
+
 - commit済みpublic Snapshotだけを返すJSON GET APIを追加した。
 - プライベートCA、サーバー証明書の作成・更新・失効・事故対応手順を追加した。
 - プライベートCA、サーバー証明書の作成・更新・失効・漏えい対応手順を追加した。

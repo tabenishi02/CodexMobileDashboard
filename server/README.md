@@ -10,6 +10,7 @@
 ### 実装済み
 
 - Python 3.10以上・標準ライブラリの`ThreadingHTTPServer`基盤
+- UTF-8 INIの`--config`による実設定読込と、リポジトリ外Tokenファイルの読込
 - `GET /health`
 - `GET /data/{workspace_id}/{relative_json_path}`でcommit済みpublic配下のJSONだけを返す（ETagとIf-None-Matchによる304対応）
 - `--static-dir`で固定する実在ディレクトリ
@@ -160,3 +161,19 @@ URLデコード後にもworkspace ID、snapshot ID、相対JSONパスを検証�
 - [`../docs/TERMUX_ENVIRONMENT.md`](../docs/TERMUX_ENVIRONMENT.md)：Android端末要件と基準端末
 - [`../docs/UPDATE_POLICY.md`](../docs/UPDATE_POLICY.md)：更新頻度と保存期間
 - [`../docs/MVP_ACCEPTANCE.md`](../docs/MVP_ACCEPTANCE.md)：MVP受入条件
+
+## 実設定とBearer Token
+
+通常運用では、Git管理外のUTF-8 INIを指定して起動する。設定例は[`../config/server.example.ini`](../config/server.example.ini)であり、実ファイルにはコピー先を使用する。
+
+```sh
+mkdir -p ~/.config/codex-mobile-dashboard/tls
+chmod 700 ~/.config/codex-mobile-dashboard ~/.config/codex-mobile-dashboard/tls
+# server.iniとserver.token、TLS証明書・秘密鍵をリポジトリ外に配置する
+chmod 600 ~/.config/codex-mobile-dashboard/server.ini ~/.config/codex-mobile-dashboard/server.token ~/.config/codex-mobile-dashboard/tls/server.key
+python server.py --config ~/.config/codex-mobile-dashboard/server.ini
+```
+
+`[server]`には接続先、ポート、証明書・秘密鍵、静的画面、公開JSONの各パスを設定する。`[auth] token_file`にはTokenを1行だけ保存した別ファイルを指定する。Tokenの値をINI、コマンドライン、ログ、Gitへ置かない。読み込み時には前後の空白・改行を除去し、空ファイルは`token_file_invalid`として起動を中止する。`--config`起動はHTTPS証明書と秘密鍵を必須とし、平文HTTPへフォールバックしない。
+
+この時点ではTokenの読込だけを実装しており、POST APIでのBearer Token照合は後続タスクで追加する。

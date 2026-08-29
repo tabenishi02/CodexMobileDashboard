@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import configparser
 import json
+import os
 import hashlib
 import ssl
 import re
@@ -79,6 +81,33 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
         return
 
 
+def load_server_settings(config_file: str) -> dict:
+    """Read UTF-8 server settings and a Bearer Token kept outside the repository."""
+    parser = configparser.ConfigParser(interpolation=None)
+    with Path(config_file).open("r", encoding="utf-8") as stream:
+        parser.read_file(stream)
+
+    def read_path(section: str, option: str) -> Path:
+        value = parser.get(section, option)
+        return Path(os.path.expandvars(value)).expanduser()
+
+    token_file = read_path("auth", "token_file")
+    token = token_file.read_text(encoding="utf-8").strip()
+    if not token:
+        raise ValueError("token_file_invalid")
+    port = parser.getint("server", "port")
+    if not 1 <= port <= 65535:
+        raise ValueError("port_invalid")
+    return {
+        "host": parser.get("server", "host"),
+        "port": port,
+        "certificate_file": read_path("server", "certificate_file"),
+        "private_key_file": read_path("server", "private_key_file"),
+        "static_directory": read_path("server", "static_directory"),
+        "public_directory": read_path("server", "public_directory"),
+        "token": token,
+        "token_file": token_file,
+    }
 def safe_static_path(root: Path, request_path: str) -> Path:
     decoded = unquote(request_path)
     if not decoded or "\\" in decoded or ":" in decoded:
@@ -110,16 +139,16 @@ def create_server(host: str = "0.0.0.0", port: int = 8765, static_directory: str
     server.public_directory = public_root
     return server
 
-def create_https_server(certificate_file: str, private_key_file: str, host: str = "0.0.0.0", port: int = 8765) -> ThreadingHTTPServer:
+def create_https_server(certificate_file: str, private_key_file: str, host: str = "0.0.0.0", port: int = 8765, static_directory: str = ".", public_directory: str = ".") -> ThreadingHTTPServer:
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(certificate_file, private_key_file)
-    server = create_server(host, port)
+    server = create_server(host, port, static_directory, public_directory)
     server.socket = context.wrap_socket(server.socket, server_side=True)
     return server
 
-
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Codex Mobile Dashboard server")
+    parser.add_argument("--config", help="UTF-8 INI file outside the repository")
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", default=8765, type=int)
     parser.add_argument("--cert")
@@ -127,9 +156,21 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--static-dir", default=".")
     parser.add_argument("--public-dir", default=".")
     arguments = parser.parse_args(argv)
-    if bool(arguments.cert) != bool(arguments.key):
-        parser.error("--cert and --key must be specified together")
-    server = create_https_server(arguments.cert, arguments.key, arguments.host, arguments.port) if arguments.cert else create_server(arguments.host, arguments.port, arguments.static_dir, arguments.public_dir)
+    if arguments.config:
+        try:
+            settings = load_server_settings(arguments.config)
+        except (OSError, ValueError, configparser.Error) as error:
+            parser.error("configuration_invalid: " + str(error))
+        server = create_https_server(
+            str(settings["certificate_file"]), str(settings["private_key_file"]),
+            settings["host"], settings["port"], str(settings["static_directory"]),
+            str(settings["public_directory"]),
+        )
+        server.bearer_token = settings["token"]
+    else:
+        if bool(arguments.cert) != bool(arguments.key):
+            parser.error("--cert and --key must be specified together")
+        server = create_https_server(arguments.cert, arguments.key, arguments.host, arguments.port, arguments.static_dir, arguments.public_dir) if arguments.cert else create_server(arguments.host, arguments.port, arguments.static_dir, arguments.public_dir)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -137,7 +178,5 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     finally:
         server.server_close()
     return 0
-
-
 if __name__ == "__main__":
     raise SystemExit(main())
