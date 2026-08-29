@@ -76,6 +76,8 @@ HTML、CSS、JavaScriptは分離し、外部ライブラリやCDNには依存し
 
 画面はAndroidサーバー端末から、役割ごとに分割されたJSONをHTTPS GETで取得します。閲覧スマートフォンにはプライベートCAの公開証明書を信頼させ、証明書エラーを無視して接続する運用は行いません。
 
+公開JSONのURLは`/data/{workspace_id}/{relative_json_path}`である。例として概要は`/data/{workspace_id}/dashboard.json`、会話ページは`messages.json`内の索引が示す`messages/pages/...json`から取得する。未commitのstaging Snapshotへはアクセスできない。
+
 ```text
 dashboard.json
 recent.json
@@ -85,6 +87,8 @@ decisions.json
 files.json
 metadata.json
 ```
+
+複数ワークスペースを扱う一方、現行サーバーにはworkspace一覧APIがない。画面が`workspace_id`を受け取る方法（URL、クライアント設定、一覧API等）はPhase 5の最初に決定し、存在しないIDを推測しない。詳細は[`../docs/PHASE5_HANDOFF.md`](../docs/PHASE5_HANDOFF.md)を参照する。
 
 - 最初に`dashboard.json`と必要最小限の概要を取得する。
 - 会話全文などの詳細は、画面を開いたときにページ単位で取得する。

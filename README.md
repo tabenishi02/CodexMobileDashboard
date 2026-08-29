@@ -3,7 +3,7 @@
 VSCode Codexで進めている開発の状況を、スマートフォンから短時間で確認するためのダッシュボードです。
 
 > [!IMPORTANT]
-> Androidサーバーと閲覧画面は未実装です。作業用PCでは、Codex JSONLを収集して表示用Snapshotを生成するcollector本体、未送信Snapshotの状態確認・手動再送・定期再送を実行できます。進捗は[`TASKS.md`](TASKS.md)で管理しています。
+> 作業用PCのcollectorとAndroid・Termux向けHTTPSサーバーは実装・実機受入済みです。スマートフォン向け閲覧画面はPhase 5で実装します。進捗は[`TASKS.md`](TASKS.md)、Phase 5への引継ぎは[`docs/PHASE5_HANDOFF.md`](docs/PHASE5_HANDOFF.md)で管理しています。
 
 ## 目的
 
@@ -121,13 +121,17 @@ Codex JSONL内にコードがテキストとして記録されている場合は
 
 ## 表示用データ
 
-表示用JSONは次の単位へ分ける予定です。
+表示用JSONは次の単位へ分けて生成します。会話履歴と変更要約は索引からページ・断片を参照します。
 
 ```text
 data/
 ├─ dashboard.json
 ├─ recent.json
 ├─ messages.json
+├─ messages/
+│  ├─ pages/
+│  ├─ chunks/
+│  └─ summaries/
 ├─ errors.json
 ├─ decisions.json
 ├─ files.json
@@ -148,7 +152,7 @@ CodexMobileDashboard/
 ├─ TASKS.md
 ├─ CHANGELOG.md
 ├─ config/             # 秘密を含まない設定例
-├─ server/             # Android・Termux側サーバー（実装予定）
+├─ server/             # Android・Termux側HTTPSサーバー
 ├─ client/             # スマートフォン向け画面（実装予定）
 ├─ tools/              # PC側の収集・変換・送信ツール
 ├─ data/               # テスト用サンプルとローカル動作確認用データ
@@ -173,13 +177,17 @@ CodexMobileDashboard/
 | [`docs/LOGGING.md`](docs/LOGGING.md) | ログ出力とローテーション |
 | [`docs/ERROR_HANDLING.md`](docs/ERROR_HANDLING.md) | エラー分類、保存、再試行 |
 | [`docs/TERMUX_ENVIRONMENT.md`](docs/TERMUX_ENVIRONMENT.md) | Androidサーバー端末の要件と検証用Android端末での確認結果 |
+| [`docs/TERMUX_SETUP.md`](docs/TERMUX_SETUP.md) | Android実機への配置、起動、停止、自動起動 |
+| [`docs/TLS_CERTIFICATES.md`](docs/TLS_CERTIFICATES.md) | 証明書の正規配置、更新、事故対応 |
 | [`docs/NETWORK.md`](docs/NETWORK.md) | LAN内通信の確認結果 |
 | [`docs/MVP_ACCEPTANCE.md`](docs/MVP_ACCEPTANCE.md) | MVPの受入条件 |
 | [`docs/PHASE3_ACCEPTANCE.md`](docs/PHASE3_ACCEPTANCE.md) | Phase 3の受入確認 |
+| [`docs/PHASE4_ACCEPTANCE.md`](docs/PHASE4_ACCEPTANCE.md) | Phase 4のAndroid実機受入確認 |
+| [`docs/PHASE5_HANDOFF.md`](docs/PHASE5_HANDOFF.md) | Phase 5開始時の状態、参照資料、未確定事項 |
 
 ## セットアップ
 
-収集ツール、サーバー、閲覧画面を実装した後に、PCとAndroidサーバー端末のセットアップ手順、起動・停止方法、秘密情報の配置、障害復旧手順をここから参照できるようにします。
+PC側collectorとAndroidサーバーの設定・運用手順は`docs/`と各コンポーネントのREADMEを参照します。閲覧画面の配置・確認手順はPhase 5の実装とともに追加します。
 
 PC側collectorは`python -m tools.collector --config <collector.ini> collect-once`で1回実行できます。
 

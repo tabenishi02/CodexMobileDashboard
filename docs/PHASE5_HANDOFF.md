@@ -1,0 +1,104 @@
+# Phase 5引継ぎ
+
+## 目的
+
+本書は、Phase 5以降を別チャットで開始する際の正規の引継ぎ資料である。秘密値や実データは記載せず、実装済み範囲、実機環境、参照資料、未確定事項を示す。
+
+## 完了済み範囲
+
+- Phase 3の作業PC側collectorは実装・受入済みである。
+- Phase 4のAndroid・Termux向けHTTPSサーバーは実装・実機受入済みである。
+- Android実機で、証明書検証付きHTTPS、Bearer認証付きSnapshot POST、明示的commit、公開JSON GETを確認済みである。
+- PC側の送信失敗後に未送信キューから再送し、同じDelivery IDを使う冪等処理を実機確認済みである。
+- Android端末再起動後のHTTPSサーバーとSSHの自動起動を確認済みである。
+- 閲覧画面は未実装であり、`client/`には設計用READMEだけがある。
+
+Phase 4の受入根拠は[`PHASE4_ACCEPTANCE.md`](PHASE4_ACCEPTANCE.md)を正とする。Phase 4完了時点の基準コミットは`12e1f8b`である。
+
+## 実機・配置情報
+
+| 項目 | 確認値 |
+|---|---|
+| 作業用PC | Windows、`192.0.2.6` |
+| PCリポジトリ | `C:\path\to\CodexMobileDashboard` |
+| Androidサーバー | 検証用Android端末、Android 12、`192.0.2.121` |
+| Termux | 0.118.3、aarch64、Python 3.14.6、Git 2.55.0 |
+| HTTPSポート | TCP 8765 |
+| Androidリポジトリ | `$HOME/CodexMobileDashboard/app` |
+| 公開・stagingデータ | `$HOME/CodexMobileDashboard/data` |
+| Androidログ | `$HOME/CodexMobileDashboard/logs` |
+| Android実設定 | `$HOME/.config/codex-mobile-dashboard/server.ini` |
+| Android Token | `$HOME/.config/codex-mobile-dashboard/server.token` |
+| Android TLS | `$HOME/.config/codex-mobile-dashboard/tls/server.crt`、`server.key` |
+
+Token、秘密鍵、実INIの内容はチャット、Git、ログ、表示用JSONへ記載しない。PC側の正規構成は[`CONFIGURATION.md`](CONFIGURATION.md)、証明書は[`TLS_CERTIFICATES.md`](TLS_CERTIFICATES.md)を参照する。
+
+実INIと秘密ファイルはリポジトリ外にあるため、今回の文書修正では変更していない。Phase 5の静的ファイルを配置する前に、Android実機の`server.ini`で`static_directory = ~/CodexMobileDashboard/app/client`になっていることを確認する。PC側`collector.ini`も、Tokenが`%LOCALAPPDATA%\CodexMobileDashboard\secrets\sender.token`、CA公開証明書が`%LOCALAPPDATA%\CodexMobileDashboard\certificates\ca.crt`を指す正規構成か確認する。値やToken本文をチャットへ貼り付けない。
+
+## 実装済み通信契約
+
+PCは各JSONを次へ送信する。
+
+```text
+POST /api/v1/snapshots/{workspace_id}/{snapshot_id}/{relative_json_path}
+```
+
+全対象ファイルの保存成功後に次を呼ぶ。
+
+```text
+POST /api/v1/snapshots/{workspace_id}/{snapshot_id}/commit
+```
+
+Androidはcommit成功時だけ`current.json`を原子的に切り替える。`metadata.json`の受信順序は公開境界ではなく、未commitのstaging SnapshotはGETで公開しない。ブラウザはcommit済みの現在世代を次から取得する。
+
+```text
+GET /data/{workspace_id}/{relative_json_path}
+```
+
+ETagと`If-None-Match`による`304 Not Modified`に対応している。詳細は[`TRANSPORT_API.md`](TRANSPORT_API.md)を正とする。
+
+## 表示用JSON
+
+PC側collectorは`dashboard.json`、`recent.json`、`messages.json`、`errors.json`、`decisions.json`、`files.json`、`metadata.json`を生成する。会話履歴と変更要約は`messages.json`の索引から`messages/pages/`、`messages/chunks/`、`messages/summaries/`を遅延取得する。
+
+フィールド、列挙値、null、ページ・断片構造は[`DATA_SCHEMA.md`](DATA_SCHEMA.md)を正とする。画面側で推測によるフィールド追加や要約生成を行わない。
+
+## Phase 5開始時に必要な判断
+
+### 1. `workspace_id`の選択・受渡し
+
+現行サーバーにはworkspace一覧APIがなく、ディレクトリ一覧も公開しない。複数ワークスペースを扱うため、画面実装前に次のいずれを採用するかユーザーへ確認する。
+
+- URLクエリまたはパスで`workspace_id`を受け取る。
+- Git管理可能な秘密を含まないクライアント設定へ初期IDを置く。
+- workspace一覧JSONまたはAPIを追加する。
+- MVPだけ単一workspaceへ固定する。
+
+存在しないworkspace IDを画面側で推測してはならない。
+
+### 2. サーバー状態画面の情報源
+
+現行`GET /health`は、状態、サーバーバージョン、稼働秒数、public・staging・ログ・保存容量の利用可否、予約空き容量を返す。最終受信日時と公開中Snapshot IDは返さない。Phase 5でこれらを表示する場合は、状態APIを拡張するか表示対象から外すかをユーザーへ確認する。
+
+## Phase 5で最初に読む資料
+
+1. [`../PROJECT.md`](../PROJECT.md)
+2. [`../CODING_RULES.md`](../CODING_RULES.md)
+3. [`../TASKS.md`](../TASKS.md)のPhase 5
+4. [`../client/README.md`](../client/README.md)
+5. [`DATA_SCHEMA.md`](DATA_SCHEMA.md)
+6. [`TRANSPORT_API.md`](TRANSPORT_API.md)
+7. [`PHASE4_ACCEPTANCE.md`](PHASE4_ACCEPTANCE.md)
+8. [`CONFIGURATION.md`](CONFIGURATION.md)
+
+## Phase 5の開始条件
+
+次の順序で開始する。
+
+1. `workspace_id`の選択・受渡し方法をユーザーへ提案し、確定する。
+2. サーバー状態画面へ必要な情報を確定する。
+3. `TASKS.md`の画面構成設計から実装する。
+4. `client/index.html`、CSS、JavaScriptをAndroidの`$HOME/CodexMobileDashboard/app/client`へ反映する。
+5. CA信頼済みの閲覧スマートフォンで`https://192.0.2.121:8765/`を実機確認する。
+
+Phase 5完了までは、Phase 4受入で保留した`GET /`の画面表示と閲覧スマートフォン受入を完了扱いにしない。

@@ -1,5 +1,7 @@
 # プライベートCAとTLS証明書の運用
 
+本書を証明書の保存場所、ファイル名、有効期間、更新・事故対応の正規資料とする。
+
 ## 方針
 
 - CA秘密鍵は作業用PCのリポジトリ外・暗号化済み保管先だけに置き、Android端末へコピーしない。
@@ -9,7 +11,7 @@
 
 ## 作成
 
-作業用PCのリポジトリ外の安全な作業場所で、OpenSSLによりCA鍵とCA公開証明書を作成する。CA鍵はパスフレーズで保護し、バックアップは暗号化して保管する。サーバー鍵とCSRを生成し、SANを含む設定でCA署名する。初期有効期間はCAを10年、サーバー証明書を1年とする。
+作業用PCの`%LOCALAPPDATA%\CodexMobileDashboard\certificates\`で、OpenSSLによりCA鍵とCA公開証明書を作成する。このディレクトリはリポジトリ外である。CA鍵はパスフレーズで保護し、バックアップは暗号化して保管する。サーバー鍵とCSRを生成し、SANを含む設定でCA署名する。初期有効期間はCAを10年、サーバー証明書を1年とする。
 
 SANの例：
 
@@ -17,16 +19,31 @@ SANの例：
 subjectAltName = IP:192.0.2.121,DNS:codex-dashboard.local
 ```
 
-Android端末には次の権限で配置する。
+作業用PCの発行・保管ファイル名は次へ統一する。Bearer Tokenは証明書ディレクトリへ混在させず、`%LOCALAPPDATA%\CodexMobileDashboard\secrets\sender.token`へ置く。
 
 ```text
-$HOME/CodexMobileDashboard/certificates/
-├─ ca.crt                 # 公開情報
-├─ server.crt             # 公開情報
-└─ server.key             # 秘密情報、chmod 600
+%LOCALAPPDATA%\CodexMobileDashboard\certificates\
+├─ ca.key
+├─ ca.crt
+├─ ca.srl
+├─ server.key
+├─ server.csr
+├─ server.crt
+└─ server-ext.cnf
 ```
 
-PC senderの`ca_file`には同じ`ca.crt`を指定する。閲覧スマートフォンにはCA公開証明書を利用者が信頼済み証明書として導入する。
+Android端末にはCA秘密鍵をコピーせず、次のリポジトリ外ディレクトリへサーバー証明書と秘密鍵を配置する。
+
+```text
+$HOME/.config/codex-mobile-dashboard/
+├─ server.ini
+├─ server.token           # 秘密情報、chmod 600
+└─ tls/
+   ├─ server.crt          # 公開情報
+   └─ server.key          # 秘密情報、chmod 600
+```
+
+PC senderの`ca_file`には`%LOCALAPPDATA%\CodexMobileDashboard\certificates\ca.crt`を指定する。閲覧スマートフォンには同じCA公開証明書を利用者が信頼済み証明書として導入する。
 
 ## 更新
 

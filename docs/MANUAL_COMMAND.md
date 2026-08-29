@@ -1,6 +1,6 @@
 # 手動実行コマンド
 
-現時点の`tools.collector`は、永続未送信キューの確認と再送だけを行う。Codex JSONLの探索、抽出、表示用JSON生成をまとめて1回実行するcollector本体は未実装であり、このコマンドはそれらを実行しない。
+`tools.collector`は、Codex JSONLの探索、抽出、表示用JSON生成、HTTPS送信をまとめて1回実行する`collect-once`と、永続未送信キューの確認・再送を提供する。
 
 実設定を次へ配置する。
 
@@ -42,7 +42,7 @@ python -m tools.collector --config "$env:LOCALAPPDATA\CodexMobileDashboard\confi
 | `0` | 状態確認または指定再送が成功 |
 | `2` | 設定、キュー、通信、認証、証明書のいずれかで失敗 |
 
-未送信キューの定期再送はWindows タスク スケジューラで登録できる。手順は[`SCHEDULED_EXECUTION.md`](SCHEDULED_EXECUTION.md)を参照する。JSONL収集・変換・新規Snapshot送信をまとめて行うcollector本体は後続タスクで追加する。
+未送信キューの定期再送はWindows タスク スケジューラで登録できる。手順は[`SCHEDULED_EXECUTION.md`](SCHEDULED_EXECUTION.md)を参照する。
 
 
 ## 収集・変換を1回実行

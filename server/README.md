@@ -19,7 +19,7 @@
 - URLデコード後のパストラバーサル、絶対パス、Windowsドライブ指定子、バックスラッシュ拒否
 - ディレクトリURLと存在しない静的ファイルの404
 
-### 未実装
+### 保存容量監視
 
 保存容量は`[storage] minimum_free_bytes`（既定1GiB）を予約し、空き容量不足または取得不能時は既存データを削除せず、新規POST・commitを`507 Insufficient Storage`で停止する。
 
@@ -69,15 +69,18 @@ Androidサーバー端末は、作業用PCが生成した表示用JSONと固定�
 
 サーバーは`--static-dir`で指定された実在ディレクトリを解決済みの固定ルートとして保持する。未指定時は起動ディレクトリを使用する。`/`はstatic_dir直下の`index.html`だけを配信する。存在しない場合は404を返す。HTMLは`text/html; charset=utf-8`、CSSは`text/css; charset=utf-8`、JavaScriptは`text/javascript; charset=utf-8`として配信する。静的パスはURLデコード後に検証し、`..`、絶対パス、Windowsドライブ指定子、バックスラッシュを拒否する。ディレクトリURLと存在しない静的ファイルは一覧や詳細を返さず404で拒否する。static_dirの`index.html`配信、Content-Type、404、危険なパス拒否は単体テストで確認する。許可されたstatic_dir配下だけを固定ファイルとして配信する。
 
-## 予定構成
-
-実装時点で必要性を再確認し、不要なファイルやクラスは作成しません。
+## 構成
 
 ```text
 server/
-├─ README.md           # 本書
-├─ server.py           # サーバーの起動点
-└─ tests/              # サーバー単体テスト
+├─ README.md                    # 本書
+├─ server.py                    # HTTPSサーバーの起動点
+├─ start_server.sh              # 前面・バックグラウンド起動
+├─ stop_server.sh               # 安全な停止
+├─ restart_server.sh            # 停止後の再起動
+├─ install_termux_boot.sh       # Termux:Boot登録
+├─ termux_boot_start_server.sh  # 自動起動用ラッパー
+└─ tests/                       # サーバーと運用スクリプトのテスト
 ```
 
 固定HTML、CSS、JavaScriptは`client/`、受信した表示用JSONは実行環境のデータ保存先に配置します。実際の設定ファイルと認証トークンはリポジトリ外に置きます。

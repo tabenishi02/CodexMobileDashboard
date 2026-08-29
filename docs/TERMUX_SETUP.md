@@ -19,17 +19,23 @@ Python 3.10以上であること、空き容量を`df -h "$HOME"`で確認する
 
 ## リポジトリと実設定
 
-実装後にリポジトリをこのディレクトリへ配置する。Token、CA秘密鍵、サーバー秘密鍵、実INIはGitへ追加しない。実行時データは次のように分離する。
+リポジトリを`app/`へ配置する。Token、CA秘密鍵、サーバー秘密鍵、実INIはGitへ追加しない。実行時データとGit管理外設定は次のように分離する。
 
 ```text
 $HOME/CodexMobileDashboard/
 ├─ app/                 # リポジトリのserver・client
-├─ config/              # 実INI（Git管理外）
-├─ secrets/             # Bearer Token・秘密鍵（Git管理外）
-├─ certificates/        # CA公開証明書・サーバー証明書
 ├─ data/                # staging・公開Snapshot
 └─ logs/                # ローテーションログ
+
+$HOME/.config/codex-mobile-dashboard/
+├─ server.ini           # 実INI（Git管理外）
+├─ server.token         # Bearer Token（Git管理外）
+└─ tls/
+   ├─ server.crt        # サーバー証明書
+   └─ server.key        # サーバー秘密鍵（chmod 600）
 ```
+
+CA秘密鍵はAndroid端末へ置かず、作業用PCのリポジトリ外で保護する。証明書の正規配置と更新手順は[`TLS_CERTIFICATES.md`](TLS_CERTIFICATES.md)を参照する。
 
 ## Android設定
 

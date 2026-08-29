@@ -65,7 +65,7 @@ Gitを、実際の変更ファイルと変更状態の正とします。
 - スマートフォン表示用HTMLの生成
 - 外部クラウドサービスへの送信
 
-## 予定構成
+## 構成
 
 実装時点で責務の分離が必要かを確認し、最初から過剰にファイルやクラスを増やしません。
 
@@ -99,7 +99,7 @@ tools/
 
 ## 手動実行
 
-`python -m tools.collector --config <collector.ini> queue-status`で未送信キューの安全な要約を確認できる。`retry-queued`は最古の1件、`retry-queued --all`は成功する限り全件を順に再送する。Windows タスク スケジューラには、再送専用の定期実行を登録できる。現時点ではJSONL収集・変換をまとめて実行する手動コマンドは未実装である。詳細は[`../docs/MANUAL_COMMAND.md`](../docs/MANUAL_COMMAND.md)と[`../docs/SCHEDULED_EXECUTION.md`](../docs/SCHEDULED_EXECUTION.md)を参照する。
+`python -m tools.collector --config <collector.ini> collect-once`でJSONL収集・変換・新規Snapshot送信を1回実行できる。`--no-send`ではローカル生成と状態更新だけを行う。`queue-status`で未送信キューの安全な要約を確認でき、`retry-queued`は最古の1件、`retry-queued --all`は成功する限り全件を順に再送する。Windows タスク スケジューラには、再送専用の定期実行を登録できる。詳細は[`../docs/MANUAL_COMMAND.md`](../docs/MANUAL_COMMAND.md)と[`../docs/SCHEDULED_EXECUTION.md`](../docs/SCHEDULED_EXECUTION.md)を参照する。
 
 ## 実装済みのJSONL読み取り
 
