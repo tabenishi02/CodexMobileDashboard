@@ -3,7 +3,7 @@
 このディレクトリには、作業用PCでCodexセッションとGit状態を収集し、スマートフォン表示用JSONへ変換してAndroidサーバー端末へ送信するツールを配置します。
 
 > [!IMPORTANT]
-> Codex JSONLの探索・索引化・差分更新、既知形式のメモリ内正規化、秘密情報除外、各情報の抽出、Git変更メタデータ取得、変更要約生成、表示用JSONへのメモリ内変換と原子的なUTF-8保存を実装済みです。HTTPS送信は今後実装します。
+> Codex JSONLの探索・索引化・差分更新、既知形式のメモリ内正規化、秘密情報除外、各情報の抽出、Git変更メタデータ取得、変更要約生成、表示用JSONへのメモリ内変換と原子的なUTF-8保存、HTTPS送信、失敗Snapshotの保持と再送を実装済みです。これらをまとめて実行するcollector本体は未実装です。
 
 ## 役割
 
@@ -99,7 +99,7 @@ tools/
 
 ## 手動実行
 
-`python -m tools.collector --config <collector.ini> queue-status`で未送信キューの安全な要約を確認できる。`retry-queued`は最古の1件、`retry-queued --all`は成功する限り全件を順に再送する。現時点ではJSONL収集・変換をまとめて実行する手動コマンドは未実装である。詳細は[`../docs/MANUAL_COMMAND.md`](../docs/MANUAL_COMMAND.md)を参照する。
+`python -m tools.collector --config <collector.ini> queue-status`で未送信キューの安全な要約を確認できる。`retry-queued`は最古の1件、`retry-queued --all`は成功する限り全件を順に再送する。Windows タスク スケジューラには、再送専用の定期実行を登録できる。現時点ではJSONL収集・変換をまとめて実行する手動コマンドは未実装である。詳細は[`../docs/MANUAL_COMMAND.md`](../docs/MANUAL_COMMAND.md)と[`../docs/SCHEDULED_EXECUTION.md`](../docs/SCHEDULED_EXECUTION.md)を参照する。
 
 ## 実装済みのJSONL読み取り
 

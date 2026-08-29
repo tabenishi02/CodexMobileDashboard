@@ -42,4 +42,4 @@ python -m tools.collector --config "$env:LOCALAPPDATA\CodexMobileDashboard\confi
 | `0` | 状態確認または指定再送が成功 |
 | `2` | 設定、キュー、通信、認証、証明書のいずれかで失敗 |
 
-通常運用の定期実行、JSONL収集・変換・新規Snapshot送信は後続タスクで追加する。
+未送信キューの定期再送はWindows タスク スケジューラで登録できる。手順は[`SCHEDULED_EXECUTION.md`](SCHEDULED_EXECUTION.md)を参照する。JSONL収集・変換・新規Snapshot送信をまとめて行うcollector本体は後続タスクで追加する。
