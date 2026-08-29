@@ -109,7 +109,7 @@
 
 ## Phase 4：Android・Termux側サーバー
 
-- [ ] Termux用のセットアップ手順を作成する
+- [x] Termux用のセットアップ手順を作成する
 - [ ] Python 3.10以上で動作するサーバーを実装する
 - [ ] プライベートCAと証明書の作成・更新・失効手順を決める
 - [ ] `ssl.SSLContext`によるHTTPSを実装する
