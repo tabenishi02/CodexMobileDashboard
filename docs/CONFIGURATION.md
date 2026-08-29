@@ -304,7 +304,7 @@ CA秘密鍵はAndroidサーバーの通常実行場所へ常置せず、証明�
 
 ## Androidサーバーの実設定
 
-Androidサーバーは、リポジトリ外の`~/.config/codex-mobile-dashboard/server.ini`を`python server.py --config`で指定する。INIはUTF-8、補間無効で読み取る。`[server]`の`host`、`port`、`certificate_file`、`private_key_file`、`static_directory`、`public_directory`、`staging_directory`と、`[auth]`の`token_file`を必須とする。`token_file`はUTF-8の1行Tokenであり、前後の空白と改行を除去して読む。空のTokenファイルは起動を中止する。
+Androidサーバーは、リポジトリ外の`~/.config/codex-mobile-dashboard/server.ini`を`python server.py --config`で指定する。INIはUTF-8、補間無効で読み取る。`[server]`の`host`、`port`、`certificate_file`、`private_key_file`、`static_directory`、`public_directory`、`staging_directory`と、`[auth]`の`token_file`を必須とする。`[logging] directory`は指定時に使用し、未指定時はserver.iniと同階層の`logs/`を使用する。`token_file`はUTF-8の1行Tokenであり、前後の空白と改行を除去して読む。空のTokenファイルは起動を中止する。
 
 `server.ini`、`server.token`、TLS秘密鍵はGit管理せず、同じユーザーだけが読める権限にする。設定例は`config/server.example.ini`を使用する。環境変数と`~`はパスに限り展開する。Tokenの値はINI、コマンドライン、ログ、例外、HTTP応答へ出力しない。
 

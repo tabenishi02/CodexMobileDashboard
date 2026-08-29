@@ -5,12 +5,14 @@ from __future__ import annotations
 import argparse
 import configparser
 import json
+import logging
 import os
 import hashlib
 import hmac
 import ssl
 import shutil
 import tempfile
+import time
 import threading
 import uuid
 import re
@@ -22,6 +24,33 @@ from typing import Optional, Sequence, Type
 
 _IDENTIFIER_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 _JSON_PATH_COMPONENT_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+
+def configure_server_logging(log_directory: Path) -> tuple[logging.Logger, logging.Logger]:
+    """Create separate UTF-8 access and error logs without sensitive request data."""
+    log_directory.mkdir(parents=True, exist_ok=True)
+    formatter = logging.Formatter("%(asctime)s %(levelname)s server %(message)s")
+    result: list[logging.Logger] = []
+    for name, filename in (("access", "server.access.log"), ("error", "server.error.log")):
+        logger = logging.getLogger("codex_mobile_dashboard.server." + name + "." + str(log_directory.resolve()))
+        logger.setLevel(logging.INFO)
+        logger.propagate = False
+        for handler in logger.handlers[:]:
+            logger.removeHandler(handler)
+            handler.close()
+        handler = logging.FileHandler(log_directory / filename, encoding="utf-8")
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        result.append(logger)
+    return result[0], result[1]
+
+
+def _safe_log_path(path: str) -> str:
+    path = path.split("?", 1)[0]
+    if path.startswith("/api/v1/snapshots/"):
+        return "/api/v1/snapshots"
+    if path.startswith("/data/"):
+        return "/data"
+    return path if path in ("/", "/health") else "/unknown"
 
 
 def parse_snapshot_json_request_path(request_path: str) -> tuple[str, str, str]:
@@ -202,6 +231,25 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
     """Expose only a non-sensitive health endpoint until API tasks are added."""
 
     server_version = "CodexMobileDashboard/0.1"
+    def handle_one_request(self) -> None:
+        started = time.monotonic()
+        self._response_status: Optional[int] = None
+        self._authentication = "not_required"
+        try:
+            super().handle_one_request()
+        finally:
+            if getattr(self, "command", None):
+                length = self.headers.get("Content-Length", "-") if hasattr(self, "headers") else "-"
+                self.server.access_logger.info(
+                    "http_access method=%s path=%s status=%s duration_ms=%d request_bytes=%s authentication=%s",
+                    self.command, _safe_log_path(self.path), self._response_status or 0,
+                    int((time.monotonic() - started) * 1000), length, self._authentication,
+                )
+
+    def send_response(self, code: int, message: Optional[str] = None) -> None:
+        self._response_status = code
+        super().send_response(code, message)
+
 
     def do_GET(self) -> None:  # noqa: N802
         if self.path.startswith("/data/"):
@@ -297,6 +345,7 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
                     self.end_headers()
                     return
         except (OSError, ValueError):
+            self.server.error_logger.error("server_error event=snapshot_store_failed")
             self.send_response(500)
             self.send_header("Content-Length", "0")
             self.end_headers()
@@ -357,6 +406,7 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         except (OSError, ValueError):
+            self.server.error_logger.error("server_error event=snapshot_commit_failed")
             self.send_response(500)
             self.send_header("Content-Length", "0")
             self.end_headers()
@@ -374,11 +424,15 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
         expected = getattr(self.server, "bearer_token", None)
         authorization = self.headers.get("Authorization")
         if not isinstance(expected, str) or not expected:
+            self._authentication = "failed"
             return False
         if not authorization or not authorization.startswith("Bearer "):
+            self._authentication = "failed"
             return False
         supplied = authorization[len("Bearer "):]
-        return hmac.compare_digest(supplied, expected)
+        valid = hmac.compare_digest(supplied, expected)
+        self._authentication = "success" if valid else "failed"
+        return valid
     def _serve_json(self) -> None:
         parts = self.path.split("?", 1)[0].split("/")[2:]
         if len(parts) < 2 or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", parts[0]):
@@ -453,6 +507,7 @@ def load_server_settings(config_file: str) -> dict:
             "static_directory": read_path("server", "static_directory"),
             "public_directory": read_path("server", "public_directory"),
             "staging_directory": read_path("server", "staging_directory"),
+            "log_directory": (read_path("logging", "directory") if parser.has_option("logging", "directory") else Path(config_file).parent / "logs"),
             "token": token,
             "token_file": token_file,
         }
@@ -682,7 +737,7 @@ def safe_static_path(root: Path, request_path: str) -> Path:
 def content_type_for(path: Path) -> str:
     return {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8"}.get(path.suffix.lower(), "application/octet-stream")
 
-def create_server(host: str = "0.0.0.0", port: int = 8765, static_directory: str = ".", public_directory: str = ".", staging_directory: Optional[str] = None) -> ThreadingHTTPServer:
+def create_server(host: str = "0.0.0.0", port: int = 8765, static_directory: str = ".", public_directory: str = ".", staging_directory: Optional[str] = None, log_directory: Optional[str] = None) -> ThreadingHTTPServer:
     if not 0 <= port <= 65535:
         raise ValueError("port_invalid")
     root = Path(static_directory).resolve(strict=True)
@@ -712,11 +767,18 @@ def create_server(host: str = "0.0.0.0", port: int = 8765, static_directory: str
     server.public_directory = public_root
     server.staging_directory = staging_root
     server.delivery_lock = threading.Lock()
+    if log_directory is None:
+        server.access_logger = logging.getLogger("codex_mobile_dashboard.server.null.access")
+        server.error_logger = logging.getLogger("codex_mobile_dashboard.server.null.error")
+        server.access_logger.addHandler(logging.NullHandler())
+        server.error_logger.addHandler(logging.NullHandler())
+    else:
+        server.access_logger, server.error_logger = configure_server_logging(Path(log_directory))
     return server
-def create_https_server(certificate_file: str, private_key_file: str, host: str = "0.0.0.0", port: int = 8765, static_directory: str = ".", public_directory: str = ".", staging_directory: Optional[str] = None) -> ThreadingHTTPServer:
+def create_https_server(certificate_file: str, private_key_file: str, host: str = "0.0.0.0", port: int = 8765, static_directory: str = ".", public_directory: str = ".", staging_directory: Optional[str] = None, log_directory: Optional[str] = None) -> ThreadingHTTPServer:
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(certificate_file, private_key_file)
-    server = create_server(host, port, static_directory, public_directory, staging_directory)
+    server = create_server(host, port, static_directory, public_directory, staging_directory, log_directory)
     server.socket = context.wrap_socket(server.socket, server_side=True)
     return server
 
@@ -739,7 +801,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         server = create_https_server(
             str(settings["certificate_file"]), str(settings["private_key_file"]),
             settings["host"], settings["port"], str(settings["static_directory"]),
-            str(settings["public_directory"]), str(settings["staging_directory"]),
+            str(settings["public_directory"]), str(settings["staging_directory"]), str(settings["log_directory"]),
         )
         server.bearer_token = settings["token"]
     else:

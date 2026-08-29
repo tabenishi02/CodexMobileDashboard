@@ -8,6 +8,8 @@
 
 ### Added
 
+- AndroidサーバーのアクセスログとエラーログをUTF-8で分離して出力し、認証情報・本文を記録しない処理を追加した。
+
 - リクエスト不正を400、未認証を401、危険URLを404、Delivery・staging競合を409、長さ不足を411、容量超過を413、staging未設定を503として返すHTTPステータス処理を確定した。
 
 - Snapshot POST・commitの正常系、認証失敗、サイズ超過、不正JSON、危険URL、Delivery再送をHTTP単体テストで確認した。

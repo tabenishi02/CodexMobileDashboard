@@ -147,7 +147,7 @@ URLデコード後にもworkspace ID、snapshot ID、相対JSONパスを検証�
 - 同時読み書きでJSONが破損しないようにする。
 - 同じ送信識別子の再送を重複保存しない。
 - 容量不足時は過去データを自動削除せず、新規保存を停止する。
-- 詳細なサーバーエラーは端末内の`logs/server.log`へ保存する。
+- HTTPSアクセスは端末内の`logs/server.access.log`、保存・公開障害は`logs/server.error.log`へ保存する。Authorization、Token、本文は記録しない。
 - 運用ログは日単位でローテーションし、直近7日分を保持する。
 
 ## 関連資料
@@ -174,7 +174,7 @@ chmod 600 ~/.config/codex-mobile-dashboard/server.ini ~/.config/codex-mobile-das
 python server.py --config ~/.config/codex-mobile-dashboard/server.ini
 ```
 
-`[server]`には接続先、ポート、証明書・秘密鍵、静的画面、公開JSONの各パスを設定する。`[auth] token_file`にはTokenを1行だけ保存した別ファイルを指定する。Tokenの値をINI、コマンドライン、ログ、Gitへ置かない。読み込み時には前後の空白・改行を除去し、空ファイルは`token_file_invalid`として起動を中止する。`--config`起動はHTTPS証明書と秘密鍵を必須とし、平文HTTPへフォールバックしない。
+`[server]`には接続先、ポート、証明書・秘密鍵、静的画面、公開JSONの各パスを設定する。`[logging] directory`にはアクセス・エラーログ用のディレクトリを指定する。未指定時はserver.iniと同階層の`logs/`を使用する。`[auth] token_file`にはTokenを1行だけ保存した別ファイルを指定する。Tokenの値をINI、コマンドライン、ログ、Gitへ置かない。読み込み時には前後の空白・改行を除去し、空ファイルは`token_file_invalid`として起動を中止する。`--config`起動はHTTPS証明書と秘密鍵を必須とし、平文HTTPへフォールバックしない。
 
 `/api/`配下のPOSTは`Authorization: Bearer <token>`を必須とし、設定済みTokenとの比較には`hmac.compare_digest()`を使用する。Token未設定、ヘッダー欠落、形式不正、不一致は`401 Unauthorized`と`WWW-Authenticate: Bearer`だけを返す。認証済みでも、まだ実装されていないSnapshot APIは404を返す。
 

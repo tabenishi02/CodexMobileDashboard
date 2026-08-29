@@ -145,6 +145,43 @@ class ServerTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, "^token_file_invalid$"):
                 load_server_settings(str(config_file))
+    def test_access_and_error_logs_exclude_token_and_body(self) -> None:
+        token = "test-secret-token"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            static = root / "static"
+            public = root / "public"
+            staging = root / "staging"
+            logs = root / "logs"
+            static.mkdir()
+            public.mkdir()
+            staging.mkdir()
+            server = create_server("127.0.0.1", 0, str(static), str(public), str(staging), str(logs))
+            server.bearer_token = token
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            try:
+                connection = http.client.HTTPConnection("127.0.0.1", server.server_port)
+                connection.request("GET", "/unknown?token=" + token)
+                self.assertEqual(404, connection.getresponse().status)
+                body = json.dumps(self._valid_snapshot_json()).encode("utf-8")
+                headers = {"Authorization": "Bearer " + token, "X-Delivery-Id": "123e4567-e89b-12d3-a456-426614174000"}
+                with patch("server.server.store_snapshot_json", side_effect=OSError("disk error")):
+                    connection.request("POST", "/api/v1/snapshots/workspace-1/snapshot-1/metadata.json", body=body, headers=headers)
+                    self.assertEqual(500, connection.getresponse().status)
+            finally:
+                server.shutdown()
+                thread.join()
+                server.server_close()
+                for logger in (server.access_logger, server.error_logger):
+                    for handler in logger.handlers:
+                        handler.close()
+            access = (logs / "server.access.log").read_text(encoding="utf-8")
+            error = (logs / "server.error.log").read_text(encoding="utf-8")
+            self.assertIn("http_access method=GET path=/unknown status=404", access)
+            self.assertIn("server_error event=snapshot_store_failed", error)
+            self.assertNotIn(token, access + error)
+            self.assertNotIn('"schema_version"', access + error)
     def test_token_is_not_logged_or_returned_in_http_error(self) -> None:
         token = "test-secret-token"
         captured = io.StringIO()
