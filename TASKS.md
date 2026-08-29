@@ -117,7 +117,9 @@
 - [ ] 静的ファイル配信を実装する
 - [ ] JSON取得用のHTTPS GETを実装する
 - [ ] JSON更新用のHTTPS POSTを実装する
-- [ ] 明示的commit APIとstagingから公開Snapshotへの切替を実装する`n- [ ] Delivery IDによる再送の冪等性を実装する`n- [ ] POST先と対象JSONの対応を定義する
+- [ ] 明示的commit APIとstagingから公開Snapshotへの切替を実装する
+- [ ] Delivery IDによる再送の冪等性を実装する
+- [ ] POST先と対象JSONの対応を定義する
 - [ ] リクエストボディのサイズ制限を設定する
 - [ ] JSON形式を検証する
 - [ ] 許可されたファイル以外への書き込みを防止する
