@@ -15,6 +15,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Optional, Sequence, Type
 
 
+class ServerConfigurationError(ValueError):
+    """Safe error whose message never contains a configured Token."""
+
+
 class DashboardRequestHandler(BaseHTTPRequestHandler):
     """Expose only a non-sensitive health endpoint until API tasks are added."""
 
@@ -83,31 +87,36 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
 
 def load_server_settings(config_file: str) -> dict:
     """Read UTF-8 server settings and a Bearer Token kept outside the repository."""
-    parser = configparser.ConfigParser(interpolation=None)
-    with Path(config_file).open("r", encoding="utf-8") as stream:
-        parser.read_file(stream)
+    try:
+        parser = configparser.ConfigParser(interpolation=None)
+        with Path(config_file).open("r", encoding="utf-8") as stream:
+            parser.read_file(stream)
 
-    def read_path(section: str, option: str) -> Path:
-        value = parser.get(section, option)
-        return Path(os.path.expandvars(value)).expanduser()
+        def read_path(section: str, option: str) -> Path:
+            value = parser.get(section, option)
+            return Path(os.path.expandvars(value)).expanduser()
 
-    token_file = read_path("auth", "token_file")
-    token = token_file.read_text(encoding="utf-8").strip()
-    if not token:
-        raise ValueError("token_file_invalid")
-    port = parser.getint("server", "port")
-    if not 1 <= port <= 65535:
-        raise ValueError("port_invalid")
-    return {
-        "host": parser.get("server", "host"),
-        "port": port,
-        "certificate_file": read_path("server", "certificate_file"),
-        "private_key_file": read_path("server", "private_key_file"),
-        "static_directory": read_path("server", "static_directory"),
-        "public_directory": read_path("server", "public_directory"),
-        "token": token,
-        "token_file": token_file,
-    }
+        token_file = read_path("auth", "token_file")
+        token = token_file.read_text(encoding="utf-8").strip()
+        if not token:
+            raise ServerConfigurationError("token_file_invalid")
+        port = parser.getint("server", "port")
+        if not 1 <= port <= 65535:
+            raise ServerConfigurationError("port_invalid")
+        return {
+            "host": parser.get("server", "host"),
+            "port": port,
+            "certificate_file": read_path("server", "certificate_file"),
+            "private_key_file": read_path("server", "private_key_file"),
+            "static_directory": read_path("server", "static_directory"),
+            "public_directory": read_path("server", "public_directory"),
+            "token": token,
+            "token_file": token_file,
+        }
+    except ServerConfigurationError:
+        raise
+    except (OSError, UnicodeError, ValueError, configparser.Error) as error:
+        raise ServerConfigurationError("configuration_invalid") from error
 def safe_static_path(root: Path, request_path: str) -> Path:
     decoded = unquote(request_path)
     if not decoded or "\\" in decoded or ":" in decoded:
@@ -159,8 +168,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if arguments.config:
         try:
             settings = load_server_settings(arguments.config)
-        except (OSError, ValueError, configparser.Error) as error:
-            parser.error("configuration_invalid: " + str(error))
+        except ServerConfigurationError as error:
+            parser.error(str(error))
         server = create_https_server(
             str(settings["certificate_file"]), str(settings["private_key_file"]),
             settings["host"], settings["port"], str(settings["static_directory"]),

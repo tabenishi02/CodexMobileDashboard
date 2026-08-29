@@ -132,7 +132,7 @@
 ### 4.3 認証付きSnapshot受信
 
 - [x] 実設定・Bearer Tokenをリポジトリ外の秘密ファイルから読み込む
-- [ ] Tokenをログ・HTTP応答・例外へ出力しない
+- [x] Tokenをログ・HTTP応答・例外へ出力しない
 - [ ] API認証を実装する（`hmac.compare_digest()`）
 - [ ] POST URL・workspace_id・snapshot_id・relative_json_pathの検証を実装する
 - [ ] リクエストボディの上限を1MiBとして事前に拒否する

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import http.client
+import io
 import threading
 import tempfile
+from contextlib import redirect_stderr
 from pathlib import Path
 import unittest
 
-from server.server import create_server, load_server_settings, safe_static_path
+from server.server import create_server, load_server_settings, main, safe_static_path
 
 
 class ServerTests(unittest.TestCase):
@@ -113,5 +115,40 @@ class ServerTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, "^token_file_invalid$"):
                 load_server_settings(str(config_file))
+    def test_token_is_not_logged_or_returned_in_http_error(self) -> None:
+        token = "test-secret-token"
+        captured = io.StringIO()
+        with redirect_stderr(captured):
+            connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
+            connection.request(
+                "GET", "/unknown?token=" + token,
+                headers={"Authorization": "Bearer " + token},
+            )
+            response = connection.getresponse()
+            body = response.read().decode("utf-8")
+        self.assertEqual(404, response.status)
+        self.assertNotIn(token, body)
+        self.assertNotIn(token, captured.getvalue())
+
+    def test_invalid_config_does_not_include_token_in_stderr(self) -> None:
+        token = "test-secret-token"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            token_file = root / "server.token"
+            token_file.write_text(token + "\n", encoding="utf-8")
+            config_file = root / "server.ini"
+            config_file.write_text(
+                "[server]\nhost = 127.0.0.1\nport = invalid\n"
+                "certificate_file = server.crt\nprivate_key_file = server.key\n"
+                "static_directory = .\npublic_directory = .\n\n"
+                "[auth]\ntoken_file = " + str(token_file) + "\n",
+                encoding="utf-8",
+            )
+            captured = io.StringIO()
+            with redirect_stderr(captured), self.assertRaises(SystemExit) as raised:
+                main(["--config", str(config_file)])
+        self.assertEqual(2, raised.exception.code)
+        self.assertIn("configuration_invalid", captured.getvalue())
+        self.assertNotIn(token, captured.getvalue())
 if __name__ == "__main__":
     unittest.main()

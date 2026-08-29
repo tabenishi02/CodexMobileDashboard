@@ -8,6 +8,8 @@
 
 ### Added
 
+- サーバー設定エラーを固定の安全なコードへ正規化し、Tokenが標準ログ、HTTPエラー応答、起動時の例外表示に含まれないことを回帰テストで確認した。
+
 - AndroidサーバーがGit管理外のUTF-8 INIからHTTPS実設定と別ファイルのBearer Tokenを読み込み、`--config`で起動できるようにした。
 
 - commit済みpublic Snapshotだけを返すJSON GET APIを追加した。
