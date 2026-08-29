@@ -8,6 +8,7 @@
 
 ### Added
 
+- 作業用PC側collectorの受入確認結果を文書化し、Phase 3を完了とした。
 - ログオン中の同一Windowsユーザーとして未送信Snapshotを既定で1分ごとに再送する、タスク スケジューラ用の登録・実行・解除スクリプトと運用手順を追加した。収集・変換・新規送信のcollector本体とは分離する。
 - 未送信Snapshotの安全な状態確認、最古1件または全件の順次再送を行う`python -m tools.collector`と手動実行手順を追加した。
 - 再試行後に失敗したSnapshotの本文、順序、Delivery ID、commit ID、整合性情報を原子的に永続化し、commit確認後だけ削除する`tools/pending_snapshot_queue.py`と単体テストを追加した。

@@ -175,6 +175,7 @@ CodexMobileDashboard/
 | [`docs/TERMUX_ENVIRONMENT.md`](docs/TERMUX_ENVIRONMENT.md) | Androidサーバー端末の要件と検証用Android端末での確認結果 |
 | [`docs/NETWORK.md`](docs/NETWORK.md) | LAN内通信の確認結果 |
 | [`docs/MVP_ACCEPTANCE.md`](docs/MVP_ACCEPTANCE.md) | MVPの受入条件 |
+| [`docs/PHASE3_ACCEPTANCE.md`](docs/PHASE3_ACCEPTANCE.md) | Phase 3の受入確認 |
 
 ## セットアップ
 
