@@ -79,6 +79,7 @@ tools/
 ├─ record_deduplicator.py # 再読込された同一レコードを除外
 ├─ collector_state.py # JSONL読取位置と重複排除状態を原子的に保存
 ├─ incremental_collector.py # 追記分の読取・正規化・秘密情報除外・重複排除を接続
+├─ logging_setup.py # コンポーネント別の安全な日次ローテーションログを設定
 ├─ chat_extractor.py   # 会話、ツール概要、開発者指示を抽出
 ├─ work_status_extractor.py # Codex状態とターン進行を抽出
 ├─ next_task_extractor.py # 明示された次タスクの抽出とCodex CLIによる推定
@@ -413,6 +414,8 @@ PC側は1つの共通INIを使用します。JSONLの`cwd`等から候補を抽�
 - `sender`：Androidサーバー端末へのHTTPS送信
 
 通常運用は`INFO`以上とし、日単位でローテーションして直近7日分を保持します。秘密情報と大量の本文は記録しません。
+
+`logging_setup.py`は`collector`、`converter`、`sender`にUTF-8の日次ローテーションファイルとコンソール出力を設定します。差分更新ではセッションID、処理件数、重複数、マスク件数、警告件数だけを記録し、会話本文、秘密値、本文のハッシュや長さは出力しません。
 
 ## テスト観点
 
