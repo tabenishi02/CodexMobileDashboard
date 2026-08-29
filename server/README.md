@@ -11,7 +11,7 @@
 
 - Python 3.10以上・標準ライブラリの`ThreadingHTTPServer`基盤
 - `GET /health`
-- `GET /data/{workspace_id}/{relative_json_path}`でcommit済みpublic配下のJSONだけを返す
+- `GET /data/{workspace_id}/{relative_json_path}`でcommit済みpublic配下のJSONだけを返す（ETagとIf-None-Matchによる304対応）
 - `--static-dir`で固定する実在ディレクトリ
 - `GET /`からstatic_dir直下の`index.html`配信
 - HTML、CSS、JavaScriptのContent-Type判定

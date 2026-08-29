@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import hashlib
 import ssl
 import re
 from pathlib import Path, PurePosixPath
@@ -48,8 +49,15 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             self.send_error(404)
             return
         body = target.read_bytes()
+        etag = "\"" + hashlib.sha256(body).hexdigest() + "\""
+        if self.headers.get("If-None-Match") == etag:
+            self.send_response(304)
+            self.send_header("ETag", etag)
+            self.end_headers()
+            return
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("ETag", etag)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)

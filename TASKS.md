@@ -127,7 +127,7 @@
 - [x] 静的配信の単体テストを追加する
 - [x] 実装・テスト結果をserver/README.mdへ反映する
 - [x] JSON取得用のHTTPS GETを実装する
-- [ ] ETagとIf-None-MatchによるJSONキャッシュ制御を実装する
+- [x] ETagとIf-None-MatchによるJSONキャッシュ制御を実装する
 
 ### 4.3 認証付きSnapshot受信
 
