@@ -5,6 +5,26 @@
 > [!IMPORTANT]
 > Python 3.10以上で動作する最小サーバー基盤と`/health`を実装済みです。HTTPS、認証、Snapshot API、静的配信は後続タスクです。
 
+## 実装・テスト結果
+
+### 実装済み
+
+- Python 3.10以上・標準ライブラリの`ThreadingHTTPServer`基盤
+- `GET /health`
+- `--static-dir`で固定する実在ディレクトリ
+- `GET /`からstatic_dir直下の`index.html`配信
+- HTML、CSS、JavaScriptのContent-Type判定
+- URLデコード後のパストラバーサル、絶対パス、Windowsドライブ指定子、バックスラッシュ拒否
+- ディレクトリURLと存在しない静的ファイルの404
+
+### 未実装
+
+HTTPS受信、認証、Snapshot POST・commit、JSON GET、キャッシュ、ログ、容量監視は後続タスクで追加する。
+
+### 確認済みテスト
+
+`server/tests/test_server.py`で、ヘルスチェック、ルートindex配信、Content-Type、危険な静的パス拒否、ディレクトリ・存在しないファイルの404を確認している。
+
 ## 役割
 
 Androidサーバー端末は、作業用PCが生成した表示用JSONと固定のWeb画面を保存・配信します。
