@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import ssl
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Optional, Sequence, Type
 
@@ -34,13 +35,24 @@ def create_server(host: str = "0.0.0.0", port: int = 8765) -> ThreadingHTTPServe
         raise ValueError("port_invalid")
     return ThreadingHTTPServer((host, port), DashboardRequestHandler)
 
+def create_https_server(certificate_file: str, private_key_file: str, host: str = "0.0.0.0", port: int = 8765) -> ThreadingHTTPServer:
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(certificate_file, private_key_file)
+    server = create_server(host, port)
+    server.socket = context.wrap_socket(server.socket, server_side=True)
+    return server
+
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Codex Mobile Dashboard server")
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", default=8765, type=int)
+    parser.add_argument("--cert")
+    parser.add_argument("--key")
     arguments = parser.parse_args(argv)
-    server = create_server(arguments.host, arguments.port)
+    if bool(arguments.cert) != bool(arguments.key):
+        parser.error("--cert and --key must be specified together")
+    server = create_https_server(arguments.cert, arguments.key, arguments.host, arguments.port) if arguments.cert else create_server(arguments.host, arguments.port)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
