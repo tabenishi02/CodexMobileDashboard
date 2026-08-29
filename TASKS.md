@@ -137,7 +137,7 @@
 - [x] POST URL・workspace_id・snapshot_id・relative_json_pathの検証を実装する
 - [x] リクエストボディの上限を1MiBとして事前に拒否する
 - [x] JSON UTF-8・スキーマ・Snapshot識別情報の検証を実装する
-- [ ] staging配下への一時ファイル・原子的置換によるJSON保存を実装する
+- [x] staging配下への一時ファイル・原子的置換によるJSON保存を実装する
 - [ ] `POST /api/v1/snapshots/{workspace_id}/{snapshot_id}/{relative_json_path}`を実装する
 - [ ] `stored`、delivery_id、snapshot_idを返す応答を実装する
 - [ ] Delivery IDを保存し、同一Deliveryの再送を冪等に処理する

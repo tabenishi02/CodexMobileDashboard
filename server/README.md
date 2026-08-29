@@ -184,3 +184,6 @@ Snapshot JSON POSTのURLは/api/v1/snapshots/{workspace_id}/{snapshot_id}/{relat
 ## 受信JSONの事前検証
 
 API POSTは保存前に、BOMなしUTF-8、JSONオブジェクト、重複キーなし、共通必須フィールド、`1.x`スキーマ、URLとの`workspace_id`・`snapshot_id`一致を確認する。不正値は本文や詳細を返さず400で拒否する。個別ファイルの保存は後続タスクで追加する。
+## staging配下の原子的保存
+
+`staging_directory`は実在する専用ディレクトリとして設定し、`public_directory`と同一または親子関係にしてはならない。検証済みJSONは`<staging_directory>/<workspace_id>/<snapshot_id>/`配下へだけ保存し、親ディレクトリ内の一時ファイルを`os.replace()`で置換する。保存関数は公開先を操作しないため、commit実装までブラウザへは公開されない。

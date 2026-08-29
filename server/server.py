@@ -9,6 +9,7 @@ import os
 import hashlib
 import hmac
 import ssl
+import tempfile
 import re
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote
@@ -268,6 +269,7 @@ def load_server_settings(config_file: str) -> dict:
             "private_key_file": read_path("server", "private_key_file"),
             "static_directory": read_path("server", "static_directory"),
             "public_directory": read_path("server", "public_directory"),
+            "staging_directory": read_path("server", "staging_directory"),
             "token": token,
             "token_file": token_file,
         }
@@ -275,6 +277,62 @@ def load_server_settings(config_file: str) -> dict:
         raise
     except (OSError, UnicodeError, ValueError, configparser.Error) as error:
         raise ServerConfigurationError("configuration_invalid") from error
+def _safe_staging_json_target(
+    staging_directory: str, workspace_id: str, snapshot_id: str, relative_json_path: str
+) -> Path:
+    if (
+        not _IDENTIFIER_PATTERN.fullmatch(workspace_id)
+        or not _IDENTIFIER_PATTERN.fullmatch(snapshot_id)
+        or workspace_id in (".", "..")
+        or snapshot_id in (".", "..")
+    ):
+        raise ValueError("staging_target_invalid")
+    relative_parts = relative_json_path.split("/")
+    if (
+        not relative_parts
+        or any(
+            not _JSON_PATH_COMPONENT_PATTERN.fullmatch(value)
+            or value in (".", "..")
+            for value in relative_parts
+        )
+        or not relative_parts[-1].endswith(".json")
+    ):
+        raise ValueError("staging_target_invalid")
+    root = Path(staging_directory).resolve(strict=True)
+    if not root.is_dir():
+        raise ValueError("staging_directory_invalid")
+    target = (root / workspace_id / snapshot_id).joinpath(*relative_parts).resolve(strict=False)
+    try:
+        target.relative_to(root)
+    except ValueError as error:
+        raise ValueError("staging_target_invalid") from error
+    return target
+
+
+def store_snapshot_json(
+    staging_directory: str, workspace_id: str, snapshot_id: str,
+    relative_json_path: str, body: bytes,
+) -> Path:
+    """Atomically store validated JSON bytes below an unpublicized staging root."""
+    target = _safe_staging_json_target(
+        staging_directory, workspace_id, snapshot_id, relative_json_path
+    )
+    target.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=target.name + ".", suffix=".tmp", dir=target.parent
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(body)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary_path, target)
+    finally:
+        if temporary_path.exists():
+            temporary_path.unlink()
+    return target
+
 def safe_static_path(root: Path, request_path: str) -> Path:
     decoded = unquote(request_path)
     if not decoded or "\\" in decoded or ":" in decoded:
@@ -292,24 +350,40 @@ def safe_static_path(root: Path, request_path: str) -> Path:
 def content_type_for(path: Path) -> str:
     return {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8"}.get(path.suffix.lower(), "application/octet-stream")
 
-def create_server(host: str = "0.0.0.0", port: int = 8765, static_directory: str = ".", public_directory: str = ".") -> ThreadingHTTPServer:
+def create_server(host: str = "0.0.0.0", port: int = 8765, static_directory: str = ".", public_directory: str = ".", staging_directory: Optional[str] = None) -> ThreadingHTTPServer:
     if not 0 <= port <= 65535:
         raise ValueError("port_invalid")
     root = Path(static_directory).resolve(strict=True)
     if not root.is_dir():
         raise ValueError("static_directory_invalid")
-    server = ThreadingHTTPServer((host, port), DashboardRequestHandler)
-    server.static_directory = root
     public_root = Path(public_directory).resolve(strict=True)
     if not public_root.is_dir():
         raise ValueError("public_directory_invalid")
+    staging_root: Optional[Path] = None
+    if staging_directory is not None:
+        staging_root = Path(staging_directory).resolve(strict=True)
+        if not staging_root.is_dir():
+            raise ValueError("staging_directory_invalid")
+        try:
+            staging_root.relative_to(public_root)
+        except ValueError:
+            try:
+                public_root.relative_to(staging_root)
+            except ValueError:
+                pass
+            else:
+                raise ValueError("staging_directory_overlaps_public")
+        else:
+            raise ValueError("staging_directory_overlaps_public")
+    server = ThreadingHTTPServer((host, port), DashboardRequestHandler)
+    server.static_directory = root
     server.public_directory = public_root
+    server.staging_directory = staging_root
     return server
-
-def create_https_server(certificate_file: str, private_key_file: str, host: str = "0.0.0.0", port: int = 8765, static_directory: str = ".", public_directory: str = ".") -> ThreadingHTTPServer:
+def create_https_server(certificate_file: str, private_key_file: str, host: str = "0.0.0.0", port: int = 8765, static_directory: str = ".", public_directory: str = ".", staging_directory: Optional[str] = None) -> ThreadingHTTPServer:
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(certificate_file, private_key_file)
-    server = create_server(host, port, static_directory, public_directory)
+    server = create_server(host, port, static_directory, public_directory, staging_directory)
     server.socket = context.wrap_socket(server.socket, server_side=True)
     return server
 
@@ -322,6 +396,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--key")
     parser.add_argument("--static-dir", default=".")
     parser.add_argument("--public-dir", default=".")
+    parser.add_argument("--staging-dir")
     arguments = parser.parse_args(argv)
     if arguments.config:
         try:
@@ -331,13 +406,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         server = create_https_server(
             str(settings["certificate_file"]), str(settings["private_key_file"]),
             settings["host"], settings["port"], str(settings["static_directory"]),
-            str(settings["public_directory"]),
+            str(settings["public_directory"]), str(settings["staging_directory"]),
         )
         server.bearer_token = settings["token"]
     else:
         if bool(arguments.cert) != bool(arguments.key):
             parser.error("--cert and --key must be specified together")
-        server = create_https_server(arguments.cert, arguments.key, arguments.host, arguments.port, arguments.static_dir, arguments.public_dir) if arguments.cert else create_server(arguments.host, arguments.port, arguments.static_dir, arguments.public_dir)
+        server = create_https_server(arguments.cert, arguments.key, arguments.host, arguments.port, arguments.static_dir, arguments.public_dir, arguments.staging_dir) if arguments.cert else create_server(arguments.host, arguments.port, arguments.static_dir, arguments.public_dir, arguments.staging_dir)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

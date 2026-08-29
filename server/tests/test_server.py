@@ -4,6 +4,7 @@ import http.client
 import hmac
 import io
 import json
+import os
 import threading
 import tempfile
 from contextlib import redirect_stderr
@@ -12,7 +13,7 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from server.server import MAX_REQUEST_BODY_BYTES, RequestBodyLengthError, SnapshotJsonValidationError, create_server, load_server_settings, main, parse_snapshot_json_request_path, safe_static_path, validate_request_content_length, validate_snapshot_json_body
+from server.server import MAX_REQUEST_BODY_BYTES, RequestBodyLengthError, SnapshotJsonValidationError, create_server, load_server_settings, main, parse_snapshot_json_request_path, safe_static_path, store_snapshot_json, validate_request_content_length, validate_snapshot_json_body
 
 
 class ServerTests(unittest.TestCase):
@@ -94,7 +95,7 @@ class ServerTests(unittest.TestCase):
             config_file.write_text(
                 "[server]\nhost = 127.0.0.1\nport = 8765\n"
                 "certificate_file = ~/tls/server.crt\nprivate_key_file = ~/tls/server.key\n"
-                "static_directory = .\npublic_directory = .\n\n"
+                "static_directory = .\npublic_directory = .\nstaging_directory = .\n\n"
                 "[auth]\ntoken_file = " + str(token_file) + "\n",
                 encoding="utf-8",
             )
@@ -113,7 +114,7 @@ class ServerTests(unittest.TestCase):
             config_file.write_text(
                 "[server]\nhost = 127.0.0.1\nport = 8765\n"
                 "certificate_file = server.crt\nprivate_key_file = server.key\n"
-                "static_directory = .\npublic_directory = .\n\n"
+                "static_directory = .\npublic_directory = .\nstaging_directory = .\n\n"
                 "[auth]\ntoken_file = " + str(token_file) + "\n",
                 encoding="utf-8",
             )
@@ -144,7 +145,7 @@ class ServerTests(unittest.TestCase):
             config_file.write_text(
                 "[server]\nhost = 127.0.0.1\nport = invalid\n"
                 "certificate_file = server.crt\nprivate_key_file = server.key\n"
-                "static_directory = .\npublic_directory = .\n\n"
+                "static_directory = .\npublic_directory = .\nstaging_directory = .\n\n"
                 "[auth]\ntoken_file = " + str(token_file) + "\n",
                 encoding="utf-8",
             )
@@ -286,5 +287,46 @@ class ServerTests(unittest.TestCase):
             body=body, headers={"Authorization": "Bearer test-secret-token"},
         )
         self.assertEqual(404, connection.getresponse().status)
+    def test_store_snapshot_json_uses_staging_and_atomic_replace(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            staging = Path(directory) / "staging"
+            staging.mkdir()
+            with patch("server.server.os.replace", wraps=os.replace) as replace:
+                target = store_snapshot_json(
+                    str(staging), "workspace-1", "snapshot-1",
+                    "messages/page-0001.json", b'{"version":1}',
+                )
+            self.assertEqual(
+                staging / "workspace-1" / "snapshot-1" / "messages" / "page-0001.json",
+                target,
+            )
+            self.assertEqual(b'{"version":1}', target.read_bytes())
+            replace.assert_called_once()
+            store_snapshot_json(
+                str(staging), "workspace-1", "snapshot-1",
+                "messages/page-0001.json", b'{"version":2}',
+            )
+            self.assertEqual(b'{"version":2}', target.read_bytes())
+            self.assertEqual([], list(target.parent.glob("*.tmp")))
+
+    def test_store_snapshot_json_rejects_path_outside_staging(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            staging = Path(directory) / "staging"
+            staging.mkdir()
+            with self.assertRaises(ValueError):
+                store_snapshot_json(
+                    str(staging), "workspace-1", "snapshot-1",
+                    "../outside.json", b"{}",
+                )
+            self.assertEqual([], list(staging.iterdir()))
+    def test_create_server_rejects_staging_that_overlaps_public(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            static = root / "static"
+            public = root / "public"
+            static.mkdir()
+            public.mkdir()
+            with self.assertRaisesRegex(ValueError, "^staging_directory_overlaps_public$"):
+                create_server("127.0.0.1", 0, str(static), str(public), str(public))
 if __name__ == "__main__":
     unittest.main()

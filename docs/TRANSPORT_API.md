@@ -58,6 +58,8 @@ POST /api/v1/snapshots/{workspace_id}/{snapshot_id}/commit
 
 サーバーはcommitを受理するまで新しいSnapshotを公開してはならない。受理時に、`staging/{workspace_id}/{snapshot_id}/`の全ファイルを検証し、current/public側を原子的に切り替える。
 
+検証済みの各JSONはstaging_directory/{workspace_id}/{snapshot_id}/{relative_json_path}だけへ保存する。保存時は同じ親ディレクトリに一時ファイルを作成し、UTF-8生バイト列を書込み・flush・fsyncした後、os.replace()で対象ファイルを原子的に置換する。stagingは公開先ではなく、この保存だけではブラウザに新しいSnapshotを公開しない。
+
 ## 相対パスと識別子
 
 PC側は`.json`で終わる相対パスだけを送る。Windowsの`\`はURL用の`/`へ変換し、絶対パス、ドライブ指定、空要素、`.`、`..`を拒否する。URLでは各パス要素を個別にエンコードする。
