@@ -176,6 +176,18 @@ python server.py --config ~/.config/codex-mobile-dashboard/server.ini
 
 `[server]`には接続先、ポート、証明書・秘密鍵、静的画面、公開JSONの各パスを設定する。`[logging] directory`にはアクセス・エラーログ用のディレクトリを指定する。`[storage] minimum_free_bytes`には書込み前に確保する空き容量（既定1GiB）を指定する。未指定時はserver.iniと同階層の`logs/`を使用する。`[auth] token_file`にはTokenを1行だけ保存した別ファイルを指定する。Tokenの値をINI、コマンドライン、ログ、Gitへ置かない。読み込み時には前後の空白・改行を除去し、空ファイルは`token_file_invalid`として起動を中止する。`--config`起動はHTTPS証明書と秘密鍵を必須とし、平文HTTPへフォールバックしない。
 
+## 起動スクリプト
+
+Termuxでは、リポジトリ内の[`start_server.sh`](start_server.sh)を使ってHTTPSサーバーを前面起動する。既定ではリポジトリ外の`~/.config/codex-mobile-dashboard/server.ini`を使い、別の実設定を使う場合だけパスを1つ指定する。Tokenは引数へ渡さない。
+
+```sh
+cd "$HOME/CodexMobileDashboard/app/server"
+chmod 700 start_server.sh
+./start_server.sh
+# または ./start_server.sh "$HOME/CodexMobileDashboard/config/server.ini"
+```
+
+設定ファイルが存在しない・読み取れない場合は固定エラーコードだけを標準エラーへ出して終了する。スクリプトは`exec`で`python server.py --config`へ置き換わるため、停止時はサーバープロセスも終了する。自動起動、停止・再起動手順は後続タスクで扱う。
 `/api/`配下のPOSTは`Authorization: Bearer <token>`を必須とし、設定済みTokenとの比較には`hmac.compare_digest()`を使用する。Token未設定、ヘッダー欠落、形式不正、不一致は`401 Unauthorized`と`WWW-Authenticate: Bearer`だけを返す。認証済みでも、まだ実装されていないSnapshot APIは404を返す。
 
 Snapshot JSON POSTのURLは/api/v1/snapshots/{workspace_id}/{snapshot_id}/{relative_json_path}だけを受理候補とする。IDとパス要素をURLデコード後に検証し、危険な区切り文字、空要素、..、非JSONファイル、クエリ文字列を404で拒否する。

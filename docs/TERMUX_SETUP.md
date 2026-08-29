@@ -49,4 +49,14 @@ python --version
 openssl version
 ```
 
-証明書作成・Token配置・実際のサーバー起動は、それぞれPhase 4の後続タスクで実装・文書化する。
+証明書作成・Token配置後は、HTTPSサーバーを次のように前面起動する。`server.ini`はリポジトリ外へ置き、Tokenを引数やシェル履歴に渡さない。
+
+```sh
+cd "$HOME/CodexMobileDashboard/app/server"
+chmod 700 start_server.sh
+./start_server.sh
+# 実INIを別の場所へ置く場合だけ指定する
+# ./start_server.sh "$HOME/CodexMobileDashboard/config/server.ini"
+```
+
+設定ファイルがない場合は`server_config_not_found`、読めない場合は`server_config_unreadable`だけを表示して停止する。`Ctrl+C`で前面のサーバーを停止できる。Termux起動時の自動起動は後続タスクで追加する。
