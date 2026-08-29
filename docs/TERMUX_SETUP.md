@@ -60,3 +60,14 @@ chmod 700 start_server.sh
 ```
 
 設定ファイルがない場合は`server_config_not_found`、読めない場合は`server_config_unreadable`だけを表示して停止する。`Ctrl+C`で前面のサーバーを停止できる。Termux起動時の自動起動は後続タスクで追加する。
+## Termux起動時の自動起動
+
+手動起動とHTTPS疎通確認が済んだ後、Termux:BootをF-Droidまたは公式GitHub配布版から、Termux本体と同じ配布元で導入する。Termux:Bootを一度開いてから、次を実行する。
+
+```sh
+cd "$HOME/CodexMobileDashboard/app/server"
+chmod 700 termux_boot_start_server.sh install_termux_boot.sh
+./install_termux_boot.sh
+```
+
+インストーラーは`~/.termux/boot/codex-mobile-dashboard`へ起動ファイルを作成する。既に同名のファイルがある場合は上書きせず、`boot_entry_already_exists`で停止する。端末を再起動後、`ps -ef | grep '[s]erver.py'`と`https://<Android端末IP>:<port>/health`で起動を確認する。自動起動の失敗時はTermux:Bootを一度開き、`$HOME/.termux/boot/codex-mobile-dashboard`の実行権と、実設定・証明書の読取権を確認する。
