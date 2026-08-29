@@ -117,7 +117,7 @@
 - [ ] 静的ファイル配信を実装する
   - [x] static_dirを設定し、配信ルートを固定する
   - [x] `/`を`index.html`へ対応付ける
-  - [ ] HTML、CSS、JavaScriptのContent-Typeを設定する
+  - [x] HTML、CSS、JavaScriptのContent-Typeを設定する
   - [ ] パストラバーサル、絶対パス、バックスラッシュを拒否する
   - [ ] ディレクトリ一覧と存在しないファイルを404で拒否する
   - [ ] 静的配信の単体テストを追加する

@@ -45,7 +45,7 @@ Androidサーバー端末は、作業用PCが生成した表示用JSONと固定�
 
 ## 静的配信ルート
 
-サーバーは`--static-dir`で指定された実在ディレクトリを解決済みの固定ルートとして保持する。未指定時は起動ディレクトリを使用する。`/`はstatic_dir直下の`index.html`だけを配信する。存在しない場合は404を返す。その他の固定ファイル配信規則は後続タスクで追加する。
+サーバーは`--static-dir`で指定された実在ディレクトリを解決済みの固定ルートとして保持する。未指定時は起動ディレクトリを使用する。`/`はstatic_dir直下の`index.html`だけを配信する。存在しない場合は404を返す。HTMLは`text/html; charset=utf-8`、CSSは`text/css; charset=utf-8`、JavaScriptは`text/javascript; charset=utf-8`として配信する。その他の固定ファイル配信規則は後続タスクで追加する。
 
 ## 予定構成
 

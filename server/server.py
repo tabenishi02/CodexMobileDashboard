@@ -36,7 +36,7 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             return
         body = target.read_bytes()
         self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Type", content_type_for(target))
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -45,6 +45,9 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
         """Avoid logging request bodies; detailed logging is added later."""
         return
 
+
+def content_type_for(path: Path) -> str:
+    return {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8"}.get(path.suffix.lower(), "application/octet-stream")
 
 def create_server(host: str = "0.0.0.0", port: int = 8765, static_directory: str = ".") -> ThreadingHTTPServer:
     if not 0 <= port <= 65535:
