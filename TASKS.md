@@ -135,7 +135,7 @@
 - [x] Tokenをログ・HTTP応答・例外へ出力しない
 - [x] API認証を実装する（`hmac.compare_digest()`）
 - [x] POST URL・workspace_id・snapshot_id・relative_json_pathの検証を実装する
-- [ ] リクエストボディの上限を1MiBとして事前に拒否する
+- [x] リクエストボディの上限を1MiBとして事前に拒否する
 - [ ] JSON UTF-8・スキーマ・Snapshot識別情報の検証を実装する
 - [ ] staging配下への一時ファイル・原子的置換によるJSON保存を実装する
 - [ ] `POST /api/v1/snapshots/{workspace_id}/{snapshot_id}/{relative_json_path}`を実装する

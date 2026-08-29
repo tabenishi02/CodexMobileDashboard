@@ -24,7 +24,7 @@ X-Delivery-Id: <UUID>
 Content-Type: application/json
 ```
 
-本文は表示用JSONを保存したBOMなしUTF-8の生バイト列であり、PC側senderは再整形・再エンコードしない。1リクエストは最大1MiBとし、上限超過は送信前に拒否する。
+本文は表示用JSONを保存したBOMなしUTF-8の生バイト列であり、PC側senderは再整形・再エンコードしない。1リクエストは最大1MiBとし、PC側は送信前に確認する。Androidサーバー側もAPI POSTの本文を読む前に単一の10進数`Content-Length`を検査し、1MiB超過は`413 Payload Too Large`、長さ欠落は`411 Length Required`、不正値・重複値・`Transfer-Encoding`は`400 Bad Request`で空本文として拒否する。
 
 成功は実際にstagingへ原子的保存を終えてから、HTTP 2xxと次のJSONで返す。
 

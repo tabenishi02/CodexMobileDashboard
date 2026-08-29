@@ -6,11 +6,12 @@ import io
 import threading
 import tempfile
 from contextlib import redirect_stderr
+from email.message import Message
 from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from server.server import create_server, load_server_settings, main, parse_snapshot_json_request_path, safe_static_path
+from server.server import MAX_REQUEST_BODY_BYTES, RequestBodyLengthError, create_server, load_server_settings, main, parse_snapshot_json_request_path, safe_static_path, validate_request_content_length
 
 
 class ServerTests(unittest.TestCase):
@@ -156,7 +157,7 @@ class ServerTests(unittest.TestCase):
         token = "test-secret-token"
         self.server.bearer_token = token
         connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
-        connection.request("POST", "/api/v1/snapshots/example", headers={"Authorization": "Bearer wrong"})
+        connection.request("POST", "/api/v1/snapshots/example", body=b"", headers={"Authorization": "Bearer wrong"})
         response = connection.getresponse()
         body = response.read().decode("utf-8")
         self.assertEqual(401, response.status)
@@ -168,7 +169,7 @@ class ServerTests(unittest.TestCase):
         self.server.bearer_token = token
         with patch("server.server.hmac.compare_digest", wraps=hmac.compare_digest) as compare:
             connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
-            connection.request("POST", "/api/v1/snapshots/example", headers={"Authorization": "Bearer " + token})
+            connection.request("POST", "/api/v1/snapshots/example", body=b"", headers={"Authorization": "Bearer " + token})
             response = connection.getresponse()
             response.read()
         self.assertEqual(404, response.status)
@@ -200,9 +201,39 @@ class ServerTests(unittest.TestCase):
         self.server.bearer_token = "test-secret-token"
         connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
         connection.request(
-            "POST", "/api/v1/snapshots/workspace/snapshot/%2e%2e/metadata.json",
+            "POST", "/api/v1/snapshots/workspace/snapshot/%2e%2e/metadata.json", body=b"",
             headers={"Authorization": "Bearer test-secret-token"},
         )
         self.assertEqual(404, connection.getresponse().status)
+    def test_request_body_length_accepts_one_mebibyte(self) -> None:
+        headers = Message()
+        headers["Content-Length"] = str(MAX_REQUEST_BODY_BYTES)
+        self.assertEqual(MAX_REQUEST_BODY_BYTES, validate_request_content_length(headers))
+
+    def test_request_body_length_rejects_unsafe_headers(self) -> None:
+        cases = (({}, 411), ({"Content-Length": "invalid"}, 400), ({"Transfer-Encoding": "chunked"}, 400), ({"Content-Length": str(MAX_REQUEST_BODY_BYTES + 1)}, 413))
+        for values, expected_status in cases:
+            headers = Message()
+            for name, value in values.items():
+                headers[name] = value
+            with self.assertRaises(RequestBodyLengthError) as raised:
+                validate_request_content_length(headers)
+            self.assertEqual(expected_status, raised.exception.status)
+        duplicate_headers = Message()
+        duplicate_headers["Content-Length"] = "1"
+        duplicate_headers["Content-Length"] = "1"
+        with self.assertRaises(RequestBodyLengthError) as raised:
+            validate_request_content_length(duplicate_headers)
+        self.assertEqual(400, raised.exception.status)
+
+    def test_api_post_rejects_body_larger_than_one_mebibyte_before_authentication(self) -> None:
+        connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
+        connection.request(
+            "POST", "/api/v1/snapshots/workspace/snapshot/metadata.json",
+            body=b"", headers={"Content-Length": str(MAX_REQUEST_BODY_BYTES + 1)},
+        )
+        response = connection.getresponse()
+        self.assertEqual(413, response.status)
+        self.assertEqual(b"", response.read())
 if __name__ == "__main__":
     unittest.main()

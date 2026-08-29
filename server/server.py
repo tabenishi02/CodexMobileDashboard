@@ -52,6 +52,31 @@ def parse_snapshot_json_request_path(request_path: str) -> tuple[str, str, str]:
         raise ValueError("snapshot_request_path_invalid")
     return workspace_id, snapshot_id, "/".join(relative_parts)
 
+MAX_REQUEST_BODY_BYTES = 1024 * 1024
+
+
+class RequestBodyLengthError(ValueError):
+    """A safe HTTP status for a body rejected before reading it."""
+
+    def __init__(self, status: int) -> None:
+        super().__init__("request_body_length_invalid")
+        self.status = status
+
+
+def validate_request_content_length(headers: object) -> int:
+    """Require one decimal Content-Length and reject bodies over 1 MiB."""
+    if getattr(headers, "get")("Transfer-Encoding"):
+        raise RequestBodyLengthError(400)
+    values = getattr(headers, "get_all")("Content-Length")
+    if not values:
+        raise RequestBodyLengthError(411)
+    if len(values) != 1 or not re.fullmatch(r"[0-9]+", values[0]):
+        raise RequestBodyLengthError(400)
+    length = int(values[0])
+    if length > MAX_REQUEST_BODY_BYTES:
+        raise RequestBodyLengthError(413)
+    return length
+
 class ServerConfigurationError(ValueError):
     """Safe error whose message never contains a configured Token."""
 
@@ -81,6 +106,13 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         if not self.path.startswith("/api/"):
             self.send_error(404)
+            return
+        try:
+            validate_request_content_length(self.headers)
+        except RequestBodyLengthError as error:
+            self.send_response(error.status)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
             return
         if not self._api_token_is_valid():
             self.send_response(401)
