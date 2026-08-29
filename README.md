@@ -168,6 +168,7 @@ CodexMobileDashboard/
 | [`docs/DATA_LIMITS.md`](docs/DATA_LIMITS.md) | データ量、分割、送信対象 |
 | [`docs/UPDATE_POLICY.md`](docs/UPDATE_POLICY.md) | 更新頻度、ハートビート、保存期間 |
 | [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | 設定ファイルと秘密情報の管理 |
+| [`docs/TRANSPORT_API.md`](docs/TRANSPORT_API.md) | PC・Android間のHTTPS Snapshot送信契約 |
 | [`docs/LOGGING.md`](docs/LOGGING.md) | ログ出力とローテーション |
 | [`docs/ERROR_HANDLING.md`](docs/ERROR_HANDLING.md) | エラー分類、保存、再試行 |
 | [`docs/TERMUX_ENVIRONMENT.md`](docs/TERMUX_ENVIRONMENT.md) | Androidサーバー端末の要件と検証用Android端末での確認結果 |

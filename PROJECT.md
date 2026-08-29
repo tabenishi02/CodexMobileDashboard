@@ -192,7 +192,7 @@ FastAPIも導入しない。
 
 LAN内のみ
 
-TCP 8765番ポートとプライベートCAを使用し、作業用PCからAndroidサーバー端末へHTTPS POST、閲覧スマートフォンからAndroidサーバー端末へHTTPS GETする。HTTPは架空サンプルによる疎通確認だけに限定する。検証用Android端末を基準端末としたLAN内の基本接続確認結果は`docs/NETWORK.md`に定める。
+TCP 8765番ポートとプライベートCAを使用し、作業用PCからAndroidサーバー端末へ、Delivery ID付きのHTTPSファイルPOSTと明示的commit APIを使用する。Android端末はcommit済みSnapshotだけをHTTPS GETで配信する。HTTPは架空サンプルによる疎通確認だけに限定する。検証用Android端末を基準端末としたLAN内の基本接続確認結果は`docs/NETWORK.md`に定める。
 
 ```
 PC

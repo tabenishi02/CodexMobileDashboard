@@ -56,6 +56,14 @@ server/
 
 固定HTML、CSS、JavaScriptは`client/`、受信した表示用JSONは実行環境のデータ保存先に配置します。実際の設定ファイルと認証トークンはリポジトリ外に置きます。
 
+## PC senderとの通信契約
+
+PCは`POST /api/v1/snapshots/{workspace_id}/{snapshot_id}/{relative_json_path}`へ、Bearer Token、UUIDの`X-Delivery-Id`、UTF-8 JSON生バイト列を送信する。サーバーは永続化完了後に`status: stored`、同じDelivery ID、Snapshot IDをJSONで返す。
+
+全ファイルの保存後にPCは`POST /api/v1/snapshots/{workspace_id}/{snapshot_id}/commit`を呼ぶ。サーバーはstaging内のファイルを検証し、commitを受理したSnapshotだけを公開する。`metadata.json`受信だけで公開してはならない。同じDelivery IDの再送は冪等に扱う。
+
+URLデコード後にもworkspace ID、snapshot ID、相対JSONパスを検証し、絶対パス、`..`、`\\`、保存ルート外への解決を拒否する。詳細は[`../docs/TRANSPORT_API.md`](../docs/TRANSPORT_API.md)を正とする。
+
 ## 処理の流れ
 
 ### JSON更新
