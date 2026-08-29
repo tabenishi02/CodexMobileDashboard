@@ -382,6 +382,23 @@ class ServerTests(unittest.TestCase):
         )
         self.assertEqual(400, connection.getresponse().status)
 
+    def test_api_commit_returns_conflict_when_staging_does_not_match_manifest(self) -> None:
+        self.server.bearer_token = "test-secret-token"
+        body = json.dumps({"files": [{"path": "metadata.json", "byte_size": 1, "sha256": "a" * 64}]}).encode("utf-8")
+        headers = {
+            "Authorization": "Bearer test-secret-token",
+            "X-Delivery-Id": "123e4567-e89b-12d3-a456-426614174002",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            staging = Path(directory) / "staging"
+            staging.mkdir()
+            self.server.staging_directory = staging
+            connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
+            connection.request(
+                "POST", "/api/v1/snapshots/workspace-1/snapshot-1/commit",
+                body=body, headers=headers,
+            )
+            self.assertEqual(409, connection.getresponse().status)
     def test_api_commit_requires_bearer_token_and_rejects_unsafe_url(self) -> None:
         self.server.bearer_token = "test-secret-token"
         delivery_id = "123e4567-e89b-12d3-a456-426614174001"

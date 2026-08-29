@@ -109,6 +109,12 @@ def validate_snapshot_json_body(
 MAX_REQUEST_BODY_BYTES = 1024 * 1024
 
 
+class SnapshotCommitConflictError(ValueError):
+    """A staged Snapshot cannot satisfy the commit manifest."""
+
+class SnapshotCommitConflictError(ValueError):
+    """A staged Snapshot cannot satisfy the commit manifest."""
+
 class RequestBodyLengthError(ValueError):
     """A safe HTTP status for a body rejected before reading it."""
 
@@ -348,6 +354,11 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
                 )
                 if receipt is None:
                     store_commit_receipt(str(staging_directory), delivery_id, request_receipt)
+        except SnapshotCommitConflictError:
+            self.send_response(409)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         except (OSError, ValueError):
             self.send_response(500)
             self.send_header("Content-Length", "0")
@@ -592,25 +603,27 @@ def _safe_snapshot_directory(root: Path, workspace_id: str, snapshot_id: str) ->
 def _validated_staging_files(staging_directory: str, workspace_id: str, snapshot_id: str, manifest_files: tuple[dict[str, object], ...]) -> list[tuple[Path, str]]:
     source_root = _safe_snapshot_directory(Path(staging_directory), workspace_id, snapshot_id)
     if not source_root.is_dir():
-        raise ValueError("snapshot_staging_missing")
+        raise SnapshotCommitConflictError("snapshot_staging_missing")
     manifest = {str(entry["path"]): entry for entry in manifest_files}
     actual: dict[str, Path] = {}
     for path in source_root.rglob("*"):
         if path.is_symlink() or (path.is_file() and path.suffix != ".json"):
-            raise ValueError("snapshot_staging_invalid")
+            raise SnapshotCommitConflictError("snapshot_staging_invalid")
         if path.is_file():
             actual[path.relative_to(source_root).as_posix()] = path
     if set(actual) != set(manifest):
-        raise ValueError("snapshot_manifest_mismatch")
+        raise SnapshotCommitConflictError("snapshot_manifest_mismatch")
     verified: list[tuple[Path, str]] = []
     for relative_path, entry in manifest.items():
         body = actual[relative_path].read_bytes()
         if len(body) != entry["byte_size"] or hashlib.sha256(body).hexdigest() != entry["sha256"]:
-            raise ValueError("snapshot_manifest_mismatch")
-        validate_snapshot_json_body(body, workspace_id, snapshot_id)
+            raise SnapshotCommitConflictError("snapshot_manifest_mismatch")
+        try:
+            validate_snapshot_json_body(body, workspace_id, snapshot_id)
+        except SnapshotJsonValidationError as error:
+            raise SnapshotCommitConflictError("snapshot_staging_invalid") from error
         verified.append((actual[relative_path], relative_path))
     return verified
-
 
 def load_current_snapshot_id(public_directory: Path, workspace_id: str) -> str:
     workspace_root = (public_directory / workspace_id).resolve(strict=False)
@@ -637,11 +650,11 @@ def publish_snapshot(public_directory: Path, staging_directory: str, workspace_i
     destination = snapshots_root / snapshot_id
     if destination.exists():
         if not destination.is_dir():
-            raise ValueError("public_snapshot_invalid")
+            raise SnapshotCommitConflictError("public_snapshot_invalid")
         for source, relative_path in verified:
             target = destination.joinpath(*relative_path.split("/"))
             if not target.is_file() or target.read_bytes() != source.read_bytes():
-                raise ValueError("public_snapshot_conflict")
+                raise SnapshotCommitConflictError("public_snapshot_conflict")
     else:
         temporary = Path(tempfile.mkdtemp(prefix=snapshot_id + ".", dir=snapshots_root))
         try:

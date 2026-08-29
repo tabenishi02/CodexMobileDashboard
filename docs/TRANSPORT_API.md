@@ -38,7 +38,7 @@ Content-Type: application/json
 {"status":"stored","delivery_id":"...","snapshot_id":"..."}
 ```
 
-PC側はHTTPステータスだけでなく、`delivery_id`と`snapshot_id`が要求値と一致し、`status`が`stored`であることを確認する。
+PC側はHTTPステータスだけでなく、`delivery_id`と`snapshot_id`が要求値と一致し、`status`が`stored`であることを確認する。\n\n## HTTPステータス\n\n- `400`：JSON、Delivery ID、識別情報、manifestなどのリクエスト値が不正。\n- `401`：Bearer Tokenが不正または未指定。\n- `404`：API URL、workspace ID、snapshot ID、相対パスが不正。\n- `409`：同一Delivery IDの内容不一致、またはcommit manifestとstaging Snapshotの不一致。\n- `411`：Content-Length未指定。\n- `413`：本文が1MiB超過。\n- `500`：保存・公開・receipt読込などサーバー側障害。\n- `503`：staging設定が利用できない。
 
 ## Commit
 
