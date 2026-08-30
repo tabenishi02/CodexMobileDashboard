@@ -152,6 +152,15 @@
     return codex.current_work;
   }
 
+  function formatTimestamp(value) {
+    return typeof value === "string" && value ? value : "日時不明";
+  }
+
+  function formatLastUpdatedStatus() {
+    const dashboard = getDocument("dashboard");
+    return "最終更新: " + formatTimestamp(dashboard && dashboard.generated_at);
+  }
+
   function formatGitSummary(git) {
     if (!git || typeof git !== "object") {
       return "Git情報を取得できませんでした。";
@@ -211,7 +220,7 @@
     setText("latest-summary", dashboard.latest && dashboard.latest.summary);
     setText("error-summary", formatErrorSummary(dashboard.errors));
     setText("git-summary", formatGitSummary(dashboard.git));
-    setText("dashboard-generated-at", dashboard.generated_at);
+    setText("dashboard-generated-at", formatTimestamp(dashboard.generated_at));
     renderNextActions(dashboard.next_actions);
 
     screenState.hidden = true;
@@ -256,7 +265,10 @@
     globalStatus.textContent = failures.length
       ? "一部の初期データを取得できませんでした。"
       : "初期データを取得しました。";
-    refreshStatus.textContent = failures.length ? "一部の取得に失敗" : "更新待機中";
+    const lastUpdatedStatus = formatLastUpdatedStatus();
+    refreshStatus.textContent = failures.length
+      ? "一部の取得に失敗 / " + lastUpdatedStatus
+      : lastUpdatedStatus;
   }
 
   window.CodexMobileDashboard = {

@@ -101,6 +101,8 @@ async function run() {
   assert.strictEqual(elements.get("latest-summary").textContent, "ダッシュボード表示を追加");
   assert.strictEqual(elements.get("error-summary").textContent, "未解決 2件 / 重大 1件");
   assert.strictEqual(elements.get("git-summary").textContent, "main / 変更ファイル 3件");
+  assert.strictEqual(elements.get("dashboard-generated-at").textContent, "2026-08-30T12:00:00+09:00");
+  assert.strictEqual(elements.get("refresh-status").textContent, "最終更新: 2026-08-30T12:00:00+09:00");
   assert.strictEqual(nextActions.children[0].textContent, "次の作業を確認する");
   assert.strictEqual(dashboardState.hidden, true);
   assert.strictEqual(dashboardContent.hidden, false);
