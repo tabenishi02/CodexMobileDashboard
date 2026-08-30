@@ -17,7 +17,7 @@ CLIは`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore
 `[ai_inference] mode`は`off`、`incremental`、`backfill`を受け付け、未指定時は`incremental`である。
 
 - `off`: 3経路のCodex CLIを起動せず、規則ベース抽出とフォールバックを使う。
-- `incremental`: 今回の増分収集で追加されたturnだけをCLI推論対象にする。
+- `incremental`: 今回の増分収集で追加されたturnだけをCLI推論対象にする。初回導入時に取り込む既存履歴は対象外である。
 - `backfill`: 現時点ではCLIを許可するだけで、候補範囲は`incremental`と同じ。専用コマンドも未実装。
 
 したがって、増分化が完了するまで通常収集でも過去ターンが候補になり、反復・大量推論が発生し得る。

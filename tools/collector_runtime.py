@@ -51,6 +51,7 @@ def run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | N
     """
     state = load_collector_state(settings.state_file)
     history = load_collector_history(settings.history_file)
+    known_session_ids = {cursor.session_id for cursor in state.sessions}
     index = build_session_index(discover_session_files(settings.sessions_dir, settings.archived_sessions_dir, settings.scan_archived_sessions))
     workspaces: Dict[Path, list] = {}
     for entry in index.values():
@@ -72,7 +73,7 @@ def run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | N
             next_history = next_history.replace(entry.session_id, records)
             next_state = result.next_state
             session_records[entry.session_id] = records
-            inference_records[entry.session_id] = result.records
+            inference_records[entry.session_id] = tuple() if settings.ai_inference_mode == "incremental" and entry.session_id not in known_session_ids else result.records
         _build_workspace_snapshot(root, workspace_id, latest.session_id, session_records, settings, sender, inference_records)
         completed += 1
     save_collector_history(next_history, settings.history_file)
