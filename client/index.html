@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Codex Mobile Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <noscript>
+    <p class="noscript-message">このダッシュボードの表示にはJavaScriptが必要です。</p>
+  </noscript>
+
+  <div class="app-shell" data-app-state="initializing">
+    <header class="app-header">
+      <div class="project-summary">
+        <p class="eyebrow">Codex Mobile Dashboard</p>
+        <h1 id="project-name">データを読み込み中</h1>
+        <p id="project-phase">Phase: —</p>
+      </div>
+      <div class="header-status" aria-live="polite">
+        <p id="codex-status">Codex: 状態を確認中</p>
+        <p id="refresh-status">更新待機中</p>
+      </div>
+      <button id="refresh-button" type="button" disabled>更新</button>
+    </header>
+
+    <p id="global-status" class="global-status" aria-live="polite">初期データを読み込んでいます。</p>
+
+    <main id="main-content" tabindex="-1">
+      <section id="missing-workspace" class="notice-panel" hidden aria-labelledby="missing-workspace-title">
+        <h2 id="missing-workspace-title">workspace_idを指定してください</h2>
+        <p>閲覧URLに<code>?workspace_id=&lt;workspace_id&gt;</code>を付けて開いてください。</p>
+      </section>
+
+      <section id="screen-dashboard" class="screen" data-screen="dashboard" aria-labelledby="dashboard-title">
+        <header class="screen-header">
+          <h2 id="dashboard-title">ダッシュボード</h2>
+          <p>現在の状況を確認します。</p>
+        </header>
+        <div class="screen-state" data-state-for="dashboard" aria-live="polite">ダッシュボードを読み込んでいます。</div>
+        <div class="dashboard-grid" data-content-for="dashboard" hidden>
+          <article class="summary-card">
+            <h3>現在の作業</h3>
+            <p id="current-work">—</p>
+          </article>
+          <article class="summary-card">
+            <h3>最新の変更要約</h3>
+            <p id="latest-summary">—</p>
+            <a href="#chat" data-screen-link="chat">チャットを開く</a>
+          </article>
+          <article class="summary-card">
+            <h3>次に行う作業</h3>
+            <ol id="next-actions"></ol>
+          </article>
+          <article class="summary-card">
+            <h3>エラー</h3>
+            <p id="error-summary">—</p>
+            <a href="#errors" data-screen-link="errors">エラーを開く</a>
+          </article>
+          <article class="summary-card">
+            <h3>Gitの変更</h3>
+            <p id="git-summary">—</p>
+            <a href="#files" data-screen-link="files">ファイルを開く</a>
+          </article>
+          <article class="summary-card">
+            <h3>データ生成日時</h3>
+            <p id="dashboard-generated-at">—</p>
+            <a href="#system" data-screen-link="system">システム情報を開く</a>
+          </article>
+        </div>
+      </section>
+
+      <section id="screen-recent" class="screen" data-screen="recent" aria-labelledby="recent-title" hidden>
+        <header class="screen-header">
+          <h2 id="recent-title">最近の更新</h2>
+          <p>最新のやりとりを確認します。</p>
+        </header>
+        <div class="screen-state" data-state-for="recent" aria-live="polite">最近の更新を読み込んでいます。</div>
+        <ol id="recent-turns" class="card-list" data-content-for="recent" hidden></ol>
+      </section>
+
+      <section id="screen-chat" class="screen" data-screen="chat" aria-labelledby="chat-title" hidden>
+        <header class="screen-header">
+          <h2 id="chat-title">チャット</h2>
+          <p>メッセージはページ単位で読み込みます。</p>
+        </header>
+        <div class="screen-state" data-state-for="chat" aria-live="polite">チャット索引を読み込んでいます。</div>
+        <button id="load-previous-messages" type="button" hidden>以前のメッセージを読み込む</button>
+        <ol id="chat-messages" class="message-list" data-content-for="chat" hidden></ol>
+      </section>
+
+      <section id="screen-errors" class="screen" data-screen="errors" aria-labelledby="errors-title" hidden>
+        <header class="screen-header">
+          <h2 id="errors-title">エラー</h2>
+          <p>未解決のエラーを優先して表示します。</p>
+        </header>
+        <div class="screen-state" data-state-for="errors" aria-live="polite">エラー一覧を読み込んでいます。</div>
+        <ol id="error-list" class="card-list" data-content-for="errors" hidden></ol>
+      </section>
+
+      <section id="screen-decisions" class="screen" data-screen="decisions" aria-labelledby="decisions-title" hidden>
+        <header class="screen-header">
+          <h2 id="decisions-title">決定事項</h2>
+          <p>確定した決定の履歴を確認します。</p>
+        </header>
+        <div class="screen-state" data-state-for="decisions" aria-live="polite">決定事項を読み込んでいます。</div>
+        <ol id="decision-list" class="card-list" data-content-for="decisions" hidden></ol>
+      </section>
+
+      <section id="screen-files" class="screen" data-screen="files" aria-labelledby="files-title" hidden>
+        <header class="screen-header">
+          <h2 id="files-title">ファイル</h2>
+          <p>Gitの変更メタデータだけを表示します。</p>
+        </header>
+        <div class="screen-state" data-state-for="files" aria-live="polite">ファイル一覧を読み込んでいます。</div>
+        <div data-content-for="files" hidden>
+          <dl id="repository-summary" class="definition-list"></dl>
+          <ol id="file-list" class="card-list"></ol>
+        </div>
+      </section>
+
+      <section id="screen-system" class="screen" data-screen="system" aria-labelledby="system-title" hidden>
+        <header class="screen-header">
+          <h2 id="system-title">システム情報</h2>
+          <p>PC収集ツールとAndroidサーバーの状態を確認します。</p>
+        </header>
+        <div class="screen-state" data-state-for="system" aria-live="polite">システム情報を読み込んでいます。</div>
+        <div class="system-grid" data-content-for="system" hidden>
+          <section aria-labelledby="collector-title">
+            <h3 id="collector-title">PC収集ツール</h3>
+            <dl id="collector-status" class="definition-list"></dl>
+          </section>
+          <section aria-labelledby="server-title">
+            <h3 id="server-title">Androidサーバー</h3>
+            <dl id="server-status" class="definition-list"></dl>
+          </section>
+        </div>
+      </section>
+
+      <section id="screen-more" class="screen" data-screen="more" aria-labelledby="more-title" hidden>
+        <header class="screen-header">
+          <h2 id="more-title">その他</h2>
+          <p>追加の情報画面を選択します。</p>
+        </header>
+        <nav aria-label="その他の画面">
+          <ul class="more-navigation">
+            <li><a href="#decisions" data-screen-link="decisions">決定事項</a></li>
+            <li><a href="#files" data-screen-link="files">ファイル</a></li>
+            <li><a href="#system" data-screen-link="system">システム情報</a></li>
+          </ul>
+        </nav>
+      </section>
+    </main>
+
+    <nav id="bottom-navigation" class="bottom-navigation" aria-label="主要画面">
+      <a href="#dashboard" data-screen-link="dashboard" aria-current="page">概要</a>
+      <a href="#recent" data-screen-link="recent">最近</a>
+      <a href="#chat" data-screen-link="chat">チャット</a>
+      <a href="#errors" data-screen-link="errors">エラー</a>
+      <a href="#more" data-screen-link="more">その他</a>
+    </nav>
+  </div>
+</body>
+</html>

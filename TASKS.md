@@ -180,7 +180,7 @@
   - [x] 決定事項
   - [x] ファイル
   - [x] システム情報
-- [ ] モバイルファーストのHTMLを作成する
+- [x] モバイルファーストのHTMLを作成する（`client/index.html`）
 - [ ] CSSをHTMLから分離する
 - [ ] JavaScriptをHTMLから分離する
 - [ ] JSON取得処理を実装する
