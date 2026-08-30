@@ -171,6 +171,7 @@ CodexMobileDashboard/
 | [`docs/GIT_TRACKING.md`](docs/GIT_TRACKING.md) | Git変更メタデータの取得仕様 |
 | [`docs/DATA_LIMITS.md`](docs/DATA_LIMITS.md) | データ量、分割、送信対象 |
 | [`docs/UPDATE_POLICY.md`](docs/UPDATE_POLICY.md) | 更新頻度、ハートビート、保存期間 |
+| [docs/AI_INFERENCE.md](docs/AI_INFERENCE.md) | Codex CLI推論の現行経路、制限、キャッシュ範囲 |
 | [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | 設定ファイルと秘密情報の管理 |
 | [`docs/MANUAL_COMMAND.md`](docs/MANUAL_COMMAND.md) | 未送信Snapshotの手動確認・再送 |
 | [`docs/TRANSPORT_API.md`](docs/TRANSPORT_API.md) | PC・Android間のHTTPS Snapshot送信契約 |
