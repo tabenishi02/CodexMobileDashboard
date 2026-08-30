@@ -38,6 +38,10 @@
     return element;
   }
 
+  function setText(id, value) {
+    getElement(id).textContent = typeof value === "string" && value ? value : "—";
+  }
+
   function readWorkspaceId() {
     const workspaceId = new URLSearchParams(window.location.search).get("workspace_id");
     return workspaceId && workspaceId.trim() ? workspaceId.trim() : null;
@@ -127,6 +131,69 @@
     return state.errors.get(documentName) || null;
   }
 
+  function formatGitSummary(git) {
+    if (!git || typeof git !== "object") {
+      return "Git情報を取得できませんでした。";
+    }
+    const branch = typeof git.branch === "string" && git.branch ? git.branch : "ブランチ不明";
+    const changedFiles = Number.isInteger(git.changed_files) ? git.changed_files : "—";
+    return branch + " / 変更ファイル " + changedFiles + "件";
+  }
+
+  function formatErrorSummary(errors) {
+    if (!errors || typeof errors !== "object") {
+      return "エラー情報を取得できませんでした。";
+    }
+    const open = Number.isInteger(errors.open) ? errors.open : "—";
+    const critical = Number.isInteger(errors.critical) ? errors.critical : "—";
+    return "未解決 " + open + "件 / 重大 " + critical + "件";
+  }
+
+  function renderNextActions(nextActions) {
+    const container = getElement("next-actions");
+    container.replaceChildren();
+    if (!Array.isArray(nextActions) || !nextActions.length) {
+      const item = document.createElement("li");
+      item.textContent = "次の作業はありません。";
+      container.appendChild(item);
+      return;
+    }
+    for (const action of nextActions) {
+      const item = document.createElement("li");
+      item.textContent = action && typeof action.text === "string" && action.text
+        ? action.text
+        : "内容を取得できませんでした。";
+      container.appendChild(item);
+    }
+  }
+
+  function renderDashboard() {
+    const dashboard = getDocument("dashboard");
+    const screenState = document.querySelector('[data-state-for="dashboard"]');
+    const content = document.querySelector('[data-content-for="dashboard"]');
+    if (!screenState || !content) {
+      throw createClientError("dashboard_elements_missing");
+    }
+    if (!dashboard) {
+      content.hidden = true;
+      screenState.hidden = false;
+      screenState.textContent = "ダッシュボードを取得できませんでした。";
+      return;
+    }
+
+    const project = dashboard.project && typeof dashboard.project === "object" ? dashboard.project : {};
+    setText("project-name", project.name);
+    setText("project-phase", typeof project.phase === "string" && project.phase ? "Phase: " + project.phase : null);
+    setText("latest-summary", dashboard.latest && dashboard.latest.summary);
+    setText("error-summary", formatErrorSummary(dashboard.errors));
+    setText("git-summary", formatGitSummary(dashboard.git));
+    setText("dashboard-generated-at", dashboard.generated_at);
+    renderNextActions(dashboard.next_actions);
+
+    screenState.hidden = true;
+    content.hidden = false;
+  }
+
   async function initialize() {
     const appShell = document.querySelector(".app-shell");
     const missingWorkspace = getElement("missing-workspace");
@@ -159,6 +226,7 @@
     for (const { documentName, result } of failures) {
       state.errors.set(documentName, result.reason.code || "request_failed");
     }
+    renderDashboard();
 
     appShell.dataset.appState = failures.length ? APP_STATE.DEGRADED : APP_STATE.READY;
     globalStatus.textContent = failures.length
@@ -173,6 +241,7 @@
     getDocument,
     getDocumentError,
     getWorkspaceId: () => state.workspaceId,
+    renderDashboard,
   };
 
   document.addEventListener("DOMContentLoaded", () => {

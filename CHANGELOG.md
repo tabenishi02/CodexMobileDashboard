@@ -8,6 +8,8 @@
 
 ### Added
 
+- `dashboard.json`からプロジェクト、Phase、変更要約、次タスク、エラー、Git、生成日時を安全なテキストとしてダッシュボードへ表示する処理を追加した。
+
 - ETagと`304 Not Modified`に対応するJSON取得処理を追加し、初期表示で`dashboard.json`、`metadata.json`、`/health`を取得するようにした。
 
 - HTMLから分離した外部JavaScriptを追加し、`workspace_id`の有無を確認する画面初期化を実装した。
