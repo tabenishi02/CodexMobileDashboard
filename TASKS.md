@@ -182,7 +182,7 @@
   - [x] システム情報
 - [x] モバイルファーストのHTMLを作成する（`client/index.html`）
 - [x] CSSをHTMLから分離する（`client/styles.css`）
-- [ ] JavaScriptをHTMLから分離する
+- [x] JavaScriptをHTMLから分離する（`client/app.js`）
 - [ ] JSON取得処理を実装する
 - [ ] ダッシュボード表示を実装する
 - [ ] 作業ステータス表示を実装する
