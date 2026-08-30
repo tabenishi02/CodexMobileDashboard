@@ -185,7 +185,7 @@
     container.replaceChildren();
     if (!Array.isArray(nextActions) || !nextActions.length) {
       const item = document.createElement("li");
-      item.textContent = "次の作業はありません。";
+      item.textContent = "データがありません（次の作業）。";
       container.appendChild(item);
       return;
     }
@@ -251,7 +251,7 @@
     container.replaceChildren();
     if (!turns.length) {
       const item = document.createElement("li");
-      item.textContent = "最近の更新はありません。";
+      item.textContent = "データがありません（最近の更新）。";
       container.appendChild(item);
     } else {
       for (const turn of turns) {
@@ -335,7 +335,7 @@
     container.replaceChildren();
     const messages = pages.flatMap((page) => Array.isArray(page.messages) ? page.messages : []);
     if (!messages.length) {
-      const item = document.createElement("li"); item.textContent = "表示するメッセージはありません。"; container.appendChild(item);
+      const item = document.createElement("li"); item.textContent = "データがありません（メッセージ）。"; container.appendChild(item);
     } else {
       for (const message of messages) {
         const item = document.createElement("li");
@@ -391,7 +391,7 @@
     const entries = Array.isArray(errors.errors) ? errors.errors.slice() : [];
     entries.sort((left, right) => (left && left.status === "open" ? 0 : 1) - (right && right.status === "open" ? 0 : 1));
     const container = getElement("error-list"); container.replaceChildren();
-    if (!entries.length) { const item = document.createElement("li"); item.textContent = "表示するエラーはありません。"; container.appendChild(item); }
+    if (!entries.length) { const item = document.createElement("li"); item.textContent = "データがありません（エラー）。"; container.appendChild(item); }
     else { for (const error of entries) { const item = document.createElement("li"); item.textContent = formatErrorItem(error); container.appendChild(item); } }
     stateElement.hidden = true; content.hidden = false;
   }
@@ -407,7 +407,7 @@
     const entries = Array.isArray(data.decisions) ? data.decisions.slice() : [];
     entries.sort((left, right) => String(right && right.decided_at || "").localeCompare(String(left && left.decided_at || "")));
     const container = getElement("decision-list"); container.replaceChildren();
-    if (!entries.length) { const item = document.createElement("li"); item.textContent = "表示する決定事項はありません。"; container.appendChild(item); }
+    if (!entries.length) { const item = document.createElement("li"); item.textContent = "データがありません（決定事項）。"; container.appendChild(item); }
     else { for (const decision of entries) { const value = decision && typeof decision === "object" ? decision : {}; const item = document.createElement("li"); item.textContent = "表題: " + (value.title || "不明") + " / 状態: " + (value.status || "不明") + " / 決定: " + formatTimestamp(value.decided_at) + " / 内容: " + (value.description || "内容を取得できませんでした。") + " / 理由: " + (value.reason || "理由はありません。"); container.appendChild(item); } }
     stateElement.hidden = true; content.hidden = false;
   }
@@ -421,7 +421,7 @@
     if (!data) { content.hidden = true; stateElement.hidden = false; stateElement.textContent = "変更ファイルを取得できませんでした。"; return; }
     const entries = Array.isArray(data.files) ? data.files : (Array.isArray(data.changed_files) ? data.changed_files : []);
     const container = getElement("file-list"); container.replaceChildren();
-    if (!entries.length) { const item = document.createElement("li"); item.textContent = "変更ファイルはありません。"; container.appendChild(item); }
+    if (!entries.length) { const item = document.createElement("li"); item.textContent = "データがありません（変更ファイル）。"; container.appendChild(item); }
     else { for (const file of entries) { const value = file && typeof file === "object" ? file : {}; const item = document.createElement("li"); const path = value.path || value.new_path || "パス不明"; const rawStatus = value.status || value.change_type; const statusLabels = { added: "追加", deleted: "削除", modified: "変更", renamed: "名前変更", untracked: "未追跡" }; const status = statusLabels[rawStatus] || "状態不明"; const added = Number.isInteger(value.added_lines) ? "+" + value.added_lines + "行" : "追加行数不明"; const deleted = Number.isInteger(value.deleted_lines) ? "-" + value.deleted_lines + "行" : "削除行数不明"; const staged = value.staged === true ? "あり" : "なし"; item.textContent = "パス: " + path + " / 状態: " + status + " / 変更: " + added + " / " + deleted + " / ステージ: " + staged; container.appendChild(item); } }
     stateElement.hidden = true; content.hidden = false;
   }

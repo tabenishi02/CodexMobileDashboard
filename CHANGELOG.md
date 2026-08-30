@@ -8,6 +8,8 @@
 
 ### Added
 
+- 一覧データが空の場合に、取得失敗と区別した空データ表示を追加した。
+
 - JSON取得中の初期・詳細画面状態表示と、aria-busyによる取得中通知を追加した。
 
 - markdown-it、DOMPurify、highlight.jsをローカル同梱し、Codex向けMarkdownサブセットの安全な表示を追加した。
