@@ -466,12 +466,20 @@
     }
   }
 
+  function stopAutoRefresh() {
+    if (state.autoRefreshTimer !== null && typeof window.clearInterval === "function") { window.clearInterval(state.autoRefreshTimer); }
+    state.autoRefreshTimer = null;
+  }
+
   function setupAutoRefresh() {
     if (state.autoRefreshTimer !== null || typeof window.setInterval !== "function") { return; }
-    state.autoRefreshTimer = window.setInterval(() => {
-      if (typeof document.visibilityState === "string" && document.visibilityState !== "visible") { return; }
-      void initialize();
-    }, 15 * 1000);
+    state.autoRefreshTimer = window.setInterval(() => { void initialize(); }, 15 * 1000);
+  }
+
+  function handleVisibilityChange() {
+    if (document.visibilityState === "hidden") { stopAutoRefresh(); return; }
+    void initialize();
+    setupAutoRefresh();
   }
   function setupNavigation() {
     for (const link of document.querySelectorAll("[data-screen-link]")) {
@@ -577,6 +585,8 @@
   document.addEventListener("DOMContentLoaded", () => {
     setupNavigation();
     setupAutoRefresh();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     const refreshButton = document.getElementById("refresh-button");
     if (refreshButton && typeof refreshButton.addEventListener === "function") { refreshButton.addEventListener("click", () => { void initialize(); }); }
     const previousMessagesButton = document.getElementById("load-previous-messages");
