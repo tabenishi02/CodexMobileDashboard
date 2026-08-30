@@ -52,3 +52,8 @@
 
 [ai_inference] modeはoff、incremental、ackfillを受け付け、未指定時はincrementalである。offでは3経路ともCodex CLIを起動しない。incrementalとackfillではCLIを許可する。増分対象選別、永続台帳、backfill専用コマンドは後続タスクで追加するため、現時点では両モードの候補範囲は同じである。
 
+
+## 永続台帳（導入済み）
+
+変更要約の成功結果は[storage] inference_ledger_fileへ、workspace・session・turn・入力SHA-256・推論種別・結果メタデータ・生成日時を結んで1件ずつ原子的に保存する。既定パスは%LOCALAPPDATA%\CodexMobileDashboard\state\ai-inference-ledger.jsonである。
+

@@ -18,6 +18,7 @@ from tools.error_extractor import extract_development_errors
 from tools.file_reference_extractor import extract_file_references
 from tools.git_change_collector import collect_git_changes
 from tools.https_sender import HttpsSnapshotSender, prepare_snapshot_uploads
+from tools.inference_ledger import InferenceLedgerEntry, append as append_inference_ledger
 from tools.incremental_collector import collect_incremental_records
 from tools.json_converter import CollectorMetadata, JsonContext, ProjectPresentation, build_json_snapshot
 from tools.json_writer import save_json_snapshot
@@ -39,6 +40,7 @@ class CollectorRuntimeSettings:
     queue_dir: Path
     tasks_path: Path
     ai_inference_mode: str
+    inference_ledger_file: Path
 
 
 def run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | None = None) -> int:
@@ -86,6 +88,10 @@ def _build_workspace_snapshot(root: Path, workspace_id: str, latest_session_id: 
     files = extract_file_references(tuple((session_id, message) for session_id, value in chats_by_session.items() for message in value.messages), root, workspace_id)
     errors = extract_development_errors(all_records, ordered_messages, work, workspace_id, latest_session_id)
     summaries = generate_change_summaries(latest_session_id, work, tuple(SummarySourceMessage(latest_session_id, message.message_id, message.turn_id, message.role, message.message_type, message.phase, _text(message), True) for message in ordered_messages), file_references=files.references, allow_inference=settings.ai_inference_mode != "off")
+    for entry in summaries.cache_entries:
+        if entry.summary is not None:
+            append_inference_ledger(settings.inference_ledger_file, InferenceLedgerEntry(workspace_id, latest_session_id, entry.turn_id, entry.evidence_hash, {"origin": entry.summary.origin, "summary_id": entry.summary.summary_id}, now=datetime.now(timezone.utc).isoformat(timespec="seconds"), inference_kind="change_summary"))
+
     recent = tuple(ordered_messages[-2:])
     next_task = extract_next_task(recent, NextTaskInferenceContext(work.codex_status, tuple(InferenceMessage(message.message_id, message.role, _text(message)) for message in recent), tuple(item.title for item in decisions.decisions), tuple(), True), settings.tasks_path, allow_inference=settings.ai_inference_mode != "off")
     git = collect_git_changes(root, workspace_id)
@@ -130,4 +136,5 @@ def _merge_records(previous: tuple, appended: tuple) -> tuple:
 
 def _text(message: object) -> str:
     return "\n".join(part.text or "" for part in message.content)
+
 
