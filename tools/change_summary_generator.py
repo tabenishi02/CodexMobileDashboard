@@ -12,7 +12,7 @@ import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 from tools.file_reference_extractor import ExtractedFileReference
 from tools.next_task_extractor import (
@@ -196,6 +196,7 @@ def generate_change_summaries(
     inference_turn_ids: Optional[Set[str]] = None,
     now: Optional[datetime] = None,
     allow_inference: bool = True,
+    can_infer: Optional[Callable[[], bool]] = None,
 ) -> ChangeSummaryGenerationResult:
     """Summarize terminal turns using only explicitly masked session evidence."""
 
@@ -265,8 +266,8 @@ def generate_change_summaries(
             updated_cache.append(cache)
             continue
 
-        if not allow_inference:
-            turn_issues.append(ChangeSummaryIssue(turn.turn_id, "inference_disabled"))
+        if not allow_inference or (can_infer is not None and not can_infer()):
+            turn_issues.append(ChangeSummaryIssue(turn.turn_id, "inference_limit_reached" if can_infer is not None else "inference_disabled"))
             updated_cache.append(ChangeSummaryCacheEntry(turn.turn_id, evidence_hash, None, None, tuple(turn_issues)))
             issues.extend(turn_issues)
             continue

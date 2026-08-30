@@ -12,7 +12,7 @@ import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence, Tuple
+from typing import Callable, Iterable, List, Optional, Sequence, Tuple
 
 from tools.chat_extractor import ExtractedChatMessage
 
@@ -185,6 +185,7 @@ def extract_next_task(
     cache_entry: Optional[NextTaskCacheEntry] = None,
     now: Optional[datetime] = None,
     allow_inference: bool = True,
+    can_infer: Optional[Callable[[], bool]] = None,
 ) -> NextTaskExtractionResult:
     """Return one next task, preferring explicit conversation evidence."""
 
@@ -227,8 +228,8 @@ def extract_next_task(
             prompt,
         )
 
-    if not allow_inference:
-        issues.append(NextTaskIssue("inference_disabled"))
+    if not allow_inference or (can_infer is not None and not can_infer()):
+        issues.append(NextTaskIssue("inference_limit_reached" if can_infer is not None else "inference_disabled"))
         return _fallback_result(tasks_path, evidence_hash, current_time, issues, False, prompt)
 
     cli_runner = runner or CodexCliRunner()

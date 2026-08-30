@@ -188,6 +188,7 @@ def extract_decisions(
     allow_inference: bool = True,
     inference_cache: Mapping[str, Tuple[_Proposal, ...]] = {},
     on_inference_success: Optional[Callable[[DecisionSourceMessage, str, Tuple[_Proposal, ...]], None]] = None,
+    can_infer: Optional[Callable[[], bool]] = None,
 ) -> DecisionExtractionResult:
     """Build workspace-wide decision history in chronological input order."""
 
