@@ -547,6 +547,7 @@
       ? "一部の取得に失敗 / " + lastUpdatedStatus
       : lastUpdatedStatus;
     if (typeof appShell.setAttribute === "function") { appShell.setAttribute("aria-busy", "false"); }
+    refreshButton.disabled = false;
   }
 
   window.CodexMobileDashboard = {
@@ -567,6 +568,8 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     setupNavigation();
+    const refreshButton = document.getElementById("refresh-button");
+    if (refreshButton && typeof refreshButton.addEventListener === "function") { refreshButton.addEventListener("click", () => { void initialize(); }); }
     const previousMessagesButton = document.getElementById("load-previous-messages");
     if (previousMessagesButton) { previousMessagesButton.addEventListener("click", () => { void loadChat(true); }); }
     void initialize();
