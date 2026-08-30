@@ -12,7 +12,7 @@ import tempfile
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from tools.chat_extractor import ExtractedChatMessage
 from tools.next_task_extractor import INFERENCE_INPUT_MAX_BYTES, INFERENCE_TIMEOUT_SECONDS
@@ -186,6 +186,8 @@ def extract_decisions(
     *,
     runner: Optional[DecisionCliRunner] = None,
     allow_inference: bool = True,
+    inference_cache: Mapping[str, Tuple[_Proposal, ...]] = {},
+    on_inference_success: Optional[Callable[[DecisionSourceMessage, str, Tuple[_Proposal, ...]], None]] = None,
 ) -> DecisionExtractionResult:
     """Build workspace-wide decision history in chronological input order."""
 
@@ -221,7 +223,12 @@ def extract_decisions(
                 continue
             try:
                 prompt = _build_cli_prompt(masked_context)
-                proposals = cli_runner.extract(prompt)
+                input_sha256 = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+                proposals = inference_cache.get(input_sha256)
+                if proposals is None:
+                    proposals = cli_runner.extract(prompt)
+                    if on_inference_success is not None:
+                        on_inference_success(source, input_sha256, proposals)
             except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
                 kind = _runner_error_kind(error)
                 issues.append(
@@ -299,6 +306,19 @@ def extract_decisions(
         len(issues),
     )
     return DecisionExtractionResult(tuple(decisions), tuple(issues))
+
+def inference_payload(proposals: Sequence[_Proposal]) -> dict:
+    """Return the versioned, prompt-free successful CLI result for the ledger."""
+    return {"schema_version": 1, "payload": {"proposals": [{"status": proposal.status, "title": proposal.title, "description": proposal.description, "reason": proposal.reason, "topic_key": proposal.topic_key} for proposal in proposals]}}
+
+def proposals_from_inference_payload(value: object) -> Tuple[_Proposal, ...]:
+    """Validate and restore a successful decision inference result."""
+    if not isinstance(value, dict) or value.get("schema_version") != 1:
+        raise ValueError("decision_inference_payload_invalid")
+    payload = value.get("payload")
+    if not isinstance(payload, dict):
+        raise ValueError("decision_inference_payload_invalid")
+    return _validate_cli_value({"decisions": payload.get("proposals")})
 
 
 def _local_proposals(text: str) -> Tuple[_Proposal, ...]:

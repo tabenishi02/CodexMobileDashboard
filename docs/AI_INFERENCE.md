@@ -28,12 +28,12 @@ CLIは`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore
 
 `[storage] inference_ledger_file`として`%LOCALAPPDATA%\CodexMobileDashboard\state\ai-inference-ledger.json`を追加し、トップレベル`version: 1`とentries配列を原子的置換する実装がある。entryはworkspace、session、turn、推論種別、入力SHA-256、生成日時、resultを持つ。
 
-変更要約については完全payloadを組み立てて`ChangeSummaryCacheEntry`へ復元する補助実装がある。しかし、次の理由で完成・受入済みとは扱わない。
+変更要約と決定事項は完全payloadを台帳へ保存し、再起動後に復元する。
 
-- 保存時に`InferenceLedgerEntry`の`generated_at`ではなく存在しない`now`キーワードを渡しており、保存対象があると`TypeError`になる。
-- 台帳の保存・旧形式読込・完全payload復元・ハッシュ不一致時再推論を直接検証する専用テストがない。
-- entry単位のschema versionはなく、旧形式は`payload`欠損として復元対象外にする実装に留まる。
-- 決定事項と次タスクの完全payload保存・復元は未実装。
+- 変更要約の保存時引数不一致は修正済みである。
+- 決定事項は入力SHA-256を照合し、同一入力ではCodex CLIを再実行しない。
+- entryごとの`schema_version: 1`を必須にし、旧形式・不完全payloadは安全に再推論候補へ戻す。
+- 次タスクの完全payload保存・復元は未実装。
 
 ## 完成形の台帳設計
 

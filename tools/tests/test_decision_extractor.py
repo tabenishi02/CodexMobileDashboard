@@ -12,6 +12,8 @@ from tools.decision_extractor import (
     DecisionSourceMessage,
     _Proposal,
     extract_decisions,
+    inference_payload,
+    proposals_from_inference_payload,
 )
 
 
@@ -356,6 +358,13 @@ class DecisionExtractorTests(unittest.TestCase):
         self.assertEqual(result, cached)
         self.assertEqual(1, run.call_count)
 
+
+    def test_inference_payload_round_trip_is_versioned(self) -> None:
+        proposals = (_Proposal("adopted", "title", "description", None, "topic"),)
+        restored = proposals_from_inference_payload(inference_payload(proposals))
+        self.assertEqual(proposals, restored)
+        with self.assertRaises(ValueError):
+            proposals_from_inference_payload({"payload": {"proposals": []}})
 
 if __name__ == "__main__":
     unittest.main()

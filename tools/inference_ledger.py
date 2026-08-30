@@ -53,7 +53,7 @@ def summary_cache_entries(entries, workspace_id, session_id):
     result=[]
     for entry in entries:
         if entry.workspace_id != workspace_id or entry.session_id != session_id or entry.inference_kind != 'change_summary': continue
-        value=entry.result.get('payload') if isinstance(entry.result,dict) else None
+        value=entry.result.get('payload') if isinstance(entry.result,dict) and entry.result.get('schema_version') == 1 else None
         if not isinstance(value,dict): continue
         try:
             items=lambda name: tuple(SummaryEvidenceItem(str(x['text']),tuple(x['source_message_ids'])) for x in value[name])
@@ -61,3 +61,16 @@ def summary_cache_entries(entries, workspace_id, session_id):
             result.append(ChangeSummaryCacheEntry(entry.turn_id,entry.input_sha256,summary,None,tuple()))
         except (KeyError,TypeError): continue
     return tuple(result)
+
+def decision_inference_cache(entries, workspace_id):
+    """Restore only complete, versioned decision CLI results from the ledger."""
+    from tools.decision_extractor import proposals_from_inference_payload
+    result={}
+    for entry in entries:
+        if entry.workspace_id != workspace_id or entry.inference_kind != 'decision':
+            continue
+        try:
+            result[entry.input_sha256] = proposals_from_inference_payload(entry.result)
+        except ValueError:
+            continue
+    return result
