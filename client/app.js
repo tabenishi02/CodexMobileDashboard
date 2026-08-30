@@ -376,6 +376,21 @@
     stateElement.hidden = false; stateElement.textContent = "エラー一覧を読み込んでいます。"; content.hidden = true;
     try { await fetchDocument("errors"); renderErrors(); } catch (_error) { renderErrors(); }
   }
+  function renderDecisions() {
+    const data = getDocument("decisions"); const stateElement = document.querySelector('[data-state-for="decisions"]'); const content = document.querySelector('[data-content-for="decisions"]');
+    if (!data) { content.hidden = true; stateElement.hidden = false; stateElement.textContent = "決定事項を取得できませんでした。"; return; }
+    const entries = Array.isArray(data.decisions) ? data.decisions.slice() : [];
+    entries.sort((left, right) => String(right && right.decided_at || "").localeCompare(String(left && left.decided_at || "")));
+    const container = getElement("decision-list"); container.replaceChildren();
+    if (!entries.length) { const item = document.createElement("li"); item.textContent = "表示する決定事項はありません。"; container.appendChild(item); }
+    else { for (const decision of entries) { const value = decision && typeof decision === "object" ? decision : {}; const item = document.createElement("li"); item.textContent = "表題: " + (value.title || "不明") + " / 状態: " + (value.status || "不明") + " / 決定: " + formatTimestamp(value.decided_at) + " / 内容: " + (value.description || "内容を取得できませんでした。") + " / 理由: " + (value.reason || "理由はありません。"); container.appendChild(item); } }
+    stateElement.hidden = true; content.hidden = false;
+  }
+
+  async function loadDecisions() {
+    const stateElement = document.querySelector('[data-state-for="decisions"]'); const content = document.querySelector('[data-content-for="decisions"]'); stateElement.hidden = false; stateElement.textContent = "決定事項を読み込んでいます。"; content.hidden = true;
+    try { await fetchDocument("decisions"); renderDecisions(); } catch (_error) { renderDecisions(); }
+  }
   function showScreen(screenName) {
     const activeScreen = SCREEN_NAMES.has(screenName) ? screenName : "dashboard";
     for (const screen of document.querySelectorAll("[data-screen]")) {
@@ -394,6 +409,8 @@
       void loadChat(false);
     } else if (activeScreen === "errors") {
       void loadErrors();
+    } else if (activeScreen === "decisions") {
+      void loadDecisions();
     }
   }
 
@@ -486,6 +503,7 @@
     getDocumentError,
     getWorkspaceId: () => state.workspaceId,
     loadChat,
+    loadDecisions,
     loadErrors,
     loadRecent,
     renderDashboard,
