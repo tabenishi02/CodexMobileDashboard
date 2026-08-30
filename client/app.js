@@ -162,9 +162,14 @@
     return typeof value === "string" && value ? value : "日時不明";
   }
 
+  function isStaleTimestamp(value) {
+    const time = Date.parse(value);
+    return Number.isFinite(time) && Date.now() - time > 10 * 60 * 1000;
+  }
   function formatLastUpdatedStatus() {
     const dashboard = getDocument("dashboard");
-    return "最終更新: " + formatTimestamp(dashboard && dashboard.generated_at);
+    const timestamp = dashboard && dashboard.generated_at;
+    return "最終更新: " + formatTimestamp(timestamp) + (isStaleTimestamp(timestamp) ? " / データが古い可能性があります" : "");
   }
 
   function formatGitSummary(git) {
