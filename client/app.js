@@ -235,7 +235,7 @@
     if (!recent) {
       content.hidden = true;
       screenState.hidden = false;
-      screenState.textContent = "最近の更新を取得できませんでした。";
+      screenState.textContent = "最近の更新を取得できませんでした（通信失敗または不正な応答）。";
       return;
     }
 
@@ -369,7 +369,7 @@
       const entry = entries[entries.length - state.chatPages.pages.length - 1];
       if (entry) { state.chatPages.pages.unshift(await fetchMessagePage(entry.path)); }
       renderChat(state.chatPages.pages);
-    } catch (_error) { stateElement.textContent = "チャットを取得できませんでした。"; content.hidden = true; }
+    } catch (_error) { stateElement.textContent = "チャットを取得できませんでした（通信失敗または不正な応答）。"; content.hidden = true; }
   }
   function formatErrorItem(error) {
     const value = error && typeof error === "object" ? error : {};
@@ -387,7 +387,7 @@
     const errors = getDocument("errors");
     const stateElement = document.querySelector('[data-state-for="errors"]');
     const content = document.querySelector('[data-content-for="errors"]');
-    if (!errors) { content.hidden = true; stateElement.hidden = false; stateElement.textContent = "エラー一覧を取得できませんでした。"; return; }
+    if (!errors) { content.hidden = true; stateElement.hidden = false; stateElement.textContent = "エラー一覧を取得できませんでした（通信失敗または不正な応答）。"; return; }
     const entries = Array.isArray(errors.errors) ? errors.errors.slice() : [];
     entries.sort((left, right) => (left && left.status === "open" ? 0 : 1) - (right && right.status === "open" ? 0 : 1));
     const container = getElement("error-list"); container.replaceChildren();
@@ -403,7 +403,7 @@
   }
   function renderDecisions() {
     const data = getDocument("decisions"); const stateElement = document.querySelector('[data-state-for="decisions"]'); const content = document.querySelector('[data-content-for="decisions"]');
-    if (!data) { content.hidden = true; stateElement.hidden = false; stateElement.textContent = "決定事項を取得できませんでした。"; return; }
+    if (!data) { content.hidden = true; stateElement.hidden = false; stateElement.textContent = "決定事項を取得できませんでした（通信失敗または不正な応答）。"; return; }
     const entries = Array.isArray(data.decisions) ? data.decisions.slice() : [];
     entries.sort((left, right) => String(right && right.decided_at || "").localeCompare(String(left && left.decided_at || "")));
     const container = getElement("decision-list"); container.replaceChildren();
@@ -418,7 +418,7 @@
   }
   function renderFiles() {
     const data = getDocument("files"); const stateElement = document.querySelector('[data-state-for="files"]'); const content = document.querySelector('[data-content-for="files"]');
-    if (!data) { content.hidden = true; stateElement.hidden = false; stateElement.textContent = "変更ファイルを取得できませんでした。"; return; }
+    if (!data) { content.hidden = true; stateElement.hidden = false; stateElement.textContent = "変更ファイルを取得できませんでした（通信失敗または不正な応答）。"; return; }
     const entries = Array.isArray(data.files) ? data.files : (Array.isArray(data.changed_files) ? data.changed_files : []);
     const container = getElement("file-list"); container.replaceChildren();
     if (!entries.length) { const item = document.createElement("li"); item.textContent = "データがありません（変更ファイル）。"; container.appendChild(item); }
@@ -473,7 +473,7 @@
     if (!dashboard) {
       content.hidden = true;
       screenState.hidden = false;
-      screenState.textContent = "ダッシュボードを取得できませんでした。";
+      screenState.textContent = "ダッシュボードを取得できませんでした（通信失敗または不正な応答）。";
       return;
     }
 
