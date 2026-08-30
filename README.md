@@ -3,7 +3,7 @@
 VSCode Codexで進めている開発の状況を、スマートフォンから短時間で確認するためのダッシュボードです。
 
 > [!IMPORTANT]
-> 作業用PCのcollectorとAndroid・Termux向けHTTPSサーバーは実装・実機受入済みです。スマートフォン向け閲覧画面はPhase 5で実装します。進捗は[`TASKS.md`](TASKS.md)、Phase 5への引継ぎは[`docs/PHASE5_HANDOFF.md`](docs/PHASE5_HANDOFF.md)で管理しています。
+> 作業用PCのcollector、Android・Termux向けHTTPSサーバー、スマートフォン向け閲覧画面は実装済みです。閲覧スマートフォンでの最終実機受入と、Codex CLI推論の増分化は未完了です。現在の正確な引継ぎ状態は[`docs/CURRENT_HANDOFF.md`](docs/CURRENT_HANDOFF.md)を参照してください。
 
 ## 目的
 
@@ -153,7 +153,7 @@ CodexMobileDashboard/
 ├─ CHANGELOG.md
 ├─ config/             # 秘密を含まない設定例
 ├─ server/             # Android・Termux側HTTPSサーバー
-├─ client/             # スマートフォン向け画面（実装予定）
+├─ client/             # スマートフォン向け閲覧画面
 ├─ tools/              # PC側の収集・変換・送信ツール
 ├─ data/               # テスト用サンプルとローカル動作確認用データ
 └─ docs/               # 詳細設計
@@ -172,6 +172,7 @@ CodexMobileDashboard/
 | [`docs/DATA_LIMITS.md`](docs/DATA_LIMITS.md) | データ量、分割、送信対象 |
 | [`docs/UPDATE_POLICY.md`](docs/UPDATE_POLICY.md) | 更新頻度、ハートビート、保存期間 |
 | [docs/AI_INFERENCE.md](docs/AI_INFERENCE.md) | Codex CLI推論の現行経路、制限、キャッシュ範囲 |
+| [docs/CURRENT_HANDOFF.md](docs/CURRENT_HANDOFF.md) | 現在の実装・実機確認・既知問題・再開手順 |
 | [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | 設定ファイルと秘密情報の管理 |
 | [`docs/MANUAL_COMMAND.md`](docs/MANUAL_COMMAND.md) | 未送信Snapshotの手動確認・再送 |
 | [`docs/TRANSPORT_API.md`](docs/TRANSPORT_API.md) | PC・Android間のHTTPS Snapshot送信契約 |

@@ -11,7 +11,9 @@
 - Android実機で、証明書検証付きHTTPS、Bearer認証付きSnapshot POST、明示的commit、公開JSON GETを確認済みである。
 - PC側の送信失敗後に未送信キューから再送し、同じDelivery IDを使う冪等処理を実機確認済みである。
 - Android端末再起動後のHTTPSサーバーとSSHの自動起動を確認済みである。
-- 閲覧画面は未実装であり、`client/`には設計用READMEだけがある。
+- 閲覧画面は`client/index.html`、`client/styles.css`、`client/app.js`として実装済みである。画面にはダッシュボード、最近の更新、チャット、エラー、決定事項、ファイル、システム情報がある。
+
+> 本書の名称はPhase 5開始時の引継ぎを示す。現在の再開地点と既知問題は[`CURRENT_HANDOFF.md`](CURRENT_HANDOFF.md)を正とする。
 
 Phase 4の受入根拠は[`PHASE4_ACCEPTANCE.md`](PHASE4_ACCEPTANCE.md)を正とする。Phase 4完了時点の基準コミットは`12e1f8b`である。
 
@@ -100,4 +102,4 @@ PC側collectorは`dashboard.json`、`recent.json`、`messages.json`、`errors.js
 3. `client/index.html`、CSS、JavaScriptをAndroidの`$HOME/CodexMobileDashboard/app/client`へ反映する。
 4. CA信頼済みの閲覧スマートフォンで`https://192.0.2.121:8765/`を実機確認する。
 
-Phase 5完了までは、Phase 4受入で保留した`GET /`の画面表示と閲覧スマートフォン受入を完了扱いにしない。
+画面実装後、Android実機へ`server/`と`client/`を再配置し、`GET /health`とworkspace指定healthの`200`、collectorからの複数Snapshot commit成功を確認した。CA信頼済み閲覧スマートフォンでの最終表示受入は未完了のため、`TASKS.md`の実機確認項目は完了扱いにしない。
