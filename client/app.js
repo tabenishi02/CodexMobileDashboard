@@ -17,6 +17,7 @@
     recent: "recent.json",
   };
   const INITIAL_DOCUMENTS = ["dashboard", "metadata", "health"];
+  const SCREEN_NAMES = new Set(["dashboard", "recent", "chat", "errors", "decisions", "files", "system", "more"]);
   const state = {
     cache: new Map(),
     documents: new Map(),
@@ -197,6 +198,111 @@
     }
   }
 
+  const TURN_STATUS_LABELS = {
+    completed: "完了",
+    failed: "失敗",
+    incomplete: "中断",
+    in_progress: "作業中",
+  };
+
+  function formatTurnStatus(status) {
+    return TURN_STATUS_LABELS[status] || "状態不明";
+  }
+
+  function formatTurn(turn) {
+    const value = turn && typeof turn === "object" ? turn : {};
+    const completedAt = value.completed_at ? formatTimestamp(value.completed_at) : "未完了";
+    const userPreview = typeof value.user_preview === "string" && value.user_preview ? value.user_preview : "内容を取得できませんでした。";
+    const assistantPreview = typeof value.assistant_preview === "string" && value.assistant_preview
+      ? value.assistant_preview
+      : "応答プレビューはありません。";
+    const rolledBack = value.rolled_back === true ? "あり" : "なし";
+    return "状態: " + formatTurnStatus(value.status)
+      + " / 開始: " + formatTimestamp(value.started_at)
+      + " / 完了: " + completedAt
+      + " / ユーザー: " + userPreview
+      + " / Codex: " + assistantPreview
+      + " / ロールバック: " + rolledBack;
+  }
+
+  function renderRecent() {
+    const recent = getDocument("recent");
+    const screenState = document.querySelector('[data-state-for="recent"]');
+    const content = document.querySelector('[data-content-for="recent"]');
+    if (!screenState || !content) {
+      throw createClientError("recent_elements_missing");
+    }
+    if (!recent) {
+      content.hidden = true;
+      screenState.hidden = false;
+      screenState.textContent = "最近の更新を取得できませんでした。";
+      return;
+    }
+
+    const turns = [];
+    if (recent.current_turn && typeof recent.current_turn === "object") {
+      turns.push(recent.current_turn);
+    }
+    if (Array.isArray(recent.turns)) {
+      turns.push(...recent.turns);
+    }
+
+    const container = getElement("recent-turns");
+    container.replaceChildren();
+    if (!turns.length) {
+      const item = document.createElement("li");
+      item.textContent = "最近の更新はありません。";
+      container.appendChild(item);
+    } else {
+      for (const turn of turns) {
+        const item = document.createElement("li");
+        item.textContent = formatTurn(turn);
+        container.appendChild(item);
+      }
+    }
+    screenState.hidden = true;
+    content.hidden = false;
+  }
+
+  async function loadRecent() {
+    const screenState = document.querySelector('[data-state-for="recent"]');
+    const content = document.querySelector('[data-content-for="recent"]');
+    screenState.hidden = false;
+    screenState.textContent = "最近の更新を読み込んでいます。";
+    content.hidden = true;
+    try {
+      await fetchDocument("recent");
+      renderRecent();
+    } catch (_error) {
+      renderRecent();
+    }
+  }
+
+  function showScreen(screenName) {
+    const activeScreen = SCREEN_NAMES.has(screenName) ? screenName : "dashboard";
+    for (const screen of document.querySelectorAll("[data-screen]")) {
+      screen.hidden = screen.dataset.screen !== activeScreen;
+    }
+    for (const link of document.querySelectorAll("[data-screen-link]")) {
+      if (link.dataset.screenLink === activeScreen) {
+        link.setAttribute("aria-current", "page");
+      } else {
+        link.removeAttribute("aria-current");
+      }
+    }
+    if (activeScreen === "recent") {
+      void loadRecent();
+    }
+  }
+
+  function setupNavigation() {
+    for (const link of document.querySelectorAll("[data-screen-link]")) {
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        showScreen(link.dataset.screenLink);
+      });
+    }
+  }
   function renderDashboard() {
     const dashboard = getDocument("dashboard");
     const screenState = document.querySelector('[data-state-for="dashboard"]');
@@ -277,10 +383,14 @@
     getDocument,
     getDocumentError,
     getWorkspaceId: () => state.workspaceId,
+    loadRecent,
     renderDashboard,
+    renderRecent,
+    showScreen,
   };
 
   document.addEventListener("DOMContentLoaded", () => {
+    setupNavigation();
     void initialize();
   });
 })();

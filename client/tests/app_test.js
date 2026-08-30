@@ -24,8 +24,26 @@ function listElement() {
 async function run() {
   const listeners = {};
   const nextActions = listElement();
+  const recentTurns = listElement();
   const dashboardState = { hidden: false, textContent: "" };
   const dashboardContent = { hidden: true };
+  const recentState = { hidden: false, textContent: "" };
+  const recentContent = { hidden: true };
+  const screens = [
+    { dataset: { screen: "dashboard" }, hidden: false },
+    { dataset: { screen: "recent" }, hidden: true },
+  ];
+  function screenLink(screenLink) {
+    return {
+      attributes: {},
+      dataset: { screenLink },
+      listener: null,
+      addEventListener(_name, listener) { this.listener = listener; },
+      removeAttribute(name) { delete this.attributes[name]; },
+      setAttribute(name, value) { this.attributes[name] = value; },
+    };
+  }
+  const screenLinks = [screenLink("dashboard"), screenLink("recent")];
   const elements = new Map([
     ["missing-workspace", { hidden: true }],
     ["global-status", { textContent: "" }],
@@ -40,6 +58,7 @@ async function run() {
     ["git-summary", { textContent: "" }],
     ["dashboard-generated-at", { textContent: "" }],
     ["next-actions", nextActions],
+    ["recent-turns", recentTurns],
   ]);
   const appShell = { dataset: {} };
   const requests = [];
@@ -77,7 +96,18 @@ async function run() {
         if (selector === '[data-content-for="dashboard"]') {
           return dashboardContent;
         }
+        if (selector === '[data-state-for="recent"]') {
+          return recentState;
+        }
+        if (selector === '[data-content-for="recent"]') {
+          return recentContent;
+        }
         return null;
+      },
+      querySelectorAll: (selector) => {
+        if (selector === "[data-screen]") { return screens; }
+        if (selector === "[data-screen-link]") { return screenLinks; }
+        return [];
       },
     },
     window: {
@@ -116,10 +146,40 @@ async function run() {
     "/health?workspace_id=workspace-1",
   ]);
 
+  responses.push(response(200, {
+    current_turn: {
+      assistant_preview: null,
+      completed_at: null,
+      rolled_back: false,
+      started_at: "2026-08-30T12:10:00+09:00",
+      status: "in_progress",
+      user_preview: "最近の更新一覧を実装する",
+    },
+    data_type: "recent",
+    turns: [{
+      assistant_preview: "一覧表示を実装しました。",
+      completed_at: "2026-08-30T12:05:00+09:00",
+      rolled_back: true,
+      started_at: "2026-08-30T12:00:00+09:00",
+      status: "completed",
+      user_preview: "前の作業を実装する",
+    }],
+  }, '"recent-v1"'));
+  client.showScreen("recent");
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.strictEqual(screens[0].hidden, true);
+  assert.strictEqual(screens[1].hidden, false);
+  assert.strictEqual(screenLinks[1].attributes["aria-current"], "page");
+  assert.match(recentTurns.children[0].textContent, /状態: 作業中/);
+  assert.match(recentTurns.children[0].textContent, /ユーザー: 最近の更新一覧を実装する/);
+  assert.match(recentTurns.children[1].textContent, /状態: 完了/);
+  assert.match(recentTurns.children[1].textContent, /ロールバック: あり/);
+
   responses.push(response(304, null, null));
   const dashboard = await client.fetchDocument("dashboard");
   assert.strictEqual(dashboard.data_type, "dashboard");
-  assert.strictEqual(requests[3].options.headers["If-None-Match"], '"dashboard-v1"');
+  assert.strictEqual(requests.find((request) => request.url === "/data/workspace-1/dashboard.json" && request.options.headers["If-None-Match"]).options.headers["If-None-Match"], '"dashboard-v1"');
 
   responses.push(response(200, [], '"recent-v1"'));
   await assert.rejects(() => client.fetchDocument("recent"), /json_shape_invalid/);
