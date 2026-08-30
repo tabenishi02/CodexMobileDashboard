@@ -335,3 +335,6 @@ pre {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+.message-list details { min-width: 0; }
+.message-list summary { cursor: pointer; font-weight: 700; }
+.message-list details pre { white-space: pre-wrap; overflow-wrap: anywhere; }

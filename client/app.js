@@ -324,7 +324,19 @@
     if (!messages.length) {
       const item = document.createElement("li"); item.textContent = "表示するメッセージはありません。"; container.appendChild(item);
     } else {
-      for (const message of messages) { const item = document.createElement("li"); item.textContent = formatMessage(message); container.appendChild(item); }
+      for (const message of messages) {
+        const item = document.createElement("li");
+        const text = formatMessage(message);
+        if (message && message.display_mode === "collapsed") {
+          const details = document.createElement("details");
+          const summary = document.createElement("summary");
+          summary.textContent = "長文メッセージを表示";
+          const body = document.createElement("pre");
+          body.textContent = text;
+          details.appendChild(summary); details.appendChild(body); item.appendChild(details);
+        } else { item.textContent = text; }
+        container.appendChild(item);
+      }
     }
     const index = getDocument("messages");
     previous.hidden = !index || !Array.isArray(index.pages) || pages.length >= index.pages.length;
