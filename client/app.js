@@ -346,6 +346,34 @@
       renderChat(state.chatPages.pages);
     } catch (_error) { stateElement.textContent = "チャットを取得できませんでした。"; content.hidden = true; }
   }
+  function formatErrorItem(error) {
+    const value = error && typeof error === "object" ? error : {};
+    const severity = typeof value.severity === "string" && value.severity ? value.severity : "不明";
+    const status = typeof value.status === "string" && value.status ? value.status : "不明";
+    const summary = typeof value.summary === "string" && value.summary ? value.summary : "内容を取得できませんでした。";
+    const occurredAt = value.last_occurred_at ? formatTimestamp(value.last_occurred_at) : "日時不明";
+    const count = Number.isInteger(value.occurrence_count) ? value.occurrence_count : "—";
+    return "重要度: " + severity + " / 状態: " + status + " / 発生: " + occurredAt + " / 回数: " + count + " / " + summary;
+  }
+
+  function renderErrors() {
+    const errors = getDocument("errors");
+    const stateElement = document.querySelector('[data-state-for="errors"]');
+    const content = document.querySelector('[data-content-for="errors"]');
+    if (!errors) { content.hidden = true; stateElement.hidden = false; stateElement.textContent = "エラー一覧を取得できませんでした。"; return; }
+    const entries = Array.isArray(errors.errors) ? errors.errors.slice() : [];
+    entries.sort((left, right) => (left && left.status === "open" ? 0 : 1) - (right && right.status === "open" ? 0 : 1));
+    const container = getElement("error-list"); container.replaceChildren();
+    if (!entries.length) { const item = document.createElement("li"); item.textContent = "表示するエラーはありません。"; container.appendChild(item); }
+    else { for (const error of entries) { const item = document.createElement("li"); item.textContent = formatErrorItem(error); container.appendChild(item); } }
+    stateElement.hidden = true; content.hidden = false;
+  }
+
+  async function loadErrors() {
+    const stateElement = document.querySelector('[data-state-for="errors"]'); const content = document.querySelector('[data-content-for="errors"]');
+    stateElement.hidden = false; stateElement.textContent = "エラー一覧を読み込んでいます。"; content.hidden = true;
+    try { await fetchDocument("errors"); renderErrors(); } catch (_error) { renderErrors(); }
+  }
   function showScreen(screenName) {
     const activeScreen = SCREEN_NAMES.has(screenName) ? screenName : "dashboard";
     for (const screen of document.querySelectorAll("[data-screen]")) {
@@ -362,6 +390,8 @@
       void loadRecent();
     } else if (activeScreen === "chat") {
       void loadChat(false);
+    } else if (activeScreen === "errors") {
+      void loadErrors();
     }
   }
 
@@ -454,6 +484,7 @@
     getDocumentError,
     getWorkspaceId: () => state.workspaceId,
     loadChat,
+    loadErrors,
     loadRecent,
     renderDashboard,
     renderRecent,
