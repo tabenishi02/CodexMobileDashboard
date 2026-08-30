@@ -38,7 +38,7 @@ git diff --check
 
 - 変更要約・決定事項・次タスクは別々にCodex CLIを起動し得る。
 - `incremental`と`backfill`は現在、候補範囲が同じである。新規完了ターン限定、共有呼び出し上限、backfill専用コマンドは未実装。
-- 変更要約用の台帳と復元補助は実装途中だが、`collector_runtime.py`が`InferenceLedgerEntry`へ存在しない`now`キーワードを渡すため、保存対象がある実行では`TypeError`になる。正しいフィールド名は`generated_at`である。
+- 変更要約と決定事項は、入力SHA-256・workspace・session・turnに関連付けたversioned payloadを台帳へ原子的保存する。保存時の`now`引数不一致は修正済みである。
 - 台帳専用テストがなく、変更要約の完全payload保存・再起動後復元は受入未完了。
 - 決定事項と次タスクは永続台帳へ保存・復元されない。
 - 決定事項は`supersedes`、`superseded_by`、`topic_key`と時系列を保存し、関係を壊さず復元する方針を採用した。
