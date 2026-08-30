@@ -74,3 +74,29 @@ def decision_inference_cache(entries, workspace_id):
         except ValueError:
             continue
     return result
+
+def next_task_payload(entry):
+    task = entry.task
+    assert task is not None
+    return {"schema_version": 1, "payload": {"evidence_hash": entry.evidence_hash, "task": {"task_id": task.task_id, "text": task.text, "status": task.status, "origin": task.origin, "confidence": task.confidence, "reason": task.reason, "source_message_ids": list(task.source_message_ids)}, "issues": [item.kind for item in entry.issues]}}
+
+def next_task_cache_entry(entries, workspace_id, session_id):
+    """Restore the latest complete successful next-task result for a session."""
+    from tools.next_task_extractor import NextTask, NextTaskCacheEntry, NextTaskIssue
+    for entry in reversed(tuple(entries)):
+        if entry.workspace_id != workspace_id or entry.session_id != session_id or entry.inference_kind != "next_task":
+            continue
+        value = entry.result.get("payload") if isinstance(entry.result, dict) and entry.result.get("schema_version") == 1 else None
+        if not isinstance(value, dict) or not isinstance(value.get("evidence_hash"), str) or not isinstance(value.get("task"), dict) or not isinstance(value.get("issues"), list):
+            continue
+        task_value = value["task"]
+        fields = ("task_id", "text", "status", "origin", "confidence")
+        if not all(isinstance(task_value.get(field), str) and task_value[field] for field in fields):
+            continue
+        reason = task_value.get("reason")
+        source_ids = task_value.get("source_message_ids")
+        if (reason is not None and not isinstance(reason, str)) or not isinstance(source_ids, list) or not all(isinstance(item, str) for item in source_ids) or not all(isinstance(item, str) for item in value["issues"]):
+            continue
+        task = NextTask(task_value["task_id"], task_value["text"], task_value["status"], task_value["origin"], task_value["confidence"], reason, tuple(source_ids))
+        return NextTaskCacheEntry(value["evidence_hash"], task, None, tuple(NextTaskIssue(item) for item in value["issues"]))
+    return None

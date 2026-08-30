@@ -18,7 +18,7 @@ from tools.error_extractor import extract_development_errors
 from tools.file_reference_extractor import extract_file_references
 from tools.git_change_collector import collect_git_changes
 from tools.https_sender import HttpsSnapshotSender, prepare_snapshot_uploads
-from tools.inference_ledger import InferenceLedgerEntry, append as append_inference_ledger, decision_inference_cache, load as load_inference_ledger, summary_cache_entries, summary_payload
+from tools.inference_ledger import InferenceLedgerEntry, append as append_inference_ledger, decision_inference_cache, load as load_inference_ledger, next_task_cache_entry, next_task_payload, summary_cache_entries, summary_payload
 from tools.incremental_collector import collect_incremental_records
 from tools.json_converter import CollectorMetadata, JsonContext, ProjectPresentation, build_json_snapshot
 from tools.json_writer import save_json_snapshot
@@ -97,7 +97,10 @@ def _build_workspace_snapshot(root: Path, workspace_id: str, latest_session_id: 
             append_inference_ledger(settings.inference_ledger_file, InferenceLedgerEntry(workspace_id, latest_session_id, entry.turn_id, entry.evidence_hash, {"schema_version": 1, "payload": summary_payload(entry.summary)}, datetime.now(timezone.utc).isoformat(timespec="seconds"), "change_summary"))
 
     recent = tuple(ordered_messages[-2:])
-    next_task = extract_next_task(recent, NextTaskInferenceContext(work.codex_status, tuple(InferenceMessage(message.message_id, message.role, _text(message)) for message in recent), tuple(item.title for item in decisions.decisions), tuple(), True), settings.tasks_path, allow_inference=settings.ai_inference_mode != "off")
+    next_task = extract_next_task(recent, NextTaskInferenceContext(work.codex_status, tuple(InferenceMessage(message.message_id, message.role, _text(message)) for message in recent), tuple(item.title for item in decisions.decisions), tuple(), True), settings.tasks_path, cache_entry=next_task_cache_entry(ledger_entries, workspace_id, latest_session_id), allow_inference=settings.ai_inference_mode != "off")
+    if next_task.inference_attempted and next_task.cache_entry is not None and next_task.cache_entry.task is not None and next_task.cache_entry.task.origin == "codex_inferred":
+        turn_id = recent[-1].turn_id or recent[-1].message_id if recent else latest_session_id
+        append_inference_ledger(settings.inference_ledger_file, InferenceLedgerEntry(workspace_id, latest_session_id, turn_id, next_task.cache_entry.evidence_hash, next_task_payload(next_task.cache_entry), datetime.now(timezone.utc).isoformat(timespec="seconds"), "next_task"))
     git = collect_git_changes(root, workspace_id)
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     context = JsonContext("snapshot-" + uuid.uuid4().hex, now, workspace_id, latest_session_id)

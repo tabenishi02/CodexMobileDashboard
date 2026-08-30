@@ -3,7 +3,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from tools.inference_ledger import InferenceLedgerEntry, append, load
+from tools.next_task_extractor import NextTask, NextTaskCacheEntry, NextTaskIssue
+
+from tools.inference_ledger import InferenceLedgerEntry, append, load, next_task_cache_entry, next_task_payload
 
 
 def entry(input_sha256: str = "a" * 64) -> InferenceLedgerEntry:
@@ -23,6 +25,12 @@ class InferenceLedgerTests(unittest.TestCase):
 
         self.assertEqual((entry(),), restored)
 
+    def test_next_task_payload_restores_matching_session(self) -> None:
+        task = NextTask("task-1", "task text", "pending", "codex_inferred", "high", "reason", ("message-1",))
+        cache = NextTaskCacheEntry("c" * 64, task, None, (NextTaskIssue("warning"),))
+        value = InferenceLedgerEntry("workspace-1", "session-1", "turn-1", "c" * 64, next_task_payload(cache), "2026-08-31T00:00:00+00:00", "next_task")
+        self.assertEqual(cache, next_task_cache_entry((value,), "workspace-1", "session-1"))
+        self.assertIsNone(next_task_cache_entry((value,), "workspace-1", "other-session"))
     def test_failed_replace_preserves_previous_ledger(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "ledger.json"

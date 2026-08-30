@@ -33,7 +33,7 @@ CLIは`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore
 - 変更要約の保存時引数不一致は修正済みである。
 - 決定事項は入力SHA-256を照合し、同一入力ではCodex CLIを再実行しない。
 - entryごとの`schema_version: 1`を必須にし、旧形式・不完全payloadは安全に再推論候補へ戻す。
-- 次タスクの完全payload保存・復元は未実装。
+- 次タスクも同じversioned payloadで保存・復元する。
 
 ## 完成形の台帳設計
 
