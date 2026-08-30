@@ -131,4 +131,3 @@ def _merge_records(previous: tuple, appended: tuple) -> tuple:
 def _text(message: object) -> str:
     return "\n".join(part.text or "" for part in message.content)
 
-
