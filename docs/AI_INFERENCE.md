@@ -48,3 +48,7 @@
 - 同一ターンの複数推論を可能な範囲で統合する。
 
 プロンプト本文、Token、セッション本文はログ・台帳の運用ログへ出力しない。
+## 推論モード（導入済み）
+
+[ai_inference] modeはoff、incremental、ackfillを受け付け、未指定時はincrementalである。offでは3経路ともCodex CLIを起動しない。incrementalとackfillではCLIを許可する。増分対象選別、永続台帳、backfill専用コマンドは後続タスクで追加するため、現時点では両モードの候補範囲は同じである。
+

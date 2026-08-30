@@ -1,4 +1,4 @@
-"""One-shot orchestration for the PC-side Codex dashboard collector."""
+﻿"""One-shot orchestration for the PC-side Codex dashboard collector."""
 from __future__ import annotations
 
 import hashlib
@@ -38,6 +38,7 @@ class CollectorRuntimeSettings:
     output_dir: Path
     queue_dir: Path
     tasks_path: Path
+    ai_inference_mode: str
 
 
 def run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | None = None) -> int:
@@ -81,12 +82,12 @@ def _build_workspace_snapshot(root: Path, workspace_id: str, latest_session_id: 
     chats = ChatExtractionResult(ordered_messages, tuple(issue for value in chats_by_session.values() for issue in value.issues), tuple(item for value in chats_by_session.values() for item in value.automatic_context_removals))
     all_records = tuple(record for records in records_by_session.values() for record in records)
     work = extract_current_work_status(all_records, ordered_messages, latest_session_id)
-    decisions = extract_decisions(tuple(DecisionSourceMessage(session_id, message, _text(message)) for session_id, value in chats_by_session.items() for message in value.messages), workspace_id)
+    decisions = extract_decisions(tuple(DecisionSourceMessage(session_id, message, _text(message)) for session_id, value in chats_by_session.items() for message in value.messages), workspace_id, allow_inference=settings.ai_inference_mode != "off")
     files = extract_file_references(tuple((session_id, message) for session_id, value in chats_by_session.items() for message in value.messages), root, workspace_id)
     errors = extract_development_errors(all_records, ordered_messages, work, workspace_id, latest_session_id)
-    summaries = generate_change_summaries(latest_session_id, work, tuple(SummarySourceMessage(latest_session_id, message.message_id, message.turn_id, message.role, message.message_type, message.phase, _text(message), True) for message in ordered_messages), file_references=files.references)
+    summaries = generate_change_summaries(latest_session_id, work, tuple(SummarySourceMessage(latest_session_id, message.message_id, message.turn_id, message.role, message.message_type, message.phase, _text(message), True) for message in ordered_messages), file_references=files.references, allow_inference=settings.ai_inference_mode != "off")
     recent = tuple(ordered_messages[-2:])
-    next_task = extract_next_task(recent, NextTaskInferenceContext(work.codex_status, tuple(InferenceMessage(message.message_id, message.role, _text(message)) for message in recent), tuple(item.title for item in decisions.decisions), tuple(), True), settings.tasks_path)
+    next_task = extract_next_task(recent, NextTaskInferenceContext(work.codex_status, tuple(InferenceMessage(message.message_id, message.role, _text(message)) for message in recent), tuple(item.title for item in decisions.decisions), tuple(), True), settings.tasks_path, allow_inference=settings.ai_inference_mode != "off")
     git = collect_git_changes(root, workspace_id)
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     context = JsonContext("snapshot-" + uuid.uuid4().hex, now, workspace_id, latest_session_id)
@@ -129,3 +130,5 @@ def _merge_records(previous: tuple, appended: tuple) -> tuple:
 
 def _text(message: object) -> str:
     return "\n".join(part.text or "" for part in message.content)
+
+

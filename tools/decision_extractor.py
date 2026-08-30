@@ -185,6 +185,7 @@ def extract_decisions(
     workspace_id: str,
     *,
     runner: Optional[DecisionCliRunner] = None,
+    allow_inference: bool = True,
 ) -> DecisionExtractionResult:
     """Build workspace-wide decision history in chronological input order."""
 
@@ -205,6 +206,9 @@ def extract_decisions(
 
         proposals: Tuple[_Proposal, ...]
         if _AMBIGUOUS_REFERENCE.search(text):
+            if not allow_inference:
+                issues.append(DecisionExtractionIssue(source.session_id, message.message_id, "inference_disabled"))
+                continue
             masked_context = _masked_context(sources, position)
             if masked_context is None:
                 issues.append(

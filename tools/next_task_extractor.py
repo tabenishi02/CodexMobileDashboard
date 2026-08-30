@@ -184,6 +184,7 @@ def extract_next_task(
     runner: Optional[CodexCliRunner] = None,
     cache_entry: Optional[NextTaskCacheEntry] = None,
     now: Optional[datetime] = None,
+    allow_inference: bool = True,
 ) -> NextTaskExtractionResult:
     """Return one next task, preferring explicit conversation evidence."""
 
@@ -225,6 +226,10 @@ def extract_next_task(
             False,
             prompt,
         )
+
+    if not allow_inference:
+        issues.append(NextTaskIssue("inference_disabled"))
+        return _fallback_result(tasks_path, evidence_hash, current_time, issues, False, prompt)
 
     cli_runner = runner or CodexCliRunner()
     try:

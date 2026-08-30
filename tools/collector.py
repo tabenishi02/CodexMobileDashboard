@@ -1,4 +1,4 @@
-"""Manual PC-side commands for inspecting and replaying pending snapshots."""
+﻿"""Manual PC-side commands for inspecting and replaying pending snapshots."""
 
 from __future__ import annotations
 
@@ -80,6 +80,10 @@ def _load_settings(config_path: Path) -> dict:
         settings["max_attempts"] = parser.getint("sender", "max_attempts", fallback=5)
         settings["backoff_initial_seconds"] = parser.getfloat("sender", "backoff_initial_seconds", fallback=1)
         settings["backoff_max_seconds"] = parser.getfloat("sender", "backoff_max_seconds", fallback=16)
+    mode = parser.get("ai_inference", "mode", fallback="incremental").strip().lower()
+    if mode not in ("off", "incremental", "backfill"):
+        raise ValueError("ai_inference_mode_invalid")
+    settings["ai_inference_mode"] = mode
     return settings
 
 
@@ -101,7 +105,7 @@ def _runtime_settings(config_path: Path, settings: dict) -> CollectorRuntimeSett
         raise ValueError("allowed_roots_missing")
     history_value = parser.get("storage", "history_file", fallback="").strip()
     history_file = Path(os.path.expandvars(history_value)) if history_value else settings["queue_dir"].parent / "state" / "collector-history.json"
-    return CollectorRuntimeSettings(roots, _path_value(parser, "discovery", "sessions_dir"), _path_value(parser, "discovery", "archived_sessions_dir"), parser.getboolean("discovery", "scan_archived_sessions", fallback=True), _path_value(parser, "storage", "state_file"), history_file, _path_value(parser, "storage", "output_dir"), settings["queue_dir"], Path.cwd() / "TASKS.md")
+    return CollectorRuntimeSettings(roots, _path_value(parser, "discovery", "sessions_dir"), _path_value(parser, "discovery", "archived_sessions_dir"), parser.getboolean("discovery", "scan_archived_sessions", fallback=True), _path_value(parser, "storage", "state_file"), history_file, _path_value(parser, "storage", "output_dir"), settings["queue_dir"], Path.cwd() / "TASKS.md", settings["ai_inference_mode"])
 def _configure_logging(settings: dict) -> None:
     directory = settings.get("log_directory")
     if directory is None:
@@ -172,3 +176,5 @@ def _safe_error_kind(error: BaseException) -> str:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+

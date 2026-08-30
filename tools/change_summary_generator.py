@@ -194,6 +194,7 @@ def generate_change_summaries(
     runner: Optional[ChangeSummaryCliRunner] = None,
     cache_entries: Iterable[ChangeSummaryCacheEntry] = tuple(),
     now: Optional[datetime] = None,
+    allow_inference: bool = True,
 ) -> ChangeSummaryGenerationResult:
     """Summarize terminal turns using only explicitly masked session evidence."""
 
@@ -259,6 +260,12 @@ def generate_change_summaries(
             cache = _failure_cache(turn, evidence_hash, turn_issues, current_time)
             issues.extend(turn_issues)
             updated_cache.append(cache)
+            continue
+
+        if not allow_inference:
+            turn_issues.append(ChangeSummaryIssue(turn.turn_id, "inference_disabled"))
+            updated_cache.append(ChangeSummaryCacheEntry(turn.turn_id, evidence_hash, None, None, tuple(turn_issues)))
+            issues.extend(turn_issues)
             continue
 
         attempts += 1

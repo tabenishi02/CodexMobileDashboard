@@ -1,4 +1,4 @@
-# Codex Mobile Dashboard タスク一覧
+﻿# Codex Mobile Dashboard タスク一覧
 
 ## Phase 0：要件・調査
 
@@ -109,7 +109,7 @@
 ### 3.1 Codex CLI推論の使用量削減・増分推論化（最優先）
 
 - [x] Codex CLI推論の呼び出し経路・最大回数・既存キャッシュ範囲を文書化する（`docs/AI_INFERENCE.md`）
-- [ ] `off`、`incremental`（既定）、`backfill`の推論モードを導入する
+- [x] `off`、`incremental`（既定）、`backfill`の推論モードを導入する（`off`はCLIを起動しない。対象範囲の分離は後続タスク）
 - [ ] 推論結果を入力SHA-256・workspace・session・turnに関連付けた永続台帳へ1件ごとに原子的保存する
 - [ ] 永続台帳から変更要約・決定事項・次タスクを復元し、同一実質入力の再推論を防止する
 - [ ] 今回追加された完了ターンだけを通常の`incremental`推論対象にする
@@ -340,3 +340,4 @@
 - [ ] 認証情報と秘密情報を送信・表示・ログ出力しない
 - [ ] セットアップと通常運用の手順が完成している
 - [ ] 未解決の`critical`または`error`相当の不具合がない
+
