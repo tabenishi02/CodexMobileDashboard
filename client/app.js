@@ -353,7 +353,9 @@
     const summary = typeof value.summary === "string" && value.summary ? value.summary : "内容を取得できませんでした。";
     const occurredAt = value.last_occurred_at ? formatTimestamp(value.last_occurred_at) : "日時不明";
     const count = Number.isInteger(value.occurrence_count) ? value.occurrence_count : "—";
-    return "重要度: " + severity + " / 状態: " + status + " / 発生: " + occurredAt + " / 回数: " + count + " / " + summary;
+    const preview = typeof value.details_preview === "string" && value.details_preview ? " / 詳細: " + value.details_preview : "";
+    const details = value.detail_storage === "inline" && typeof value.details === "string" && value.details ? " / 詳細全文: " + value.details : "";
+    return "重要度: " + severity + " / 状態: " + status + " / 発生: " + occurredAt + " / 回数: " + count + " / " + summary + preview + details;
   }
 
   function renderErrors() {
