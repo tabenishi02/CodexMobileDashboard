@@ -41,6 +41,47 @@ class ServerTests(unittest.TestCase):
         self.assertTrue(health["public_available"])
         self.assertFalse(health["staging_available"])
         self.assertTrue(health["logging_available"])
+        self.assertIsNone(health["workspace_id"])
+        self.assertIsNone(health["current_snapshot_id"])
+        self.assertIsNone(health["last_received_at"])
+
+    def test_health_reports_current_snapshot_for_workspace(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            static = root / "static"
+            public = root / "public"
+            static.mkdir()
+            workspace = public / "workspace-1"
+            workspace.mkdir(parents=True)
+            (workspace / "current.json").write_text(
+                json.dumps({"snapshot_id": "snapshot-1", "received_at": "2026-08-30T12:00:00+09:00"}),
+                encoding="utf-8",
+            )
+            server = create_server("127.0.0.1", 0, str(static), str(public))
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            try:
+                connection = http.client.HTTPConnection("127.0.0.1", server.server_port)
+                connection.request("GET", "/health?workspace_id=workspace-1")
+                response = connection.getresponse()
+                self.assertEqual(200, response.status)
+                health = json.loads(response.read())
+                self.assertEqual("workspace-1", health["workspace_id"])
+                self.assertEqual("snapshot-1", health["current_snapshot_id"])
+                self.assertEqual("2026-08-30T12:00:00+09:00", health["last_received_at"])
+                (workspace / "current.json").write_text(
+                    json.dumps({"snapshot_id": "legacy-snapshot"}), encoding="utf-8"
+                )
+                connection.request("GET", "/health?workspace_id=workspace-1")
+                legacy_health = json.loads(connection.getresponse().read())
+                self.assertEqual("legacy-snapshot", legacy_health["current_snapshot_id"])
+                self.assertIsNone(legacy_health["last_received_at"])
+                connection.request("GET", "/health?workspace_id=workspace-1&extra=value")
+                self.assertEqual(400, connection.getresponse().status)
+            finally:
+                server.shutdown()
+                thread.join()
+                server.server_close()
 
     def test_unknown_path_is_not_found(self) -> None:
         connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
@@ -498,6 +539,10 @@ class ServerTests(unittest.TestCase):
                 json.loads(response.read()),
             )
             self.assertTrue((self.server.public_directory / "workspace-1" / "current.json").is_file())
+            current_file = self.server.public_directory / "workspace-1" / "current.json"
+            current = json.loads(current_file.read_text(encoding="utf-8"))
+            self.assertEqual("snapshot-1", current["snapshot_id"])
+            self.assertIsInstance(current["received_at"], str)
             with patch("server.server.store_commit_receipt") as store:
                 connection.request("POST", url, body=body, headers=headers)
                 self.assertEqual(200, connection.getresponse().status)

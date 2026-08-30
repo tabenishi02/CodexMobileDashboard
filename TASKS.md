@@ -170,7 +170,8 @@
 - [x] `workspace_id`の選択・受渡し方法を決める（一覧APIは現時点で未実装）
   - URLクエリの`workspace_id`を使用する。例：`/?workspace_id=<workspace_id>`。
   - 未指定時はIDの入力・推測をせず、指定を案内する。workspace一覧APIはMVP後の拡張候補とする。
-- [ ] 最終受信日時・公開中Snapshot IDを画面に表示するか決め、必要ならサーバー状態APIを拡張する
+- [x] 最終受信日時・公開中Snapshot IDを画面に表示するか決め、必要ならサーバー状態APIを拡張する
+  - システム情報画面で表示する。`/health?workspace_id=<workspace_id>`へ状態確認を行う。
 - [ ] 画面構成を設計する
   - [ ] ダッシュボード
   - [ ] 最近の更新

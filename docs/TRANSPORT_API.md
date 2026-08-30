@@ -52,6 +52,16 @@ PC側はHTTPステータスだけでなく、`delivery_id`と`snapshot_id`が要
 - `503`：staging設定が利用できない。
 - `507`：保存先の空き容量が予約値を下回るか、容量を取得できないため、新規保存・公開を停止した。
 
+## 状態確認
+
+```text
+GET /health?workspace_id={workspace_id}
+```
+
+`workspace_id`は任意のクエリであり、英数字、`.`、`_`、`-`だけを許可する。指定時の応答は通常の状態項目に加え、`workspace_id`、`current_snapshot_id`、`last_received_at`を持つ。`current_snapshot_id`はcommit済みpublic Snapshotの識別子、`last_received_at`はそのSnapshotのcommitをサーバーが受理して公開ポインタを切り替えた時刻で、タイムゾーン付きISO 8601文字列とする。workspace IDなし、公開済みSnapshotなし、または旧形式の`current.json`では、これらの値は`null`とする。存在しないworkspaceと公開済みSnapshotなしは区別しない。
+
+クエリの形式が不正、`workspace_id`以外の項目を含む、または同じ`workspace_id`を複数指定した場合は`400 Bad Request`を返す。状態確認は閲覧用の認証不要GETであり、Tokenや内部エラー詳細を返さない。
+
 ## Commit
 
 全ファイルが`stored`になった後だけ、次を呼び出す。

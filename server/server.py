@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import configparser
+from datetime import datetime, timezone
 import json
 import logging
 from logging.handlers import TimedRotatingFileHandler
@@ -18,7 +19,7 @@ import threading
 import uuid
 import re
 from pathlib import Path, PurePosixPath
-from urllib.parse import unquote
+from urllib.parse import parse_qs, unquote, urlsplit
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Optional, Sequence, Type
 
@@ -270,15 +271,32 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
 
 
     def do_GET(self) -> None:  # noqa: N802
-        if self.path.startswith("/data/"):
+        request_url = urlsplit(self.path)
+        if request_url.path.startswith("/data/"):
             self._serve_json()
             return
-        if self.path == "/":
+        if request_url.path == "/" and not request_url.query:
             self._serve_index()
             return
-        if self.path != "/health":
+        if request_url.path != "/health":
             self.send_error(404)
             return
+        try:
+            workspace_id = parse_health_workspace_id(request_url.query)
+        except ValueError:
+            self.send_response(400)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        current_snapshot_id = None
+        last_received_at = None
+        if workspace_id is not None:
+            try:
+                current_snapshot_id, last_received_at = load_current_snapshot_status(
+                    self.server.public_directory, workspace_id,
+                )
+            except ValueError:
+                pass
         staging = getattr(self.server, "staging_directory", None)
         health = {
             "status": "ok",
@@ -289,6 +307,9 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             "logging_available": bool(self.server.access_logger.handlers and self.server.error_logger.handlers),
             "storage_available": has_storage_capacity(self.server.public_directory, self.server.minimum_free_bytes) and (not isinstance(staging, Path) or has_storage_capacity(staging, self.server.minimum_free_bytes)),
             "minimum_free_bytes": self.server.minimum_free_bytes,
+            "workspace_id": workspace_id,
+            "current_snapshot_id": current_snapshot_id,
+            "last_received_at": last_received_at,
         }
         body = json.dumps(health, ensure_ascii=False, separators=(",", ":")).encode("utf-8") + b"\n"
         self.send_response(200)
@@ -730,19 +751,48 @@ def _validated_staging_files(staging_directory: str, workspace_id: str, snapshot
         verified.append((actual[relative_path], relative_path))
     return verified
 
-def load_current_snapshot_id(public_directory: Path, workspace_id: str) -> str:
+def parse_health_workspace_id(query: str) -> Optional[str]:
+    """Return the optional workspace ID from a health-check query string."""
+    if not query:
+        return None
+    values = parse_qs(query, keep_blank_values=True, strict_parsing=True)
+    if not values:
+        return None
+    if set(values) != {"workspace_id"} or len(values["workspace_id"]) != 1:
+        raise ValueError("health_query_invalid")
+    workspace_id = values["workspace_id"][0]
+    if not _IDENTIFIER_PATTERN.fullmatch(workspace_id) or workspace_id in (".", ".."):
+        raise ValueError("health_workspace_invalid")
+    return workspace_id
+
+
+def load_current_snapshot_status(public_directory: Path, workspace_id: str) -> tuple[str, Optional[str]]:
+    """Load the current public Snapshot ID and its server reception time."""
     workspace_root = (public_directory / workspace_id).resolve(strict=False)
     try:
         workspace_root.relative_to(public_directory.resolve(strict=True))
         current = json.loads((workspace_root / "current.json").read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
         raise ValueError("current_snapshot_invalid") from error
-    if not isinstance(current, dict) or set(current) != {"snapshot_id"}:
+    if not isinstance(current, dict) or set(current) not in ({"snapshot_id"}, {"snapshot_id", "received_at"}):
         raise ValueError("current_snapshot_invalid")
     snapshot_id = current["snapshot_id"]
     if not isinstance(snapshot_id, str) or not _IDENTIFIER_PATTERN.fullmatch(snapshot_id) or snapshot_id in (".", ".."):
         raise ValueError("current_snapshot_invalid")
-    return snapshot_id
+    received_at = current.get("received_at")
+    if received_at is not None:
+        if not isinstance(received_at, str):
+            raise ValueError("current_snapshot_invalid")
+        try:
+            if datetime.fromisoformat(received_at).tzinfo is None:
+                raise ValueError("current_snapshot_invalid")
+        except ValueError as error:
+            raise ValueError("current_snapshot_invalid") from error
+    return snapshot_id, received_at
+
+
+def load_current_snapshot_id(public_directory: Path, workspace_id: str) -> str:
+    return load_current_snapshot_status(public_directory, workspace_id)[0]
 
 
 def publish_snapshot(public_directory: Path, staging_directory: str, workspace_id: str, snapshot_id: str, manifest_files: tuple[dict[str, object], ...]) -> None:
@@ -771,7 +821,14 @@ def publish_snapshot(public_directory: Path, staging_directory: str, workspace_i
         finally:
             if temporary.exists():
                 shutil.rmtree(temporary)
-    _atomic_write_bytes(workspace_root / "current.json", json.dumps({"snapshot_id": snapshot_id}, separators=(",", ":")).encode("utf-8"))
+    current = {
+        "snapshot_id": snapshot_id,
+        "received_at": datetime.now(timezone.utc).isoformat(),
+    }
+    _atomic_write_bytes(
+        workspace_root / "current.json",
+        json.dumps(current, separators=(",", ":")).encode("utf-8"),
+    )
 
 def safe_static_path(root: Path, request_path: str) -> Path:
     decoded = unquote(request_path)

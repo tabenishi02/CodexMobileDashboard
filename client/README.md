@@ -134,9 +134,10 @@ ETagと`If-None-Match`を使用し、変更がない場合は`304 Not Modified`�
 次の日時を区別して表示します。
 
 - PCが表示用データを生成した日時
-- Androidサーバー端末が受信した日時
+- Androidサーバー端末が受信した日時（`/health?workspace_id=<workspace_id>`の`last_received_at`）
 - PC収集ツールが最後に確認した日時
 - 内容が最後に変わった日時
+- 公開中Snapshot ID（`/health?workspace_id=<workspace_id>`の`current_snapshot_id`。システム情報画面に表示する）
 
 これにより「変更がない状態」と「PC収集ツールまたは通信が停止した状態」を区別します。Androidサーバー端末の詳細エラーは表示せず、正常、注意、異常、更新停止などの簡潔な状態だけを表示します。
 

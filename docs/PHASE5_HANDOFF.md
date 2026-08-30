@@ -77,7 +77,7 @@ PC側collectorは`dashboard.json`、`recent.json`、`messages.json`、`errors.js
 
 ### 2. サーバー状態画面の情報源
 
-現行`GET /health`は、状態、サーバーバージョン、稼働秒数、public・staging・ログ・保存容量の利用可否、予約空き容量を返す。最終受信日時と公開中Snapshot IDは返さない。Phase 5でこれらを表示する場合は、状態APIを拡張するか表示対象から外すかをユーザーへ確認する。
+`GET /health?workspace_id=<workspace_id>`は、状態、サーバーバージョン、稼働秒数、public・staging・ログ・保存容量の利用可否、予約空き容量に加え、指定workspaceの最終受信日時（commit受理時刻）と公開中Snapshot IDを返す。Phase 5ではこれらをシステム情報画面に表示する。workspace IDなし・公開済みSnapshotなし・旧形式の`current.json`では、該当フィールドは`null`とする。
 
 ## Phase 5で最初に読む資料
 

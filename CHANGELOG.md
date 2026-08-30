@@ -8,6 +8,8 @@
 
 ### Added
 
+- `GET /health?workspace_id=<workspace_id>`へ公開中Snapshot IDとcommit受理時刻を追加し、Phase 5のシステム情報画面で表示する方針を確定した。
+
 - Phase 5の`workspace_id`はURLクエリ（`/?workspace_id=<workspace_id>`）で受け渡すことを確定し、未指定時は推測せず指定を案内する方針を定めた。
 
 - Phase 5を別チャットで開始するため、完了済み実装、実機環境、正規パス、通信契約、参照資料、未確定の判断事項を引継ぎ文書へ集約した。

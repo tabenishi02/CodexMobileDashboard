@@ -11,7 +11,7 @@
 
 - Python 3.10以上・標準ライブラリの`ThreadingHTTPServer`基盤
 - UTF-8 INIの`--config`による実設定読込と、リポジトリ外Tokenファイルの読込
-- `GET /health`（バージョン、稼働秒数、public・staging・ログ・保存容量の利用可否と空き容量予約値）
+- `GET /health`（バージョン、稼働秒数、public・staging・ログ・保存容量の利用可否と空き容量予約値）。`workspace_id`クエリ指定時は、公開中Snapshot IDとcommit受理時刻も返す。
 - `GET /data/{workspace_id}/{relative_json_path}`でcommit済みpublic配下のJSONだけを返す（ETagとIf-None-Matchによる304対応）
 - `--static-dir`で固定する実在ディレクトリ
 - `GET /`からstatic_dir直下の`index.html`配信
@@ -25,7 +25,7 @@
 
 ### 確認済みテスト
 
-`server/tests/test_server.py`で、ヘルスチェック、ルートindex配信、Content-Type、危険な静的パス拒否、ディレクトリ・存在しないファイルの404、Snapshot POST・commitの正常系、認証失敗、サイズ超過、不正JSON、危険URL、Delivery再送、容量不足時のPOST・commit停止を確認している。
+`server/tests/test_server.py`で、workspace指定時の公開中Snapshot ID・commit受理時刻を含むヘルスチェック、ルートindex配信、Content-Type、危険な静的パス拒否、ディレクトリ・存在しないファイルの404、Snapshot POST・commitの正常系、認証失敗、サイズ超過、不正JSON、危険URL、Delivery再送、容量不足時のPOST・commit停止を確認している。
 
 ## 役割
 
