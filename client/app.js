@@ -391,6 +391,20 @@
     const stateElement = document.querySelector('[data-state-for="decisions"]'); const content = document.querySelector('[data-content-for="decisions"]'); stateElement.hidden = false; stateElement.textContent = "決定事項を読み込んでいます。"; content.hidden = true;
     try { await fetchDocument("decisions"); renderDecisions(); } catch (_error) { renderDecisions(); }
   }
+  function renderFiles() {
+    const data = getDocument("files"); const stateElement = document.querySelector('[data-state-for="files"]'); const content = document.querySelector('[data-content-for="files"]');
+    if (!data) { content.hidden = true; stateElement.hidden = false; stateElement.textContent = "変更ファイルを取得できませんでした。"; return; }
+    const entries = Array.isArray(data.files) ? data.files : (Array.isArray(data.changed_files) ? data.changed_files : []);
+    const container = getElement("file-list"); container.replaceChildren();
+    if (!entries.length) { const item = document.createElement("li"); item.textContent = "変更ファイルはありません。"; container.appendChild(item); }
+    else { for (const file of entries) { const value = file && typeof file === "object" ? file : {}; const item = document.createElement("li"); const path = value.path || value.new_path || "パス不明"; const status = value.status || value.change_type || "状態不明"; const added = Number.isInteger(value.added_lines) ? value.added_lines : "—"; const deleted = Number.isInteger(value.deleted_lines) ? value.deleted_lines : "—"; const staged = value.staged === true ? "あり" : "なし"; item.textContent = "パス: " + path + " / 状態: " + status + " / 追加: " + added + " / 削除: " + deleted + " / ステージ: " + staged; container.appendChild(item); } }
+    stateElement.hidden = true; content.hidden = false;
+  }
+
+  async function loadFiles() {
+    const stateElement = document.querySelector('[data-state-for="files"]'); const content = document.querySelector('[data-content-for="files"]'); stateElement.hidden = false; stateElement.textContent = "変更ファイルを読み込んでいます。"; content.hidden = true;
+    try { await fetchDocument("files"); renderFiles(); } catch (_error) { renderFiles(); }
+  }
   function showScreen(screenName) {
     const activeScreen = SCREEN_NAMES.has(screenName) ? screenName : "dashboard";
     for (const screen of document.querySelectorAll("[data-screen]")) {
@@ -411,6 +425,8 @@
       void loadErrors();
     } else if (activeScreen === "decisions") {
       void loadDecisions();
+    } else if (activeScreen === "files") {
+      void loadFiles();
     }
   }
 
@@ -505,6 +521,7 @@
     loadChat,
     loadDecisions,
     loadErrors,
+    loadFiles,
     loadRecent,
     renderDashboard,
     renderRecent,
