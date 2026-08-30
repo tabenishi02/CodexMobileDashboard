@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import subprocess
 import uuid
 from dataclasses import dataclass
@@ -26,6 +27,8 @@ from tools.next_task_extractor import InferenceMessage, NextTaskInferenceContext
 from tools.pending_snapshot_queue import PendingSnapshotQueue
 from tools.session_reader import build_session_index, discover_session_files
 from tools.work_status_extractor import extract_current_work_status
+
+LOGGER = logging.getLogger("collector")
 
 
 @dataclass(frozen=True)
@@ -62,6 +65,8 @@ def run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | N
     next_state = state
     next_history = history
     remaining_calls = [getattr(settings, "max_calls_per_run", 3)]
+    inference_calls = [0]
+    deferred_inferences = [0]
     def can_infer():
         if remaining_calls[0] <= 0:
             return False
@@ -85,6 +90,7 @@ def run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | N
         completed += 1
     save_collector_history(next_history, settings.history_file)
     save_collector_state(next_state, settings.state_file)
+    LOGGER.info("inference_run_completed calls=%d deferred=%d limit=%d", inference_calls[0], deferred_inferences[0], getattr(settings, "max_calls_per_run", 3))
     return completed
 
 
