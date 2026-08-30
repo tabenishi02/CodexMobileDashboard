@@ -8,6 +8,8 @@
 
 ### Added
 
+- JSON取得中の初期・詳細画面状態表示と、aria-busyによる取得中通知を追加した。
+
 - markdown-it、DOMPurify、highlight.jsをローカル同梱し、Codex向けMarkdownサブセットの安全な表示を追加した。
 
 - MarkdownはMVPで解釈せず、プレーンテキストと分離済みコードブロックの可読性だけを扱う方針を決定した。

@@ -344,3 +344,5 @@ pre {
 .markdown-body pre { overflow-x: auto; padding: .75rem; background: var(--color-surface-muted); }
 .markdown-body table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
 .markdown-body th, .markdown-body td { border: 1px solid var(--color-border); padding: .4rem; }
+
+.app-shell[data-app-state='loading'] .global-status { border-color: var(--color-accent); }

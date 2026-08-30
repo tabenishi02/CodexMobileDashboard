@@ -516,6 +516,7 @@
     }
 
     appShell.dataset.appState = APP_STATE.LOADING;
+    if (typeof appShell.setAttribute === "function") { appShell.setAttribute("aria-busy", "true"); }
     missingWorkspace.hidden = true;
     globalStatus.textContent = "初期データを読み込んでいます。";
     refreshStatus.textContent = "更新中";
@@ -535,6 +536,7 @@
     refreshStatus.textContent = failures.length
       ? "一部の取得に失敗 / " + lastUpdatedStatus
       : lastUpdatedStatus;
+    if (typeof appShell.setAttribute === "function") { appShell.setAttribute("aria-busy", "false"); }
   }
 
   window.CodexMobileDashboard = {
