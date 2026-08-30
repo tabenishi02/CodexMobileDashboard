@@ -39,7 +39,7 @@ git diff --check
 - 変更要約・決定事項・次タスクは別々にCodex CLIを起動し得る。
 - `incremental`と`backfill`は現在、候補範囲が同じである。新規完了ターン限定、共有呼び出し上限、backfill専用コマンドは未実装。
 - 変更要約と決定事項は、入力SHA-256・workspace・session・turnに関連付けたversioned payloadを台帳へ原子的保存する。保存時の`now`引数不一致は修正済みである。
-- 台帳専用テストで、全識別子の保存と原子的置換失敗時の旧台帳保持を確認済み。変更要約はversioned payloadの復元と入力SHA-256照合を確認済み。
+- 台帳専用テストで、全識別子の保存と原子的置換失敗時の旧台帳保持を確認済み。collector再起動後のランタイム経路でも、変更要約のversioned payload復元と入力SHA-256照合を確認済み。
 - 決定事項と次タスクは永続台帳へ保存・復元する。
 - 決定事項は`supersedes`、`superseded_by`、`topic_key`と時系列を保存し、関係を壊さず復元する方針を採用した。
 - 旧形式または不完全payloadは成功キャッシュとして復元せず、安全に再推論候補へ戻す。
