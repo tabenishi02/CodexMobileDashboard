@@ -302,6 +302,18 @@
     return content && typeof content.text === "string" ? content.text : "内容を取得できませんでした。";
   }
 
+  const ROLE_LABELS = {
+    assistant: "Codex",
+    developer: "開発者指示",
+    system: "システム",
+    tool: "ツール",
+    user: "あなた",
+  };
+
+  function formatMessage(message) {
+    const label = message && ROLE_LABELS[message.role] ? ROLE_LABELS[message.role] : "不明な発言者";
+    return label + ": " + messageText(message);
+  }
   function renderChat(pages) {
     const stateElement = document.querySelector('[data-state-for="chat"]');
     const content = document.querySelector('[data-content-for="chat"]');
@@ -312,7 +324,7 @@
     if (!messages.length) {
       const item = document.createElement("li"); item.textContent = "表示するメッセージはありません。"; container.appendChild(item);
     } else {
-      for (const message of messages) { const item = document.createElement("li"); item.textContent = messageText(message); container.appendChild(item); }
+      for (const message of messages) { const item = document.createElement("li"); item.textContent = formatMessage(message); container.appendChild(item); }
     }
     const index = getDocument("messages");
     previous.hidden = !index || !Array.isArray(index.pages) || pages.length >= index.pages.length;
