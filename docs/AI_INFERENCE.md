@@ -50,10 +50,27 @@
 プロンプト本文、Token、セッション本文はログ・台帳の運用ログへ出力しない。
 ## 推論モード（導入済み）
 
-[ai_inference] modeはoff、incremental、ackfillを受け付け、未指定時はincrementalである。offでは3経路ともCodex CLIを起動しない。incrementalとackfillではCLIを許可する。増分対象選別、永続台帳、backfill専用コマンドは後続タスクで追加するため、現時点では両モードの候補範囲は同じである。
+[ai_inference] modeはoff、incremental、backfillを受け付け、未指定時はincrementalである。offでは3経路ともCodex CLIを起動しない。incrementalとbackfillではCLIを許可する。増分対象選別、永続台帳、backfill専用コマンドは後続タスクで追加するため、現時点では両モードの候補範囲は同じである。
 
 
 ## 永続台帳（導入済み）
 
 変更要約の成功結果は[storage] inference_ledger_fileへ、workspace・session・turn・入力SHA-256・推論種別・結果メタデータ・生成日時を結んで1件ずつ原子的に保存する。既定パスは%LOCALAPPDATA%\CodexMobileDashboard\state\ai-inference-ledger.jsonである。
 
+
+## 永続台帳の再設計
+
+台帳レコードは `schema_version`、`workspace_id`、`session_id`、`turn_id`、`inference_kind`、`input_sha256`、`generated_at`、`payload` を持つ。`payload`は種別ごとに、表示JSONを再生成できる全フィールドを保存する。プロンプト本文、Token、未マスク本文は保存しない。
+
+- `change_summary`: title、short_summary、details、highlights、verification、confidence、状態、根拠メッセージIDを保存する。
+- `decision`: status、title、description、reason、topic、置換関係、根拠IDを保存する。
+- `next_task`: text、status、origin、confidence、reason、根拠IDを保存する。
+
+同一の workspace・session・turn・種別・入力SHA-256 は同一実質入力とみなし、完全なpayloadを復元してCLIを起動しない。入力ハッシュが変わった場合だけ再推論する。成功payloadは各件の直後に原子的置換で保存し、失敗結果は成功として保存しない。旧形式の`result`が完全payloadを持たないレコードは復元しない。
+
+### 実装分割
+
+1. 台帳形式を版管理・完全payload・索引検索へ置換し、変更要約の保存と復元を接続する。
+2. 決定事項・次タスクの完全payload保存と復元を接続する。
+3. 増分対象判定、共通呼び出し上限、backfillコマンドを台帳の未処理状態へ接続する。
+4. 同一ターンの構造化推論統合、入力削減、不要推論スキップを行う。
