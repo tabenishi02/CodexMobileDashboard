@@ -348,3 +348,19 @@ pre {
 .markdown-body th, .markdown-body td { border: 1px solid var(--color-border); padding: .4rem; }
 
 .app-shell[data-app-state='loading'] .global-status { border-color: var(--color-accent); }
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-page: #111827;
+    --color-surface: #1f2937;
+    --color-surface-muted: #263445;
+    --color-text: #f3f4f6;
+    --color-text-muted: #cbd5e1;
+    --color-border: #475569;
+    --color-accent: #60a5fa;
+    --color-accent-contrast: #0f172a;
+    --color-danger: #fca5a5;
+    --color-focus: #fbbf24;
+    --shadow-card: 0 1px 3px rgb(0 0 0 / 35%);
+  }
+}
