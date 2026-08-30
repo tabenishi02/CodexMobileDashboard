@@ -85,10 +85,11 @@ PC側collectorは`dashboard.json`、`recent.json`、`messages.json`、`errors.js
 2. [`../CODING_RULES.md`](../CODING_RULES.md)
 3. [`../TASKS.md`](../TASKS.md)のPhase 5
 4. [`../client/README.md`](../client/README.md)
-5. [`DATA_SCHEMA.md`](DATA_SCHEMA.md)
-6. [`TRANSPORT_API.md`](TRANSPORT_API.md)
-7. [`PHASE4_ACCEPTANCE.md`](PHASE4_ACCEPTANCE.md)
-8. [`CONFIGURATION.md`](CONFIGURATION.md)
+5. [`PHASE5_SCREEN_DESIGN.md`](PHASE5_SCREEN_DESIGN.md)
+6. [`DATA_SCHEMA.md`](DATA_SCHEMA.md)
+7. [`TRANSPORT_API.md`](TRANSPORT_API.md)
+8. [`PHASE4_ACCEPTANCE.md`](PHASE4_ACCEPTANCE.md)
+9. [`CONFIGURATION.md`](CONFIGURATION.md)
 
 ## Phase 5の開始条件
 

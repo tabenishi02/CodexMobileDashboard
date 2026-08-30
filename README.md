@@ -184,6 +184,7 @@ CodexMobileDashboard/
 | [`docs/PHASE3_ACCEPTANCE.md`](docs/PHASE3_ACCEPTANCE.md) | Phase 3の受入確認 |
 | [`docs/PHASE4_ACCEPTANCE.md`](docs/PHASE4_ACCEPTANCE.md) | Phase 4のAndroid実機受入確認 |
 | [`docs/PHASE5_HANDOFF.md`](docs/PHASE5_HANDOFF.md) | Phase 5開始時の状態、参照資料、未確定事項 |
+| [`docs/PHASE5_SCREEN_DESIGN.md`](docs/PHASE5_SCREEN_DESIGN.md) | Phase 5の画面構成、遷移、データ取得、表示規則 |
 
 ## セットアップ
 

@@ -8,6 +8,8 @@
 
 ### Added
 
+- Phase 5のダッシュボード、最近の更新、チャット、エラー、決定事項、ファイル、システム情報の画面構成、データ取得、遷移、表示規則を設計した。
+
 - `GET /health?workspace_id=<workspace_id>`へ公開中Snapshot IDとcommit受理時刻を追加し、Phase 5のシステム情報画面で表示する方針を確定した。
 
 - Phase 5の`workspace_id`はURLクエリ（`/?workspace_id=<workspace_id>`）で受け渡すことを確定し、未指定時は推測せず指定を案内する方針を定めた。

@@ -415,7 +415,7 @@ PC生成データ全体のスキーマ、収集状態、スナップショット
 
 `snapshot.files`の各要素は`path`、`byte_size`、`sha256`を必須・非`null`とする。`metadata.json`自身は内容に自己参照するハッシュを持てないため、この一覧から除外する。
 
-今回のスナップショットの受信日時は`metadata.json`へ自己記録しない。現行Androidサーバーは`current.json`で公開中のスナップショットIDを内部管理するが、`/health`は最終受信日時と公開中スナップショットIDを返さない。Phase 5でこれらを画面表示に使用する場合は、サーバー状態APIを拡張するか、表示対象から外すかを先に決定する。Android側では表示用JSONの解析・再構成を行わない。
+今回のスナップショットの受信日時は`metadata.json`へ自己記録しない。Androidサーバーは`current.json`で公開中スナップショットIDとcommit受理時刻を内部管理し、`/health?workspace_id=<workspace_id>`でそれぞれ`current_snapshot_id`と`last_received_at`として返す。Android側では表示用JSONの解析・再構成を行わない。
 
 ## 列挙値と日本語表示
 
