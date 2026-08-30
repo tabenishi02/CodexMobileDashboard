@@ -51,7 +51,10 @@ async function run() {
       generated_at: "2026-08-30T12:00:00+09:00",
       git: { branch: "main", changed_files: 3 },
       latest: { summary: "ダッシュボード表示を追加" },
-      next_actions: [{ text: "次の作業を確認する" }],
+      next_actions: [
+        { text: "次の作業を確認する" },
+        { text: "最近の更新一覧を実装する" },
+      ],
       project: { name: "Codex Mobile Dashboard", phase: "Phase 5" },
     }, '"dashboard-v1"'),
     response(200, { data_type: "metadata" }, '"metadata-v1"'),
@@ -104,6 +107,7 @@ async function run() {
   assert.strictEqual(elements.get("dashboard-generated-at").textContent, "2026-08-30T12:00:00+09:00");
   assert.strictEqual(elements.get("refresh-status").textContent, "最終更新: 2026-08-30T12:00:00+09:00");
   assert.strictEqual(nextActions.children[0].textContent, "次の作業を確認する");
+  assert.strictEqual(nextActions.children[1].textContent, "最近の更新一覧を実装する");
   assert.strictEqual(dashboardState.hidden, true);
   assert.strictEqual(dashboardContent.hidden, false);
   assert.deepStrictEqual(requests.map((request) => request.url), [
