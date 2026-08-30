@@ -167,7 +167,9 @@
 
 ## Phase 5：スマートフォン向け閲覧画面
 
-- [ ] `workspace_id`の選択・受渡し方法を決める（一覧APIは現時点で未実装）
+- [x] `workspace_id`の選択・受渡し方法を決める（一覧APIは現時点で未実装）
+  - URLクエリの`workspace_id`を使用する。例：`/?workspace_id=<workspace_id>`。
+  - 未指定時はIDの入力・推測をせず、指定を案内する。workspace一覧APIはMVP後の拡張候補とする。
 - [ ] 最終受信日時・公開中Snapshot IDを画面に表示するか決め、必要ならサーバー状態APIを拡張する
 - [ ] 画面構成を設計する
   - [ ] ダッシュボード

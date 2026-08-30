@@ -88,7 +88,7 @@ files.json
 metadata.json
 ```
 
-複数ワークスペースを扱う一方、現行サーバーにはworkspace一覧APIがない。画面が`workspace_id`を受け取る方法（URL、クライアント設定、一覧API等）はPhase 5の最初に決定し、存在しないIDを推測しない。詳細は[`../docs/PHASE5_HANDOFF.md`](../docs/PHASE5_HANDOFF.md)を参照する。
+複数ワークスペースを扱う一方、現行サーバーにはworkspace一覧APIがない。画面はURLクエリの`workspace_id`を使用する。閲覧URLは`/?workspace_id=<workspace_id>`とし、未指定時はIDを推測せず指定を案内する。URLパス方式と一覧APIはMVP後の拡張候補とする。詳細は[`../docs/PHASE5_HANDOFF.md`](../docs/PHASE5_HANDOFF.md)を参照する。
 
 - 最初に`dashboard.json`と必要最小限の概要を取得する。
 - 会話全文などの詳細は、画面を開いたときにページ単位で取得する。

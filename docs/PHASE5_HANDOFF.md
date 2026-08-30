@@ -67,14 +67,13 @@ PC側collectorは`dashboard.json`、`recent.json`、`messages.json`、`errors.js
 
 ### 1. `workspace_id`の選択・受渡し
 
-現行サーバーにはworkspace一覧APIがなく、ディレクトリ一覧も公開しない。複数ワークスペースを扱うため、画面実装前に次のいずれを採用するかユーザーへ確認する。
+`workspace_id`はURLクエリで受け取る。URLの形式は次のとおりとする。
 
-- URLクエリまたはパスで`workspace_id`を受け取る。
-- Git管理可能な秘密を含まないクライアント設定へ初期IDを置く。
-- workspace一覧JSONまたはAPIを追加する。
-- MVPだけ単一workspaceへ固定する。
+```text
+/?workspace_id=<workspace_id>
+```
 
-存在しないworkspace IDを画面側で推測してはならない。
+現行サーバーにはworkspace一覧APIがなく、ディレクトリ一覧も公開しない。したがって画面はIDを推測せず、URLに`workspace_id`がない場合は、IDを指定するよう案内する。URLクエリ方式はサーバー改修なしで複数ワークスペースを扱え、閲覧URLをブックマークできる。URLパス方式と一覧APIはMVP後の拡張候補とする。
 
 ### 2. サーバー状態画面の情報源
 
@@ -95,10 +94,9 @@ PC側collectorは`dashboard.json`、`recent.json`、`messages.json`、`errors.js
 
 次の順序で開始する。
 
-1. `workspace_id`の選択・受渡し方法をユーザーへ提案し、確定する。
-2. サーバー状態画面へ必要な情報を確定する。
-3. `TASKS.md`の画面構成設計から実装する。
-4. `client/index.html`、CSS、JavaScriptをAndroidの`$HOME/CodexMobileDashboard/app/client`へ反映する。
-5. CA信頼済みの閲覧スマートフォンで`https://192.0.2.121:8765/`を実機確認する。
+1. サーバー状態画面へ必要な情報を確定する。
+2. `TASKS.md`の画面構成設計から実装する。
+3. `client/index.html`、CSS、JavaScriptをAndroidの`$HOME/CodexMobileDashboard/app/client`へ反映する。
+4. CA信頼済みの閲覧スマートフォンで`https://192.0.2.121:8765/`を実機確認する。
 
 Phase 5完了までは、Phase 4受入で保留した`GET /`の画面表示と閲覧スマートフォン受入を完了扱いにしない。
