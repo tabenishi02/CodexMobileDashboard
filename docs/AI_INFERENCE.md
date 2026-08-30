@@ -28,7 +28,7 @@ CLIは`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore
 
 `[storage] inference_ledger_file`として`%LOCALAPPDATA%\CodexMobileDashboard\state\ai-inference-ledger.json`を追加し、トップレベル`version: 1`とentries配列を原子的置換する実装がある。entryはworkspace、session、turn、推論種別、入力SHA-256、生成日時、resultを持つ。
 
-変更要約・決定事項・次タスクは完全payloadを台帳へ保存し、collector再起動後に復元する。
+変更要約・決定事項・次タスクは完全payloadを台帳へ保存し、collector再起動後は入力SHA-256が一致する結果を復元してCodex CLIを再実行しない。
 
 - 変更要約はversioned payloadを保存・復元し、同一turn内の全履歴から入力SHA-256が一致するentryを再利用する。
 - 決定事項は入力SHA-256を照合し、同一入力ではCodex CLIを再実行しない。
