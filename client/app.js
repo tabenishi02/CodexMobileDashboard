@@ -278,6 +278,62 @@
     }
   }
 
+  function messagePageUrl(path) {
+    if (typeof path !== "string" || !/^messages\/pages\/[^/]+\.json$/.test(path)) {
+      throw createClientError("message_page_path_invalid");
+    }
+    return "/data/" + encodeURIComponent(state.workspaceId) + "/" + path.split("/").map(encodeURIComponent).join("/");
+  }
+
+  async function fetchMessagePage(path) {
+    let response;
+    try { response = await window.fetch(messagePageUrl(path), { headers: { Accept: "application/json" } }); } catch (_error) { throw createClientError("network_error"); }
+    if (!response.ok) { throw createClientError("http_error"); }
+    const data = await response.json();
+    if (!data || typeof data !== "object" || !Array.isArray(data.messages)) { throw createClientError("json_shape_invalid"); }
+    return data;
+  }
+
+  function messageText(message) {
+    const content = message && message.content;
+    if (content && Array.isArray(content.blocks)) {
+      return content.blocks.map((block) => block && typeof block.text === "string" ? block.text : "").join("\n");
+    }
+    return content && typeof content.text === "string" ? content.text : "内容を取得できませんでした。";
+  }
+
+  function renderChat(pages) {
+    const stateElement = document.querySelector('[data-state-for="chat"]');
+    const content = document.querySelector('[data-content-for="chat"]');
+    const container = getElement("chat-messages");
+    const previous = getElement("load-previous-messages");
+    container.replaceChildren();
+    const messages = pages.flatMap((page) => Array.isArray(page.messages) ? page.messages : []);
+    if (!messages.length) {
+      const item = document.createElement("li"); item.textContent = "表示するメッセージはありません。"; container.appendChild(item);
+    } else {
+      for (const message of messages) { const item = document.createElement("li"); item.textContent = messageText(message); container.appendChild(item); }
+    }
+    const index = getDocument("messages");
+    previous.hidden = !index || !Array.isArray(index.pages) || pages.length >= index.pages.length;
+    stateElement.hidden = true; content.hidden = false;
+  }
+
+  async function loadChat(previous) {
+    const stateElement = document.querySelector('[data-state-for="chat"]');
+    const content = document.querySelector('[data-content-for="chat"]');
+    stateElement.hidden = false; stateElement.textContent = "チャットを読み込んでいます。"; content.hidden = true;
+    try {
+      if (!previous || !state.chatPages) {
+        const index = await fetchDocument("messages");
+        state.chatPages = { index, pages: [] };
+      }
+      const entries = state.chatPages.index.pages;
+      const entry = entries[entries.length - state.chatPages.pages.length - 1];
+      if (entry) { state.chatPages.pages.unshift(await fetchMessagePage(entry.path)); }
+      renderChat(state.chatPages.pages);
+    } catch (_error) { stateElement.textContent = "チャットを取得できませんでした。"; content.hidden = true; }
+  }
   function showScreen(screenName) {
     const activeScreen = SCREEN_NAMES.has(screenName) ? screenName : "dashboard";
     for (const screen of document.querySelectorAll("[data-screen]")) {
@@ -292,6 +348,8 @@
     }
     if (activeScreen === "recent") {
       void loadRecent();
+    } else if (activeScreen === "chat") {
+      void loadChat(false);
     }
   }
 
@@ -383,6 +441,7 @@
     getDocument,
     getDocumentError,
     getWorkspaceId: () => state.workspaceId,
+    loadChat,
     loadRecent,
     renderDashboard,
     renderRecent,
@@ -391,6 +450,8 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     setupNavigation();
+    const previousMessagesButton = document.getElementById("load-previous-messages");
+    if (previousMessagesButton) { previousMessagesButton.addEventListener("click", () => { void loadChat(true); }); }
     void initialize();
   });
 })();
