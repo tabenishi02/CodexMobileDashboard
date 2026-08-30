@@ -183,7 +183,7 @@
 - [x] モバイルファーストのHTMLを作成する（`client/index.html`）
 - [x] CSSをHTMLから分離する（`client/styles.css`）
 - [x] JavaScriptをHTMLから分離する（`client/app.js`）
-- [ ] JSON取得処理を実装する
+- [x] JSON取得処理を実装する（ETag、初期3文書、通信・JSONエラー分類）
 - [ ] ダッシュボード表示を実装する
 - [ ] 作業ステータス表示を実装する
 - [ ] 最終更新日時を表示する

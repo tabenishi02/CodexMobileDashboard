@@ -8,6 +8,8 @@
 
 ### Added
 
+- ETagと`304 Not Modified`に対応するJSON取得処理を追加し、初期表示で`dashboard.json`、`metadata.json`、`/health`を取得するようにした。
+
 - HTMLから分離した外部JavaScriptを追加し、`workspace_id`の有無を確認する画面初期化を実装した。
 
 - 固定HTMLから分離したモバイル向けCSSを追加し、縦画面、固定下部ナビゲーション、タップ領域、フォーカス表示、長文・コードの表示を整えた。
