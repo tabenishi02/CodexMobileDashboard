@@ -364,3 +364,9 @@ pre {
     --shadow-card: 0 1px 3px rgb(0 0 0 / 35%);
   }
 }
+@media (max-width: 48rem) {
+  body { font-size: 1rem; line-height: 1.65; }
+  .bottom-navigation a, button, .markdown-copy { min-height: 2.75rem; }
+  .bottom-navigation a { font-size: 0.875rem; }
+  .screen-header p, .header-status p { font-size: 0.9375rem; }
+}
