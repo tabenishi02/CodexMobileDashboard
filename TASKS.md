@@ -181,7 +181,7 @@
   - [x] ファイル
   - [x] システム情報
 - [x] モバイルファーストのHTMLを作成する（`client/index.html`）
-- [ ] CSSをHTMLから分離する
+- [x] CSSをHTMLから分離する（`client/styles.css`）
 - [ ] JavaScriptをHTMLから分離する
 - [ ] JSON取得処理を実装する
 - [ ] ダッシュボード表示を実装する

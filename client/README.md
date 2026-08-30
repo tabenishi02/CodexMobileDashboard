@@ -3,7 +3,7 @@
 このディレクトリには、Androidサーバー端末から配信し、閲覧スマートフォンのブラウザで使用するHTML、CSS、JavaScriptを配置します。
 
 > [!IMPORTANT]
-> Phase 5で固定HTMLの画面骨格を追加しました。CSS、JavaScript、JSON取得・表示処理は後続タスクで実装します。
+> Phase 5で固定HTMLの画面骨格とモバイル向けCSSを追加しました。JavaScript、JSON取得・表示処理は後続タスクで実装します。
 
 ## 目的
 
@@ -67,7 +67,7 @@ Git画面にはファイルパス、変更状態、変更行数、ステージ�
 client/
 ├─ README.md           # 本書
 ├─ index.html          # 固定HTMLの画面骨格
-├─ styles.css          # モバイル向けスタイル（実装予定）
+├─ styles.css          # モバイル向けスタイル
 ├─ app.js              # JSON取得と画面更新（実装予定）
 └─ tests/              # 表示ロジックのテスト（予定）
 ```
