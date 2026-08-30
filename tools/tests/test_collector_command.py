@@ -49,6 +49,15 @@ class CollectorCommandTests(unittest.TestCase):
         queue.send_next.assert_called_once()
         self.assertEqual({"queue_empty": True, "sent_snapshots": 1}, json.loads(output.getvalue()))
 
+    def test_backfill_ai_forces_backfill_mode_without_sending(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = self.write_config(directory)
+            runtime = unittest.mock.Mock(ai_inference_mode="incremental")
+            with patch("tools.collector._runtime_settings", return_value=runtime), patch("tools.collector.replace", side_effect=lambda value, **kwargs: unittest.mock.Mock(**kwargs)), patch("tools.collector.run_once", return_value=1) as run:
+                code = main(["--config", str(config), "backfill-ai", "--no-send"])
+        self.assertEqual(0, code)
+        self.assertEqual("backfill", run.call_args.args[0].ai_inference_mode)
+        self.assertIsNone(run.call_args.args[1])
     def test_invalid_configuration_does_not_echo_token_or_path_details(self):
         with tempfile.TemporaryDirectory() as directory:
             config = Path(directory) / "collector.ini"

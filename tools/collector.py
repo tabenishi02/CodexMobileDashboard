@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import sys
+from dataclasses import replace
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -30,15 +31,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     retry = commands.add_parser("retry-queued", help="最古の未送信Snapshotを再送")
     retry.add_argument("--all", action="store_true", help="成功する限りキューを順に再送")
     collect = commands.add_parser("collect-once", help="表示用Snapshotを1回生成")
+    backfill = commands.add_parser("backfill-ai", help="過去の未処理turnを上限付きでAI補完")
+    backfill.add_argument("--no-send", action="store_true", help="HTTPS送信を行わない")
     collect.add_argument("--no-send", action="store_true", help="HTTPS送信を行わない")
     arguments = parser.parse_args(argv)
 
     try:
         settings = _load_settings(arguments.config)
-        if arguments.command == "collect-once":
+        if arguments.command in ("collect-once", "backfill-ai"):
             _configure_logging(settings)
             sender = None if arguments.no_send else _sender(settings)
-            count = run_once(_runtime_settings(arguments.config, settings), sender)
+            runtime_settings = _runtime_settings(arguments.config, settings)
+            if arguments.command == "backfill-ai":
+                runtime_settings = replace(runtime_settings, ai_inference_mode="backfill")
+            count = run_once(runtime_settings, sender)
             print(json.dumps({"processed_workspaces": count}, sort_keys=True))
             return 0
         queue = PendingSnapshotQueue(settings["queue_dir"])

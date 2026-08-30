@@ -53,3 +53,5 @@ CLIは`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore
 ログには実行数、キャッシュヒット、スキップ、上限到達、入力サイズ、成功・失敗だけを記録し、プロンプト全文や秘密情報を出力しない。
 
 collector終了時には、実行したCLI回数と上限到達で次回へ持ち越した推論件数をログへ記録する。
+
+過去未処理turnの補完はpython -m tools.collector --config <config> backfill-aiで明示実行する。max_calls_per_runの共有上限を適用する。
