@@ -31,6 +31,8 @@ async function run() {
     ["global-status", { textContent: "" }],
     ["refresh-status", { textContent: "" }],
     ["refresh-button", { disabled: false }],
+    ["codex-status", { textContent: "" }],
+    ["current-work", { textContent: "" }],
     ["project-name", { textContent: "" }],
     ["project-phase", { textContent: "" }],
     ["latest-summary", { textContent: "" }],
@@ -43,6 +45,7 @@ async function run() {
   const requests = [];
   const responses = [
     response(200, {
+      codex: { current_work: "作業ステータス表示を実装する", status: "working" },
       data_type: "dashboard",
       errors: { critical: 1, open: 2 },
       generated_at: "2026-08-30T12:00:00+09:00",
@@ -92,6 +95,8 @@ async function run() {
   assert.strictEqual(appShell.dataset.appState, "ready");
   assert.strictEqual(client.getDocument("dashboard").data_type, "dashboard");
   assert.strictEqual(elements.get("project-name").textContent, "Codex Mobile Dashboard");
+  assert.strictEqual(elements.get("codex-status").textContent, "Codex: 作業中");
+  assert.strictEqual(elements.get("current-work").textContent, "作業ステータス表示を実装する");
   assert.strictEqual(elements.get("project-phase").textContent, "Phase: Phase 5");
   assert.strictEqual(elements.get("latest-summary").textContent, "ダッシュボード表示を追加");
   assert.strictEqual(elements.get("error-summary").textContent, "未解決 2件 / 重大 1件");

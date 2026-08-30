@@ -131,6 +131,27 @@
     return state.errors.get(documentName) || null;
   }
 
+  const CODEX_STATUS_LABELS = {
+    idle: "待機中",
+    stopped: "停止",
+    unknown: "状態不明",
+    working: "作業中",
+  };
+
+  function formatCodexStatus(codex) {
+    if (!codex || typeof codex !== "object") {
+      return CODEX_STATUS_LABELS.unknown;
+    }
+    return CODEX_STATUS_LABELS[codex.status] || CODEX_STATUS_LABELS.unknown;
+  }
+
+  function formatCurrentWork(codex) {
+    if (!codex || typeof codex !== "object" || typeof codex.current_work !== "string" || !codex.current_work) {
+      return "現在の作業はありません。";
+    }
+    return codex.current_work;
+  }
+
   function formatGitSummary(git) {
     if (!git || typeof git !== "object") {
       return "Git情報を取得できませんでした。";
@@ -184,6 +205,9 @@
     const project = dashboard.project && typeof dashboard.project === "object" ? dashboard.project : {};
     setText("project-name", project.name);
     setText("project-phase", typeof project.phase === "string" && project.phase ? "Phase: " + project.phase : null);
+    const codex = dashboard.codex && typeof dashboard.codex === "object" ? dashboard.codex : null;
+    setText("codex-status", "Codex: " + formatCodexStatus(codex));
+    setText("current-work", formatCurrentWork(codex));
     setText("latest-summary", dashboard.latest && dashboard.latest.summary);
     setText("error-summary", formatErrorSummary(dashboard.errors));
     setText("git-summary", formatGitSummary(dashboard.git));

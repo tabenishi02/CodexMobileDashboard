@@ -8,6 +8,8 @@
 
 ### Added
 
+- `dashboard.json`のCodex状態と現在作業を、仕様に定めた日本語ラベルで共通ヘッダーとダッシュボードへ表示する処理を追加した。
+
 - `dashboard.json`からプロジェクト、Phase、変更要約、次タスク、エラー、Git、生成日時を安全なテキストとしてダッシュボードへ表示する処理を追加した。
 
 - ETagと`304 Not Modified`に対応するJSON取得処理を追加し、初期表示で`dashboard.json`、`metadata.json`、`/health`を取得するようにした。
