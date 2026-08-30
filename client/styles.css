@@ -256,6 +256,7 @@ main {
   padding: 0.7rem 0.9rem;
   background: var(--color-surface);
   text-decoration: none;
+  touch-action: manipulation;
 }
 
 pre,
@@ -306,6 +307,7 @@ pre {
   font-size: 0.75rem;
   text-align: center;
   text-decoration: none;
+  touch-action: manipulation;
 }
 
 .bottom-navigation a[aria-current="page"] {
