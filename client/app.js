@@ -314,6 +314,19 @@
     const label = message && ROLE_LABELS[message.role] ? ROLE_LABELS[message.role] : "不明な発言者";
     return label + ": " + messageText(message);
   }
+  function renderMarkdown(container, text) {
+    if (!window.markdownit || !window.DOMPurify || typeof text !== "string") { container.textContent = text || "内容を取得できませんでした。"; return; }
+    try {
+      const renderer = window.markdownit({ html: false, linkify: true, maxNesting: 20, highlight(code, language) {
+        if (window.hljs && language && window.hljs.getLanguage(language)) { return '<pre><code class="hljs language-' + language + '">' + window.hljs.highlight(code, { language }).value + "</code></pre>"; }
+        return '<pre><code>' + renderer.utils.escapeHtml(code) + "</code></pre>";
+      } });
+      renderer.validateLink = (url) => /^https?:\/\//i.test(url);
+      container.innerHTML = window.DOMPurify.sanitize(renderer.render(text), { ALLOWED_TAGS: ["p","h1","h2","h3","h4","h5","h6","strong","em","ul","ol","li","blockquote","pre","code","table","thead","tbody","tr","th","td","hr","a"], ALLOWED_ATTR: ["href","title","class","target","rel"] });
+      for (const link of container.querySelectorAll("a")) { if (!/^https?:\/\//i.test(link.href)) { link.remove(); } else { link.target = "_blank"; link.rel = "noopener noreferrer"; } }
+      for (const code of container.querySelectorAll("pre > code")) { const button = document.createElement("button"); button.type = "button"; button.textContent = "コードをコピー"; button.addEventListener("click", async () => { try { if (!navigator.clipboard) { throw new Error("clipboard_unavailable"); } await navigator.clipboard.writeText(code.textContent); button.textContent = "コピーしました"; } catch (_error) { button.textContent = "コピーできませんでした"; } }); code.parentElement.before(button); }
+    } catch (_error) { container.textContent = text; }
+  }
   function renderChat(pages) {
     const stateElement = document.querySelector('[data-state-for="chat"]');
     const content = document.querySelector('[data-content-for="chat"]');
@@ -334,7 +347,7 @@
           const body = document.createElement("pre");
           body.textContent = text;
           details.appendChild(summary); details.appendChild(body); item.appendChild(details);
-        } else { item.textContent = text; }
+        } else { const body = document.createElement("div"); body.className = "markdown-body"; renderMarkdown(body, text); item.appendChild(body); }
         container.appendChild(item);
       }
     }

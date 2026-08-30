@@ -8,6 +8,8 @@
 
 ### Added
 
+- markdown-it、DOMPurify、highlight.jsをローカル同梱し、Codex向けMarkdownサブセットの安全な表示を追加した。
+
 - MarkdownはMVPで解釈せず、プレーンテキストと分離済みコードブロックの可読性だけを扱う方針を決定した。
 
 - `display_mode: collapsed`の長文メッセージを展開可能な折りたたみ表示へ対応した。
