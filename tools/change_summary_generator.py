@@ -200,7 +200,9 @@ def generate_change_summaries(
 
     messages = tuple(source_messages)
     references = tuple(file_references)
-    cache_by_turn = {entry.turn_id: entry for entry in cache_entries}
+    cache_by_turn = {}
+    for entry in cache_entries:
+        cache_by_turn.setdefault(entry.turn_id, []).append(entry)
     current_time = now or datetime.now(timezone.utc)
     cli_runner = runner or ChangeSummaryCliRunner()
     summaries: List[ChangeSummary] = []
@@ -218,8 +220,8 @@ def generate_change_summaries(
             if input_is_masked
             else _unmasked_evidence_key(session_id, turn)
         )
-        cached = cache_by_turn.get(turn.turn_id)
-        if _cache_is_usable(cached, evidence_hash, current_time):
+        cached = next((entry for entry in cache_by_turn.get(turn.turn_id, ()) if _cache_is_usable(entry, evidence_hash, current_time)), None)
+        if cached is not None:
             assert cached is not None
             if cached.summary is not None:
                 summaries.append(cached.summary)

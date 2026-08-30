@@ -3,9 +3,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from tools.change_summary_generator import ChangeSummary, SummaryEvidenceItem
 from tools.next_task_extractor import NextTask, NextTaskCacheEntry, NextTaskIssue
 
-from tools.inference_ledger import InferenceLedgerEntry, append, load, next_task_cache_entry, next_task_payload
+from tools.inference_ledger import InferenceLedgerEntry, append, load, next_task_cache_entry, next_task_payload, summary_cache_entries, summary_payload
 
 
 def entry(input_sha256: str = "a" * 64) -> InferenceLedgerEntry:
@@ -25,6 +26,13 @@ class InferenceLedgerTests(unittest.TestCase):
 
         self.assertEqual((entry(),), restored)
 
+    def test_versioned_summary_payload_restores_and_legacy_is_ignored(self) -> None:
+        summary = ChangeSummary("summary-1", "turn-1", "jsonl", "completed", False, "title", "short", "details", (SummaryEvidenceItem("highlight", ("message-1",)),), tuple(), "codex_generated", "high", ("session-1",), ("message-1",))
+        complete = InferenceLedgerEntry("workspace-1", "session-1", "turn-1", "d" * 64, {"schema_version": 1, "payload": summary_payload(summary)}, "2026-08-31T00:00:00+00:00", "change_summary")
+        legacy = InferenceLedgerEntry("workspace-1", "session-1", "turn-1", "e" * 64, {"payload": summary_payload(summary)}, "2026-08-31T00:00:00+00:00", "change_summary")
+        restored = summary_cache_entries((legacy, complete), "workspace-1", "session-1")
+        self.assertEqual(summary, restored[0].summary)
+        self.assertEqual("d" * 64, restored[0].evidence_hash)
     def test_next_task_payload_restores_matching_session(self) -> None:
         task = NextTask("task-1", "task text", "pending", "codex_inferred", "high", "reason", ("message-1",))
         cache = NextTaskCacheEntry("c" * 64, task, None, (NextTaskIssue("warning"),))

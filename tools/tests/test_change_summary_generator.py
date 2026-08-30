@@ -457,5 +457,15 @@ class ChangeSummaryGeneratorTests(unittest.TestCase):
         self.assertFalse(run.call_args.kwargs["shell"])
 
 
+    def test_prior_matching_hash_is_reused_when_newer_hash_exists(self) -> None:
+        first_messages = (source_message("assistant", "Working on the task.", "msg-final", phase="final_answer"),)
+        second_messages = (source_message("assistant", "Working on another task.", "msg-final", phase="final_answer"),)
+        first = generate_change_summaries("session-1", work_status(turn()), first_messages, runner=StubRunner())
+        second = generate_change_summaries("session-1", work_status(turn()), second_messages, runner=StubRunner())
+        restored_runner = StubRunner()
+        restored = generate_change_summaries("session-1", work_status(turn()), first_messages, runner=restored_runner, cache_entries=(first.cache_entries[0], second.cache_entries[0]))
+        self.assertEqual(0, restored_runner.calls)
+        self.assertEqual(first.summaries, restored.summaries)
+
 if __name__ == "__main__":
     unittest.main()
