@@ -23,6 +23,7 @@
     documents: new Map(),
     errors: new Map(),
     workspaceId: null,
+    autoRefreshTimer: null,
   };
 
   function createClientError(code) {
@@ -465,6 +466,13 @@
     }
   }
 
+  function setupAutoRefresh() {
+    if (state.autoRefreshTimer !== null || typeof window.setInterval !== "function") { return; }
+    state.autoRefreshTimer = window.setInterval(() => {
+      if (typeof document.visibilityState === "string" && document.visibilityState !== "visible") { return; }
+      void initialize();
+    }, 15 * 1000);
+  }
   function setupNavigation() {
     for (const link of document.querySelectorAll("[data-screen-link]")) {
       link.addEventListener("click", (event) => {
@@ -568,6 +576,7 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     setupNavigation();
+    setupAutoRefresh();
     const refreshButton = document.getElementById("refresh-button");
     if (refreshButton && typeof refreshButton.addEventListener === "function") { refreshButton.addEventListener("click", () => { void initialize(); }); }
     const previousMessagesButton = document.getElementById("load-previous-messages");
