@@ -1,4 +1,4 @@
-﻿"""One-shot orchestration for the PC-side Codex dashboard collector."""
+"""One-shot orchestration for the PC-side Codex dashboard collector."""
 from __future__ import annotations
 
 import hashlib
@@ -63,6 +63,7 @@ def run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | N
     for root, entries in workspaces.items():
         workspace_id = _workspace_id(root)
         session_records = {}
+        inference_records = {}
         latest = max(entries, key=lambda entry: entry.current_file.last_timestamp or "")
         for entry in entries:
             result = collect_incremental_records(entry.session_id, entry.current_file.path, next_state)
@@ -71,33 +72,35 @@ def run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | N
             next_history = next_history.replace(entry.session_id, records)
             next_state = result.next_state
             session_records[entry.session_id] = records
-        _build_workspace_snapshot(root, workspace_id, latest.session_id, session_records, settings, sender)
+            inference_records[entry.session_id] = result.records
+        _build_workspace_snapshot(root, workspace_id, latest.session_id, session_records, settings, sender, inference_records)
         completed += 1
     save_collector_history(next_history, settings.history_file)
     save_collector_state(next_state, settings.state_file)
     return completed
 
 
-def _build_workspace_snapshot(root: Path, workspace_id: str, latest_session_id: str, records_by_session: Dict[str, tuple], settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | None) -> None:
+def _build_workspace_snapshot(root: Path, workspace_id: str, latest_session_id: str, records_by_session: Dict[str, tuple], settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | None, inference_records_by_session: Dict[str, tuple] | None = None) -> None:
     chats_by_session = {session_id: extract_chat_messages(records, session_id) for session_id, records in records_by_session.items()}
     ordered_messages = tuple(sorted((message for value in chats_by_session.values() for message in value.messages), key=lambda message: (message.created_at or "", message.message_id)))
     chats = ChatExtractionResult(ordered_messages, tuple(issue for value in chats_by_session.values() for issue in value.issues), tuple(item for value in chats_by_session.values() for item in value.automatic_context_removals))
     all_records = tuple(record for records in records_by_session.values() for record in records)
     work = extract_current_work_status(all_records, ordered_messages, latest_session_id)
+    inference_turn_ids = {record.turn_id for records in (inference_records_by_session or {}).values() for record in records if record.turn_id} if settings.ai_inference_mode == "incremental" else None
     ledger_entries = load_inference_ledger(settings.inference_ledger_file)
-    decision_sources = tuple(DecisionSourceMessage(session_id, message, _text(message)) for session_id, value in chats_by_session.items() for message in value.messages)
+    decision_sources = tuple(DecisionSourceMessage(session_id, message, _text(message)) for session_id, value in chats_by_session.items() for message in value.messages if inference_turn_ids is None or message.turn_id in inference_turn_ids)
     def save_decision_inference(source, input_sha256, proposals):
         append_inference_ledger(settings.inference_ledger_file, InferenceLedgerEntry(workspace_id, source.session_id, source.message.turn_id or source.message.message_id, input_sha256, inference_payload(proposals), datetime.now(timezone.utc).isoformat(timespec="seconds"), "decision"))
     decisions = extract_decisions(decision_sources, workspace_id, allow_inference=settings.ai_inference_mode != "off", inference_cache=decision_inference_cache(ledger_entries, workspace_id), on_inference_success=save_decision_inference)
     files = extract_file_references(tuple((session_id, message) for session_id, value in chats_by_session.items() for message in value.messages), root, workspace_id)
     errors = extract_development_errors(all_records, ordered_messages, work, workspace_id, latest_session_id)
-    summaries = generate_change_summaries(latest_session_id, work, tuple(SummarySourceMessage(latest_session_id, message.message_id, message.turn_id, message.role, message.message_type, message.phase, _text(message), True) for message in ordered_messages), file_references=files.references, cache_entries=summary_cache_entries(ledger_entries, workspace_id, latest_session_id), allow_inference=settings.ai_inference_mode != "off")
+    summaries = generate_change_summaries(latest_session_id, work, tuple(SummarySourceMessage(latest_session_id, message.message_id, message.turn_id, message.role, message.message_type, message.phase, _text(message), True) for message in ordered_messages), file_references=files.references, cache_entries=summary_cache_entries(ledger_entries, workspace_id, latest_session_id), inference_turn_ids=inference_turn_ids, allow_inference=settings.ai_inference_mode != "off")
     for entry in summaries.cache_entries:
         if entry.summary is not None:
             append_inference_ledger(settings.inference_ledger_file, InferenceLedgerEntry(workspace_id, latest_session_id, entry.turn_id, entry.evidence_hash, {"schema_version": 1, "payload": summary_payload(entry.summary)}, datetime.now(timezone.utc).isoformat(timespec="seconds"), "change_summary"))
 
     recent = tuple(ordered_messages[-2:])
-    next_task = extract_next_task(recent, NextTaskInferenceContext(work.codex_status, tuple(InferenceMessage(message.message_id, message.role, _text(message)) for message in recent), tuple(item.title for item in decisions.decisions), tuple(), True), settings.tasks_path, cache_entry=next_task_cache_entry(ledger_entries, workspace_id, latest_session_id), allow_inference=settings.ai_inference_mode != "off")
+    next_task = extract_next_task(recent, NextTaskInferenceContext(work.codex_status, tuple(InferenceMessage(message.message_id, message.role, _text(message)) for message in recent), tuple(item.title for item in decisions.decisions), tuple(), True), settings.tasks_path, cache_entry=next_task_cache_entry(ledger_entries, workspace_id, latest_session_id), allow_inference=settings.ai_inference_mode != "off" and (inference_turn_ids is None or any(message.turn_id in inference_turn_ids for message in recent)))
     if next_task.inference_attempted and next_task.cache_entry is not None and next_task.cache_entry.task is not None and next_task.cache_entry.task.origin == "codex_inferred":
         turn_id = recent[-1].turn_id or recent[-1].message_id if recent else latest_session_id
         append_inference_ledger(settings.inference_ledger_file, InferenceLedgerEntry(workspace_id, latest_session_id, turn_id, next_task.cache_entry.evidence_hash, next_task_payload(next_task.cache_entry), datetime.now(timezone.utc).isoformat(timespec="seconds"), "next_task"))

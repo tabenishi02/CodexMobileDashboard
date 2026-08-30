@@ -53,5 +53,22 @@ class CollectorRuntimeTests(unittest.TestCase):
         self.assertIn("b" * 64, captured["decision_cache"])
         self.assertEqual(task, captured["next_task_cache"].task)
 
+    def test_incremental_mode_passes_only_new_turn_ids_to_inference(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "workspace"
+            root.mkdir()
+            settings = SimpleNamespace(inference_ledger_file=Path(directory) / "ledger.json", ai_inference_mode="incremental", tasks_path=Path(directory) / "TASKS.md", output_dir=Path(directory) / "output", queue_dir=Path(directory) / "queue")
+            captured = {}
+            def summaries(*args, **kwargs):
+                captured["turn_ids"] = kwargs["inference_turn_ids"]
+                return SimpleNamespace(cache_entries=tuple())
+            def next_task(*args, **kwargs):
+                captured["allow_inference"] = kwargs["allow_inference"]
+                return SimpleNamespace(inference_attempted=False, cache_entry=None)
+            with patch("tools.collector_runtime.extract_chat_messages", return_value=ChatExtractionResult(tuple(), tuple(), tuple())), patch("tools.collector_runtime.extract_current_work_status", return_value=SimpleNamespace(codex_status="idle")), patch("tools.collector_runtime.extract_decisions", return_value=SimpleNamespace(decisions=tuple())), patch("tools.collector_runtime.extract_file_references", return_value=SimpleNamespace(references=tuple())), patch("tools.collector_runtime.extract_development_errors", return_value=object()), patch("tools.collector_runtime.generate_change_summaries", side_effect=summaries), patch("tools.collector_runtime.extract_next_task", side_effect=next_task), patch("tools.collector_runtime.collect_git_changes", return_value=object()), patch("tools.collector_runtime.build_json_snapshot", return_value=object()), patch("tools.collector_runtime.save_json_snapshot"):
+                _build_workspace_snapshot(root, "workspace-1", "session-1", {"session-1": tuple()}, settings, None, {"session-1": (SimpleNamespace(turn_id="new-turn"),)})
+        self.assertEqual({"new-turn"}, captured["turn_ids"])
+        self.assertFalse(captured["allow_inference"])
+
 if __name__ == "__main__":
     unittest.main()

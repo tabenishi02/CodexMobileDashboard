@@ -193,6 +193,7 @@ def generate_change_summaries(
     file_references: Iterable[ExtractedFileReference] = tuple(),
     runner: Optional[ChangeSummaryCliRunner] = None,
     cache_entries: Iterable[ChangeSummaryCacheEntry] = tuple(),
+    inference_turn_ids: Optional[Set[str]] = None,
     now: Optional[datetime] = None,
     allow_inference: bool = True,
 ) -> ChangeSummaryGenerationResult:
@@ -211,7 +212,7 @@ def generate_change_summaries(
     attempts = 0
 
     for turn in work_status.turns:
-        if turn.status == "in_progress":
+        if turn.status == "in_progress" or (inference_turn_ids is not None and turn.turn_id not in inference_turn_ids):
             continue
         turn_messages = _messages_for_turn(session_id, turn, messages)
         input_is_masked = all(message.is_masked for message in turn_messages)
