@@ -370,3 +370,17 @@ pre {
   .bottom-navigation a { font-size: 0.875rem; }
   .screen-header p, .header-status p { font-size: 0.9375rem; }
 }
+.markdown-body pre,
+.message-list pre {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+  white-space: pre;
+}
+
+.markdown-body pre code,
+.message-list pre code {
+  display: block;
+  min-width: max-content;
+}
