@@ -18,9 +18,9 @@ CLIは`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore
 
 - `off`: 3経路のCodex CLIを起動せず、規則ベース抽出とフォールバックを使う。
 - `incremental`: 今回の増分収集で追加されたturnだけをCLI推論対象にする。初回導入時に取り込む既存履歴は対象外である。
-- `backfill`: 現時点ではCLIを許可するだけで、候補範囲は`incremental`と同じ。専用コマンドも未実装。
+- `backfill`: `python -m tools.collector --config <config> backfill-ai`で明示実行する過去未処理turnの補完モード。共有上限を適用する。
 
-したがって、増分化が完了するまで通常収集でも過去ターンが候補になり、反復・大量推論が発生し得る。
+通常収集は初回導入時の過去履歴を推論対象にせず、増分収集で追加された完了turnだけを対象にする。
 
 ## 既存キャッシュと台帳
 
@@ -69,3 +69,10 @@ runner自体は`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、
 統合結果は既存の`ChangeSummary`、決定事項推論proposal、`NextTask`へ変換する。`combined_turn`台帳entryの`payload`には、既存の変更要約・決定事項・次タスクと同じversioned payloadをそれぞれ`change_summary`、`decision`、`next_task`として格納する。プロンプト本文や未マスク入力は保存しない。
 
 統合結果は`combined_turn` 1 entryとして既存の原子的`append`で保存する。置換に失敗した場合は、直前の台帳を保持し一時ファイルを残さない。復元時はworkspace・session・turn・入力SHA-256がすべて一致する完全な`combined_turn`だけを採用する。不完全な統合entry、またはSHA-256不一致は復元せず、従来の個別台帳entryを安全に利用する。
+## 統合推論の設定・制約・運用
+
+統合推論専用の設定キーはまだない。`[ai_inference] mode`と`max_calls_per_run`、`[storage] inference_ledger_file`は既存の推論と共通であり、設定例では`incremental`、`3`、`%LOCALAPPDATA%\CodexMobileDashboard\state\ai-inference-ledger.json`を使用する。`max_calls_per_run`は0以上の整数で、統合呼び出しもcollectorへ接続した後はこの共有上限に含める。
+
+適格なのは、今回のincremental対象で完了済みの同一turnだけである。すべての入力がマスク済みで、次タスク候補があり、turn外の文脈を必要としないことが必要である。適格なら統合runnerは1回だけ実行し、成功時は個別経路を起動しない。非適格、CLI失敗、JSON/schema不正、台帳payload不完全、または入力SHA-256不一致なら、個別経路へfallbackする。
+
+運用時に推論本文・Token・未マスク本文を台帳やログへ保存してはならない。`combined_turn`は3種の個別versioned payloadを1 entryとして原子的保存し、復元時はworkspace・session・turn・入力SHA-256の完全一致を要求する。現時点では統合runner・台帳・fallbackオーケストレータは実装済みだが、`collector_runtime`への接続は未実装である。そのため通常のcollector運用は既存の個別推論経路を継続する。
