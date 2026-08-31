@@ -13,7 +13,7 @@ from tools.combined_inference import (
 from tools.collector_runtime import InferenceCallBudget, _build_workspace_snapshot, _incremental_completed_turn_ids, run_once
 from tools.decision_extractor import DecisionInferenceCacheEntry, ExtractedDecision, _Proposal, decision_inference_payload
 from tools.next_task_extractor import NextTask, NextTaskCacheEntry, NextTaskIssue
-from tools.inference_ledger import InferenceLedgerEntry, append, load, next_task_payload, summary_payload
+from tools.inference_ledger import InferenceLedgerEntry, append, latest_decision_history, load, next_task_payload, summary_payload
 from tools.collector_history import CollectorHistory
 from tools.collector_state import CollectorState, PendingInference
 
@@ -869,6 +869,120 @@ class CollectorRuntimeTests(unittest.TestCase):
         next_task_runner.infer.assert_not_called()
         self.assertEqual(1, budget.calls)
 
+    def test_combined_decisions_survive_empty_run_and_restart_with_relationships(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "workspace"
+            root.mkdir()
+            ledger = Path(directory) / "ledger.json"
+
+            def settings():
+                return SimpleNamespace(
+                    inference_ledger_file=ledger,
+                    ai_inference_mode="incremental",
+                    tasks_path=Path(directory) / "TASKS.md",
+                    output_dir=Path(directory) / "output",
+                    queue_dir=Path(directory) / "queue",
+                )
+
+            first_message = _runtime_message(
+                "message-1", "turn-1", "Implemented the first decision."
+            )
+            first_message.created_at = "2026-08-31T00:01:00+00:00"
+            second_message = _runtime_message(
+                "message-2", "turn-2", "Implemented the replacement decision."
+            )
+            second_message.created_at = "2026-08-31T00:02:00+00:00"
+            first_chat = ChatExtractionResult((first_message,), tuple(), tuple())
+            second_chat = ChatExtractionResult(
+                (first_message, second_message), tuple(), tuple()
+            )
+            first_work = SimpleNamespace(
+                codex_status="idle", turns=(_runtime_turn("turn-1"),)
+            )
+            second_work = SimpleNamespace(
+                codex_status="idle",
+                turns=(_runtime_turn("turn-1"), _runtime_turn("turn-2")),
+            )
+            combined_runner = Mock()
+            combined_runner.infer.side_effect = (
+                _combined_result("First decision", "First description"),
+                _combined_result("Replacement decision", "Replacement description"),
+            )
+            displayed_histories = []
+
+            def capture_snapshot(*args, **kwargs):
+                displayed_histories.append(tuple(args[6].decisions))
+                return object()
+
+            first_budget = InferenceCallBudget()
+            restarted_budget = InferenceCallBudget()
+            with patch(
+                "tools.collector_runtime.extract_chat_messages",
+                side_effect=(first_chat, first_chat, second_chat),
+            ), patch(
+                "tools.collector_runtime.extract_current_work_status",
+                side_effect=(first_work, first_work, second_work),
+            ), patch(
+                "tools.collector_runtime.CombinedTurnCliRunner",
+                return_value=combined_runner,
+            ), patch(
+                "tools.collector_runtime.extract_file_references",
+                return_value=SimpleNamespace(references=tuple()),
+            ), patch(
+                "tools.collector_runtime.extract_development_errors",
+                return_value=object(),
+            ), patch(
+                "tools.collector_runtime.collect_git_changes",
+                return_value=_runtime_git(),
+            ), patch(
+                "tools.collector_runtime.build_json_snapshot",
+                side_effect=capture_snapshot,
+            ), patch("tools.collector_runtime.save_json_snapshot"):
+                _build_workspace_snapshot(
+                    root,
+                    "workspace-1",
+                    "session-1",
+                    {"session-1": tuple()},
+                    settings(),
+                    None,
+                    {"session-1": (_terminal_record("turn-1"),)},
+                    first_budget.try_acquire,
+                )
+                _build_workspace_snapshot(
+                    root,
+                    "workspace-1",
+                    "session-1",
+                    {"session-1": tuple()},
+                    settings(),
+                    None,
+                    {"session-1": tuple()},
+                    first_budget.try_acquire,
+                )
+                _build_workspace_snapshot(
+                    root,
+                    "workspace-1",
+                    "session-1",
+                    {"session-1": tuple()},
+                    settings(),
+                    None,
+                    {"session-1": (_terminal_record("turn-2"),)},
+                    restarted_budget.try_acquire,
+                )
+
+            restored = latest_decision_history(load(ledger), "workspace-1")
+
+        self.assertEqual(2, combined_runner.infer.call_count)
+        self.assertEqual(1, first_budget.calls)
+        self.assertEqual(1, restarted_budget.calls)
+        self.assertEqual(displayed_histories[0], displayed_histories[1])
+        self.assertEqual(1, len(displayed_histories[1]))
+        self.assertEqual(2, len(displayed_histories[2]))
+        previous, replacement = displayed_histories[2]
+        self.assertEqual("superseded", previous.status)
+        self.assertEqual(replacement.decision_id, previous.superseded_by)
+        self.assertEqual(previous.decision_id, replacement.supersedes)
+        self.assertEqual(displayed_histories[2], restored)
+
     def test_combined_cache_change_and_failure_preserve_snapshot_models_and_ledger(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "workspace"
@@ -1226,7 +1340,7 @@ def _runtime_git():
     )
 
 
-def _combined_result():
+def _combined_result(title="Decision", description="Description"):
     return CombinedInferenceResult(
         {
             "title": "Title",
@@ -1237,8 +1351,8 @@ def _combined_result():
         (
             {
                 "status": "adopted",
-                "title": "Decision",
-                "description": "Description",
+                "title": title,
+                "description": description,
                 "reason": None,
                 "topic_key": "topic",
             },
