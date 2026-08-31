@@ -4,10 +4,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tools.change_summary_generator import ChangeSummary, SummaryEvidenceItem
-from tools.decision_extractor import _Proposal, inference_payload
+from tools.decision_extractor import DecisionInferenceCacheEntry, ExtractedDecision, _Proposal, decision_inference_payload, inference_payload
 from tools.next_task_extractor import NextTask, NextTaskCacheEntry, NextTaskIssue
 
-from tools.inference_ledger import CombinedTurnCacheEntry, InferenceLedgerEntry, append, combined_turn_cache_entry, combined_turn_payload, decision_inference_cache, load, next_task_cache_entry, next_task_payload, summary_cache_entries, summary_payload
+from tools.inference_ledger import CombinedTurnCacheEntry, InferenceLedgerEntry, append, combined_turn_cache_entry, combined_turn_payload, decision_inference_cache, decision_inference_entries, latest_decision_history, load, next_task_cache_entry, next_task_payload, summary_cache_entries, summary_payload
 
 
 def entry(input_sha256: str = "a" * 64) -> InferenceLedgerEntry:
@@ -73,6 +73,25 @@ class InferenceLedgerTests(unittest.TestCase):
         self.assertEqual(summary, summary_cache_entries(entries, "workspace-1", "session-1")[0].summary)
         self.assertEqual(proposals, decision_inference_cache(entries, "workspace-1")["e" * 64])
         self.assertEqual(cache, next_task_cache_entry(entries, "workspace-1", "session-1"))
+
+    def test_complete_decision_cache_is_scoped_by_all_identity_fields(self) -> None:
+        proposals = (_Proposal("adopted", "new", "new description", None, "topic"),)
+        old = ExtractedDecision("old", "2026-08-31T00:00:00+00:00", "created_at", "superseded", "old", "old description", None, ("session-1",), ("message-1",), None, "new", "topic")
+        new = ExtractedDecision("new", "2026-08-31T00:01:00+00:00", "created_at", "adopted", "new", "new description", None, ("session-1",), ("message-2",), "old", None, "topic")
+        cache_entry = DecisionInferenceCacheEntry("session-1", "turn-2", "f" * 64, proposals, (old, new))
+        complete = InferenceLedgerEntry("workspace-1", "session-1", "turn-2", "f" * 64, decision_inference_payload(cache_entry), "2026-08-31T00:01:00+00:00", "decision")
+        legacy = InferenceLedgerEntry("workspace-1", "session-1", "turn-2", "e" * 64, inference_payload(proposals), "2026-08-31T00:00:00+00:00", "decision")
+
+        restored = decision_inference_entries((legacy, complete), "workspace-1")
+
+        self.assertEqual(
+            cache_entry,
+            restored[("session-1", "turn-2", "f" * 64)],
+        )
+        self.assertNotIn(("session-1", "turn-2", "e" * 64), restored)
+        self.assertEqual((old, new), latest_decision_history((legacy, complete), "workspace-1"))
+        self.assertEqual({}, decision_inference_entries((complete,), "other-workspace"))
+
     def test_failed_replace_preserves_previous_ledger(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "ledger.json"

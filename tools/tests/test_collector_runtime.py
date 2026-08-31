@@ -7,7 +7,7 @@ from unittest.mock import patch
 from tools.change_summary_generator import ChangeSummary, SummaryEvidenceItem
 from tools.chat_extractor import ChatExtractionResult
 from tools.collector_runtime import _build_workspace_snapshot, run_once
-from tools.decision_extractor import _Proposal, inference_payload
+from tools.decision_extractor import DecisionInferenceCacheEntry, ExtractedDecision, _Proposal, decision_inference_payload
 from tools.next_task_extractor import NextTask, NextTaskCacheEntry, NextTaskIssue
 from tools.inference_ledger import InferenceLedgerEntry, append, next_task_payload, summary_payload
 from tools.collector_history import CollectorHistory
@@ -37,7 +37,9 @@ class CollectorRuntimeTests(unittest.TestCase):
             root = Path(directory) / "workspace"
             root.mkdir()
             ledger = Path(directory) / "ledger.json"
-            decision = InferenceLedgerEntry("workspace-1", "session-1", "turn-1", "b" * 64, inference_payload((_Proposal("adopted", "title", "description", None, "topic"),)), "2026-08-31T00:00:00+00:00", "decision")
+            restored_decision = ExtractedDecision("decision-1", "2026-08-31T00:00:00+00:00", "created_at", "adopted", "title", "description", None, ("session-1",), ("message-1",), None, None, "topic")
+            decision_cache = DecisionInferenceCacheEntry("session-1", "turn-1", "b" * 64, (_Proposal("adopted", "title", "description", None, "topic"),), (restored_decision,))
+            decision = InferenceLedgerEntry("workspace-1", "session-1", "turn-1", "b" * 64, decision_inference_payload(decision_cache), "2026-08-31T00:00:00+00:00", "decision")
             task = NextTask("task-1", "task", "pending", "codex_inferred", "high", "reason", tuple())
             next_entry = InferenceLedgerEntry("workspace-1", "session-1", "turn-1", "c" * 64, next_task_payload(NextTaskCacheEntry("c" * 64, task, None, (NextTaskIssue("warning"),))), "2026-08-31T00:00:00+00:00", "next_task")
             append(ledger, decision)
@@ -46,13 +48,15 @@ class CollectorRuntimeTests(unittest.TestCase):
             captured = {}
             def decisions(*args, **kwargs):
                 captured["decision_cache"] = kwargs["inference_cache"]
+                captured["restored_decisions"] = kwargs["restored_decisions"]
                 return SimpleNamespace(decisions=tuple())
             def next_task(*args, **kwargs):
                 captured["next_task_cache"] = kwargs["cache_entry"]
                 return SimpleNamespace(inference_attempted=False, cache_entry=None)
             with patch("tools.collector_runtime.extract_chat_messages", return_value=ChatExtractionResult(tuple(), tuple(), tuple())), patch("tools.collector_runtime.extract_current_work_status", return_value=SimpleNamespace(codex_status="idle")), patch("tools.collector_runtime.extract_decisions", side_effect=decisions), patch("tools.collector_runtime.extract_file_references", return_value=SimpleNamespace(references=tuple())), patch("tools.collector_runtime.extract_development_errors", return_value=object()), patch("tools.collector_runtime.generate_change_summaries", return_value=SimpleNamespace(cache_entries=tuple())), patch("tools.collector_runtime.extract_next_task", side_effect=next_task), patch("tools.collector_runtime.collect_git_changes", return_value=object()), patch("tools.collector_runtime.build_json_snapshot", return_value=object()), patch("tools.collector_runtime.save_json_snapshot"):
                 _build_workspace_snapshot(root, "workspace-1", "session-1", {"session-1": tuple()}, settings, None)
-        self.assertIn("b" * 64, captured["decision_cache"])
+        self.assertIn(("session-1", "turn-1", "b" * 64), captured["decision_cache"])
+        self.assertEqual((restored_decision,), captured["restored_decisions"])
         self.assertEqual(task, captured["next_task_cache"].task)
 
     def test_incremental_mode_passes_only_new_turn_ids_to_inference(self) -> None:

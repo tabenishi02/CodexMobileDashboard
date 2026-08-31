@@ -85,6 +85,38 @@ def decision_inference_cache(entries, workspace_id):
             continue
     return result
 
+def decision_inference_entries(entries, workspace_id):
+    '''Restore complete individual entries keyed by session, turn, and SHA-256.'''
+    from tools.decision_extractor import decision_inference_cache_entry_from_payload
+
+    result = {}
+    for entry in entries:
+        if entry.workspace_id != workspace_id or entry.inference_kind != 'decision':
+            continue
+        try:
+            cache_entry = decision_inference_cache_entry_from_payload(
+                entry.result,
+                entry.session_id,
+                entry.turn_id,
+                entry.input_sha256,
+            )
+        except (RuntimeError, ValueError):
+            continue
+        result[(entry.session_id, entry.turn_id, entry.input_sha256)] = cache_entry
+    return result
+
+
+def latest_decision_history(entries, workspace_id):
+    '''Restore the latest complete decision history for one workspace.'''
+    cache = decision_inference_entries(entries, workspace_id)
+    for entry in reversed(tuple(entries)):
+        key = (entry.session_id, entry.turn_id, entry.input_sha256)
+        cached = cache.get(key)
+        if entry.workspace_id == workspace_id and cached is not None:
+            return cached.decisions
+    return tuple()
+
+
 def combined_turn_cache_entry(entries, workspace_id, session_id, turn_id, input_sha256):
     """Restore a complete combined result only for the exact prompt SHA-256."""
     from tools.decision_extractor import proposals_from_inference_payload

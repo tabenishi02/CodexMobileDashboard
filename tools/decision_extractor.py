@@ -91,6 +91,15 @@ class _Proposal:
     topic_key: str
 
 
+@dataclass(frozen=True)
+class DecisionInferenceCacheEntry:
+    session_id: str
+    turn_id: str
+    input_sha256: str
+    proposals: Tuple[_Proposal, ...]
+    decisions: Tuple[ExtractedDecision, ...]
+
+
 class DecisionCliRunner:
     """Resolve contextual decision references with an isolated Codex CLI."""
 
@@ -187,21 +196,41 @@ def extract_decisions(
     *,
     runner: Optional[DecisionCliRunner] = None,
     allow_inference: bool = True,
-    inference_cache: Mapping[str, Tuple[_Proposal, ...]] = {},
-    on_inference_success: Optional[Callable[[DecisionSourceMessage, str, Tuple[_Proposal, ...]], None]] = None,
+    inference_cache: Mapping[Tuple[str, str, str], DecisionInferenceCacheEntry] = {},
+    restored_decisions: Sequence[ExtractedDecision] = (),
+    on_inference_success: Optional[Callable[[DecisionInferenceCacheEntry], None]] = None,
     can_infer: Optional[Callable[[], bool]] = None,
 ) -> DecisionExtractionResult:
     """Build workspace-wide decision history in chronological input order."""
 
     sources = tuple(source_messages)
-    decisions: List[ExtractedDecision] = []
+    decisions: List[ExtractedDecision] = list(restored_decisions)
     active_by_topic: Dict[str, int] = {}
     same_decision: Dict[str, int] = {}
     issues: List[DecisionExtractionIssue] = []
     cli_runner = runner or DecisionCliRunner()
+    restored_source_message_ids = {
+        message_id for decision in decisions for message_id in decision.source_message_ids
+    }
+    for index, decision in enumerate(decisions):
+        if decision.superseded_by is None:
+            active_by_topic[decision.topic_key] = index
+            same_decision[
+                _semantic_key(
+                    _Proposal(
+                        decision.status,
+                        decision.title,
+                        decision.description,
+                        decision.reason,
+                        decision.topic_key,
+                    )
+                )
+            ] = index
 
     for position, source in enumerate(sources):
         message = source.message
+        if message.message_id in restored_source_message_ids:
+            continue
         if message.role != "user" or message.message_type != "chat":
             continue
         text = _message_text(message)
@@ -209,6 +238,7 @@ def extract_decisions(
             continue
 
         proposals: Tuple[_Proposal, ...]
+        successful_inference: Optional[DecisionInferenceCacheEntry] = None
         if _AMBIGUOUS_REFERENCE.search(text):
             if not allow_inference:
                 issues.append(DecisionExtractionIssue(source.session_id, message.message_id, "inference_disabled"))
@@ -226,11 +256,19 @@ def extract_decisions(
             try:
                 prompt = _build_cli_prompt(masked_context)
                 input_sha256 = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
-                proposals = inference_cache.get(input_sha256)
-                if proposals is None:
+                turn_id = message.turn_id or message.message_id
+                cached = inference_cache.get((source.session_id, turn_id, input_sha256))
+                if cached is None:
                     proposals = cli_runner.extract(prompt)
-                    if on_inference_success is not None:
-                        on_inference_success(source, input_sha256, proposals)
+                    successful_inference = DecisionInferenceCacheEntry(
+                        source.session_id,
+                        turn_id,
+                        input_sha256,
+                        proposals,
+                        tuple(),
+                    )
+                else:
+                    proposals = cached.proposals
             except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
                 kind = _runner_error_kind(error)
                 issues.append(
@@ -302,6 +340,11 @@ def extract_decisions(
             active_by_topic[proposal.topic_key] = new_index
             same_decision[semantic_key] = new_index
 
+        if successful_inference is not None and on_inference_success is not None:
+            on_inference_success(
+                replace(successful_inference, decisions=tuple(decisions))
+            )
+
     LOGGER.info(
         "決定事項を抽出: workspace_id=%s decisions=%d warnings=%d",
         workspace_id,
@@ -322,6 +365,131 @@ def proposals_from_inference_payload(value: object) -> Tuple[_Proposal, ...]:
     if not isinstance(payload, dict):
         raise ValueError("decision_inference_payload_invalid")
     return _validate_cli_value({"decisions": payload.get("proposals")})
+
+
+def decision_inference_payload(entry: DecisionInferenceCacheEntry) -> dict:
+    '''Return a complete, prompt-free individual decision inference payload.'''
+    return {
+        'schema_version': 2,
+        'payload': {
+            'proposals': [
+                {
+                    'status': proposal.status,
+                    'title': proposal.title,
+                    'description': proposal.description,
+                    'reason': proposal.reason,
+                    'topic_key': proposal.topic_key,
+                }
+                for proposal in entry.proposals
+            ],
+            'decisions': [
+                {
+                    'decision_id': decision.decision_id,
+                    'decided_at': decision.decided_at,
+                    'decided_at_source': decision.decided_at_source,
+                    'status': decision.status,
+                    'title': decision.title,
+                    'description': decision.description,
+                    'reason': decision.reason,
+                    'source_session_ids': list(decision.source_session_ids),
+                    'source_message_ids': list(decision.source_message_ids),
+                    'supersedes': decision.supersedes,
+                    'superseded_by': decision.superseded_by,
+                    'topic_key': decision.topic_key,
+                }
+                for decision in entry.decisions
+            ],
+        },
+    }
+
+
+def decision_inference_cache_entry_from_payload(
+    value: object,
+    session_id: str,
+    turn_id: str,
+    input_sha256: str,
+) -> DecisionInferenceCacheEntry:
+    '''Validate and restore a complete individual decision inference result.'''
+    if not isinstance(value, dict) or value.get('schema_version') != 2:
+        raise ValueError('decision_inference_payload_invalid')
+    payload = value.get('payload')
+    if not isinstance(payload, dict):
+        raise ValueError('decision_inference_payload_invalid')
+    proposals = _validate_cli_value({'decisions': payload.get('proposals')})
+    decisions_value = payload.get('decisions')
+    if not isinstance(decisions_value, list):
+        raise ValueError('decision_inference_payload_invalid')
+    decisions = tuple(_decision_from_payload(item) for item in decisions_value)
+    _validate_decision_relationships(decisions)
+    return DecisionInferenceCacheEntry(
+        session_id, turn_id, input_sha256, proposals, decisions
+    )
+
+
+def _decision_from_payload(value: object) -> ExtractedDecision:
+    if not isinstance(value, dict):
+        raise ValueError('decision_inference_payload_invalid')
+    required_strings = (
+        'decision_id',
+        'decided_at_source',
+        'status',
+        'title',
+        'description',
+        'topic_key',
+    )
+    if not all(isinstance(value.get(name), str) and value[name] for name in required_strings):
+        raise ValueError('decision_inference_payload_invalid')
+    if value['status'] not in ('adopted', 'rejected', 'superseded'):
+        raise ValueError('decision_inference_payload_invalid')
+    nullable_strings = ('decided_at', 'reason', 'supersedes', 'superseded_by')
+    if any(value.get(name) is not None and not isinstance(value.get(name), str) for name in nullable_strings):
+        raise ValueError('decision_inference_payload_invalid')
+    source_session_ids = value.get('source_session_ids')
+    source_message_ids = value.get('source_message_ids')
+    if (
+        not isinstance(source_session_ids, list)
+        or not source_session_ids
+        or not all(isinstance(item, str) and item for item in source_session_ids)
+        or not isinstance(source_message_ids, list)
+        or not source_message_ids
+        or not all(isinstance(item, str) and item for item in source_message_ids)
+    ):
+        raise ValueError('decision_inference_payload_invalid')
+    return ExtractedDecision(
+        value['decision_id'],
+        value.get('decided_at'),
+        value['decided_at_source'],
+        value['status'],
+        value['title'],
+        value['description'],
+        value.get('reason'),
+        tuple(source_session_ids),
+        tuple(source_message_ids),
+        value.get('supersedes'),
+        value.get('superseded_by'),
+        value['topic_key'],
+    )
+
+
+def _validate_decision_relationships(
+    decisions: Sequence[ExtractedDecision],
+) -> None:
+    by_id = {decision.decision_id: decision for decision in decisions}
+    if len(by_id) != len(decisions):
+        raise ValueError('decision_inference_payload_invalid')
+    for decision in decisions:
+        if decision.supersedes is not None:
+            prior = by_id.get(decision.supersedes)
+            if prior is None or prior.superseded_by != decision.decision_id:
+                raise ValueError('decision_inference_payload_invalid')
+        if decision.superseded_by is not None:
+            replacement = by_id.get(decision.superseded_by)
+            if (
+                decision.status != 'superseded'
+                or replacement is None
+                or replacement.supersedes != decision.decision_id
+            ):
+                raise ValueError('decision_inference_payload_invalid')
 
 
 def _local_proposals(text: str) -> Tuple[_Proposal, ...]:

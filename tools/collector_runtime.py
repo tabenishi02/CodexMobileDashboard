@@ -14,12 +14,12 @@ from tools.change_summary_generator import SummarySourceMessage, generate_change
 from tools.chat_extractor import ChatExtractionResult, extract_chat_messages
 from tools.collector_history import CollectorHistory, load_collector_history, save_collector_history
 from tools.collector_state import load_collector_state, save_collector_state
-from tools.decision_extractor import DecisionSourceMessage, extract_decisions, inference_payload
+from tools.decision_extractor import DecisionSourceMessage, decision_inference_payload, extract_decisions
 from tools.error_extractor import extract_development_errors
 from tools.file_reference_extractor import extract_file_references
 from tools.git_change_collector import collect_git_changes
 from tools.https_sender import HttpsSnapshotSender, prepare_snapshot_uploads
-from tools.inference_ledger import InferenceLedgerEntry, append as append_inference_ledger, decision_inference_cache, load as load_inference_ledger, next_task_cache_entry, next_task_payload, summary_cache_entries, summary_payload
+from tools.inference_ledger import InferenceLedgerEntry, append as append_inference_ledger, decision_inference_entries, latest_decision_history, load as load_inference_ledger, next_task_cache_entry, next_task_payload, summary_cache_entries, summary_payload
 from tools.incremental_collector import collect_incremental_records
 from tools.inference_metrics import record as record_inference_metric
 from tools.json_converter import CollectorMetadata, JsonContext, ProjectPresentation, build_json_snapshot
@@ -108,9 +108,9 @@ def _build_workspace_snapshot(root: Path, workspace_id: str, latest_session_id: 
     inference_turn_ids = {record.turn_id for records in (inference_records_by_session or {}).values() for record in records if record.turn_id} if settings.ai_inference_mode == "incremental" else None
     ledger_entries = load_inference_ledger(settings.inference_ledger_file)
     decision_sources = tuple(DecisionSourceMessage(session_id, message, _text(message)) for session_id, value in chats_by_session.items() for message in value.messages if inference_turn_ids is None or message.turn_id in inference_turn_ids)
-    def save_decision_inference(source, input_sha256, proposals):
-        append_inference_ledger(settings.inference_ledger_file, InferenceLedgerEntry(workspace_id, source.session_id, source.message.turn_id or source.message.message_id, input_sha256, inference_payload(proposals), datetime.now(timezone.utc).isoformat(timespec="seconds"), "decision"))
-    decisions = extract_decisions(decision_sources, workspace_id, allow_inference=settings.ai_inference_mode != "off", inference_cache=decision_inference_cache(ledger_entries, workspace_id), on_inference_success=save_decision_inference, can_infer=can_infer)
+    def save_decision_inference(entry):
+        append_inference_ledger(settings.inference_ledger_file, InferenceLedgerEntry(workspace_id, entry.session_id, entry.turn_id, entry.input_sha256, decision_inference_payload(entry), datetime.now(timezone.utc).isoformat(timespec="seconds"), "decision"))
+    decisions = extract_decisions(decision_sources, workspace_id, allow_inference=settings.ai_inference_mode != "off", inference_cache=decision_inference_entries(ledger_entries, workspace_id), restored_decisions=latest_decision_history(ledger_entries, workspace_id), on_inference_success=save_decision_inference, can_infer=can_infer)
     files = extract_file_references(tuple((session_id, message) for session_id, value in chats_by_session.items() for message in value.messages), root, workspace_id)
     errors = extract_development_errors(all_records, ordered_messages, work, workspace_id, latest_session_id)
     summaries = generate_change_summaries(latest_session_id, work, tuple(SummarySourceMessage(latest_session_id, message.message_id, message.turn_id, message.role, message.message_type, message.phase, _text(message), True) for message in ordered_messages), file_references=files.references, cache_entries=summary_cache_entries(ledger_entries, workspace_id, latest_session_id), inference_turn_ids=inference_turn_ids, allow_inference=settings.ai_inference_mode != "off", can_infer=can_infer)

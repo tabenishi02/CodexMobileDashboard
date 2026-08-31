@@ -9,8 +9,12 @@ from unittest.mock import patch
 from tools.chat_extractor import ChatContentPart, ExtractedChatMessage
 from tools.decision_extractor import (
     DecisionCliRunner,
+    DecisionInferenceCacheEntry,
     DecisionSourceMessage,
+    ExtractedDecision,
     _Proposal,
+    decision_inference_cache_entry_from_payload,
+    decision_inference_payload,
     extract_decisions,
     inference_payload,
     proposals_from_inference_payload,
@@ -365,6 +369,115 @@ class DecisionExtractorTests(unittest.TestCase):
         self.assertEqual(proposals, restored)
         with self.assertRaises(ValueError):
             proposals_from_inference_payload({"payload": {"proposals": []}})
+
+    def test_complete_inference_payload_restores_relationships_and_evidence(self) -> None:
+        proposals = (_Proposal("adopted", "new", "new description", "reason", "topic"),)
+        old = ExtractedDecision("old", "2026-08-08T01:00:00+00:00", "created_at", "superseded", "old", "old description", None, ("session-1",), ("message-1",), None, "new", "topic")
+        new = ExtractedDecision("new", "2026-08-08T02:00:00+00:00", "created_at", "adopted", "new", "new description", "reason", ("session-2",), ("message-2",), "old", None, "topic")
+        entry = DecisionInferenceCacheEntry("session-2", "turn-2", "a" * 64, proposals, (old, new))
+
+        restored = decision_inference_cache_entry_from_payload(
+            decision_inference_payload(entry), "session-2", "turn-2", "a" * 64
+        )
+
+        self.assertEqual(entry, restored)
+        self.assertEqual(new.decision_id, restored.decisions[0].superseded_by)
+        self.assertEqual(old.decision_id, restored.decisions[1].supersedes)
+        self.assertEqual(("message-2",), restored.decisions[1].source_message_ids)
+        result = extract_decisions(
+            tuple(), "workspace-1", restored_decisions=restored.decisions
+        )
+        self.assertEqual((old, new), result.decisions)
+        invalid = decision_inference_payload(entry)
+        invalid["payload"]["decisions"][0]["superseded_by"] = "missing"
+        with self.assertRaises(ValueError):
+            decision_inference_cache_entry_from_payload(
+                invalid, "session-2", "turn-2", "a" * 64
+            )
+
+    def test_inference_success_captures_relationships_after_decision_update(self) -> None:
+        sources = (
+            source("session-1", "user", "通信方式はHTTPとします。", "msg-old", masked=True),
+            source("session-1", "assistant", "HTTPSを推奨します。", "msg-a", masked=True),
+            source("session-1", "user", "その提案を採用します。", "msg-new", masked=True),
+        )
+        runner = StubRunner(
+            (_Proposal("adopted", "HTTPS", "HTTPSを採用します。", None, "通信方式"),)
+        )
+        saved = []
+
+        result = extract_decisions(
+            sources,
+            "workspace-1",
+            runner=runner,
+            on_inference_success=saved.append,
+        )
+
+        self.assertEqual(1, len(saved))
+        self.assertEqual(result.decisions, saved[0].decisions)
+        self.assertEqual(saved[0].decisions[1].decision_id, saved[0].decisions[0].superseded_by)
+        self.assertEqual(saved[0].decisions[0].decision_id, saved[0].decisions[1].supersedes)
+
+    def test_cache_requires_exact_session_turn_and_input_sha(self) -> None:
+        proposals = (_Proposal("adopted", "title", "description", None, "topic"),)
+        sources = (
+            source("session-1", "assistant", "案Aを推奨します。", "msg-a", masked=True),
+            source("session-1", "user", "案Aを採用します。", "msg-u", masked=True),
+        )
+        saved = []
+        first_runner = StubRunner(proposals)
+        extract_decisions(
+            sources,
+            "workspace-1",
+            runner=first_runner,
+            on_inference_success=saved.append,
+        )
+        cache = {
+            (saved[0].session_id, saved[0].turn_id, saved[0].input_sha256): saved[0]
+        }
+
+        exact_runner = StubRunner(proposals)
+        exact = extract_decisions(
+            sources, "workspace-1", runner=exact_runner, inference_cache=cache
+        )
+        changed_runner = StubRunner(proposals)
+        changed_sources = (
+            source("session-1", "assistant", "案Bを推奨します。", "msg-a", masked=True),
+            source("session-1", "user", "案Aを採用します。", "msg-u", masked=True),
+        )
+        extract_decisions(
+            changed_sources,
+            "workspace-1",
+            runner=changed_runner,
+            inference_cache=cache,
+        )
+        wrong_session_runner = StubRunner(proposals)
+        wrong_session_sources = (
+            source("session-2", "assistant", "案Aを推奨します。", "msg-a", masked=True),
+            source("session-2", "user", "案Aを採用します。", "msg-u", masked=True),
+        )
+        extract_decisions(
+            wrong_session_sources,
+            "workspace-1",
+            runner=wrong_session_runner,
+            inference_cache=cache,
+        )
+        wrong_turn_runner = StubRunner(proposals)
+        wrong_turn_cache = {
+            (saved[0].session_id, "other-turn", saved[0].input_sha256): saved[0]
+        }
+        extract_decisions(
+            sources,
+            "workspace-1",
+            runner=wrong_turn_runner,
+            inference_cache=wrong_turn_cache,
+        )
+
+        self.assertEqual(0, exact_runner.calls)
+        self.assertEqual(saved[0].decisions, exact.decisions)
+        self.assertEqual(1, changed_runner.calls)
+        self.assertEqual(1, wrong_session_runner.calls)
+        self.assertEqual(1, wrong_turn_runner.calls)
 
 if __name__ == "__main__":
     unittest.main()
