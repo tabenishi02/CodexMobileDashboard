@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Callable, Iterable, List, Optional, Sequence, Tuple
 
 from tools.chat_extractor import ExtractedChatMessage
+from tools.inference_metrics import record as record_inference_metric
 
 
 LOGGER = logging.getLogger("converter")
@@ -192,12 +193,14 @@ def extract_next_task(
     messages = tuple(recent_messages)
     explicit = _extract_explicit(messages)
     if explicit is not None:
+        record_inference_metric("next_task", "skipped")
         LOGGER.info("次タスクを明示メッセージから抽出: origin=explicit")
         return NextTaskExtractionResult(explicit, tuple(), None, False, 0, False)
 
     current_time = now or datetime.now(timezone.utc)
     evidence_hash = _evidence_hash(inference_context)
     if _cache_is_usable(cache_entry, evidence_hash, current_time):
+        record_inference_metric("next_task", "cache_hit")
         assert cache_entry is not None
         LOGGER.info(
             "次タスク推定キャッシュを使用: origin=%s",
@@ -218,6 +221,8 @@ def extract_next_task(
         issues.append(NextTaskIssue("inference_input_truncated"))
 
     if not inference_context.is_masked:
+        record_inference_metric("next_task", "skipped", prompt.byte_count)
+        record_inference_metric("next_task", "fallback", prompt.byte_count)
         issues.append(NextTaskIssue("inference_input_not_masked"))
         return _fallback_result(
             tasks_path,
@@ -229,10 +234,18 @@ def extract_next_task(
         )
 
     if not allow_inference or (can_infer is not None and not can_infer()):
-        issues.append(NextTaskIssue("inference_limit_reached" if can_infer is not None else "inference_disabled"))
+        limit_reached = allow_inference and can_infer is not None
+        record_inference_metric(
+            "next_task",
+            "limit_reached" if limit_reached else "skipped",
+            prompt.byte_count,
+        )
+        record_inference_metric("next_task", "fallback", prompt.byte_count)
+        issues.append(NextTaskIssue("inference_limit_reached" if limit_reached else "inference_disabled"))
         return _fallback_result(tasks_path, evidence_hash, current_time, issues, False, prompt)
 
     cli_runner = runner or CodexCliRunner()
+    record_inference_metric("next_task", "execution", prompt.byte_count)
     try:
         text, reason, confidence = cli_runner.infer(prompt.text)
         source_ids = tuple(message.message_id for message in inference_context.recent_messages)
@@ -245,6 +258,7 @@ def extract_next_task(
             confidence,
             prompt.byte_count,
         )
+        record_inference_metric("next_task", "success", prompt.byte_count)
         return NextTaskExtractionResult(
             task,
             tuple(issues),
@@ -255,6 +269,8 @@ def extract_next_task(
         )
     except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
         kind = _runner_error_kind(error)
+        record_inference_metric("next_task", "failure", prompt.byte_count)
+        record_inference_metric("next_task", "fallback", prompt.byte_count)
         issues.append(NextTaskIssue(kind))
         LOGGER.warning("次タスクのCodex CLI推定に失敗: kind=%s", kind)
         return _fallback_result(

@@ -241,10 +241,12 @@ def extract_decisions(
         successful_inference: Optional[DecisionInferenceCacheEntry] = None
         if _AMBIGUOUS_REFERENCE.search(text):
             if not allow_inference:
+                record_inference_metric("decision", "skipped")
                 issues.append(DecisionExtractionIssue(source.session_id, message.message_id, "inference_disabled"))
                 continue
             masked_context = _masked_context(sources, position)
             if masked_context is None:
+                record_inference_metric("decision", "skipped")
                 issues.append(
                     DecisionExtractionIssue(
                         source.session_id,
@@ -253,13 +255,18 @@ def extract_decisions(
                     )
                 )
                 continue
+            input_bytes = 0
             try:
                 prompt = _build_cli_prompt(masked_context)
+                input_bytes = len(prompt.encode("utf-8"))
                 input_sha256 = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
                 turn_id = message.turn_id or message.message_id
                 cached = inference_cache.get((source.session_id, turn_id, input_sha256))
                 if cached is None:
                     if can_infer is not None and not can_infer():
+                        record_inference_metric(
+                            "decision", "limit_reached", input_bytes
+                        )
                         issues.append(
                             DecisionExtractionIssue(
                                 source.session_id,
@@ -268,7 +275,9 @@ def extract_decisions(
                             )
                         )
                         continue
+                    record_inference_metric("decision", "execution", input_bytes)
                     proposals = cli_runner.extract(prompt)
+                    record_inference_metric("decision", "success", input_bytes)
                     successful_inference = DecisionInferenceCacheEntry(
                         source.session_id,
                         turn_id,
@@ -277,16 +286,18 @@ def extract_decisions(
                         tuple(),
                     )
                 else:
+                    record_inference_metric("decision", "cache_hit", input_bytes)
                     proposals = cached.proposals
             except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
                 kind = _runner_error_kind(error)
                 issues.append(
                     DecisionExtractionIssue(source.session_id, message.message_id, kind)
                 )
-                record_inference_metric("decision", "failure")
+                record_inference_metric("decision", "failure", input_bytes)
                 LOGGER.warning("決定事項のCodex CLI抽出に失敗: kind=%s", kind)
                 continue
         else:
+            record_inference_metric("decision", "skipped")
             proposals = _local_proposals(text)
 
         for proposal in proposals:

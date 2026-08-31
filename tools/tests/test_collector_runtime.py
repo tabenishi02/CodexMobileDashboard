@@ -523,6 +523,12 @@ class CollectorRuntimeTests(unittest.TestCase):
         self.assertIn(
             "inference_pending_completed carried=1 added=0 remaining=1", output
         )
+        self.assertIn(
+            "inference_run_metrics executions=0 cache_hits=0 skipped=0 "
+            "limit_reached=0 successes=0 failures=0 fallbacks=0 "
+            "input_bytes=0 pending_remaining=1",
+            output,
+        )
         self.assertNotIn("secret-", output)
         self.assertEqual((pending,), saved[0].pending_inferences)
 

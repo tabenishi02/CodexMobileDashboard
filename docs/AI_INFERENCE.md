@@ -96,9 +96,11 @@ runner自体は`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、
 変更を示す語を含む短文、未認識の短文、Git変更、または対象ファイル参照が一つでもある場合はスキップしない。collector統合テストでは、既知の短文・非変更turnがCLI 0回になり、`実装しました。`を含む変更候補turnが統合CLIへ進むことを確認する。
 ## 推論メトリクスログ
 
-`inference_metric`は`kind`、`event`、`input_bytes`だけを記録する。eventは`execution`、`cache_hit`、`skipped`、`limit_reached`、`success`、`failure`、`fallback`を使用する。collector終了時には実行許可数・上限による持越し数・上限値も記録する。
+`inference_metric`は`kind`、`event`、`input_bytes`だけを記録する。kindは`change_summary`、`decision`、`next_task`、`combined_turn`、eventは`execution`、`cache_hit`、`skipped`、`limit_reached`、`success`、`failure`、`fallback`の固定値だけを許可する。各経路はキャッシュ、スキップ、上限、CLI実行、成功・失敗、該当する場合のfallbackを同じ形式で記録する。
 
-プロンプト本文、メッセージ本文、Token、入力SHA-256、workspace・session・turn ID、ファイルパスはメトリクスログに出力しない。
+`inference_run_metrics`はcollector実行単位で各event件数、実際にCLIへ渡した入力バイト数の合計、保存後のpending残件数を記録する。入力バイト数は`execution`時だけ加算し、同じ入力に対するsuccess・failureでは二重加算しない。従来の`inference_run_completed`と`inference_pending_completed`では共有上限の許可回数・延期回数・上限値、持ち越し・追加・残件数を確認できる。
+
+プロンプト本文、メッセージ本文、Token、入力SHA-256、workspace・session・turn ID、ファイルパスはメトリクスログに出力しない。kindとeventは固定値検証に失敗した値を拒否し、識別子やパスをラベルへ混入させない。専用テストでは集計値とpending残件数を確認し、これらの秘密情報・識別情報がログに含まれないことを検証する。
 ## 推論回帰テスト
 
 回帰テストは、incrementalで新規完了turnだけを3経路へ渡し、追加途中では推論を許可せずterminal event受信後の収集で許可すること、台帳復元による再起動後のキャッシュ利用、中断時の原子的台帳保持、共有上限、`off`、`backfill-ai`、入力が同一の場合のキャッシュ利用と入力変更時の再推論を確認する。`off`と上限到達ではCodex CLIを起動しない。

@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 from tools.file_reference_extractor import ExtractedFileReference
+from tools.inference_metrics import record as record_inference_metric
 from tools.next_task_extractor import (
     FAILURE_CACHE_SECONDS,
     INFERENCE_INPUT_MAX_BYTES,
@@ -138,6 +139,7 @@ class ChangeSummaryCliRunner:
         cache_key = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
         cached = self._cache.get(cache_key)
         if cached is not None:
+            record_inference_metric("change_summary", "cache_hit")
             return cached
         executable = self._executable or shutil.which("codex")
         if executable is None:
@@ -224,6 +226,7 @@ def generate_change_summaries(
         )
         cached = next((entry for entry in cache_by_turn.get(turn.turn_id, ()) if _cache_is_usable(entry, evidence_hash, current_time)), None)
         if cached is not None:
+            record_inference_metric("change_summary", "cache_hit")
             assert cached is not None
             if cached.summary is not None:
                 summaries.append(cached.summary)
@@ -233,6 +236,7 @@ def generate_change_summaries(
 
         turn_issues: List[ChangeSummaryIssue] = []
         if not input_is_masked:
+            record_inference_metric("change_summary", "skipped")
             turn_issues.append(
                 ChangeSummaryIssue(turn.turn_id, "summary_input_not_masked")
             )
@@ -242,6 +246,7 @@ def generate_change_summaries(
             continue
         explicit = _explicit_summary(session_id, turn, turn_messages)
         if explicit is not None:
+            record_inference_metric("change_summary", "skipped")
             cache = ChangeSummaryCacheEntry(
                 turn.turn_id, evidence_hash, explicit, None, tuple()
             )
@@ -250,6 +255,7 @@ def generate_change_summaries(
             continue
 
         if not turn_messages:
+            record_inference_metric("change_summary", "skipped")
             turn_issues.append(ChangeSummaryIssue(turn.turn_id, "summary_evidence_missing"))
             cache = _failure_cache(turn, evidence_hash, turn_issues, current_time)
             issues.extend(turn_issues)
@@ -260,6 +266,9 @@ def generate_change_summaries(
         if prompt.truncated:
             turn_issues.append(ChangeSummaryIssue(turn.turn_id, "summary_input_truncated"))
         if not prompt.source_message_ids:
+            record_inference_metric(
+                "change_summary", "skipped", prompt.byte_count
+            )
             turn_issues.append(ChangeSummaryIssue(turn.turn_id, "summary_input_empty"))
             cache = _failure_cache(turn, evidence_hash, turn_issues, current_time)
             issues.extend(turn_issues)
@@ -267,12 +276,19 @@ def generate_change_summaries(
             continue
 
         if not allow_inference or (can_infer is not None and not can_infer()):
-            turn_issues.append(ChangeSummaryIssue(turn.turn_id, "inference_limit_reached" if can_infer is not None else "inference_disabled"))
+            limit_reached = allow_inference and can_infer is not None
+            record_inference_metric(
+                "change_summary",
+                "limit_reached" if limit_reached else "skipped",
+                prompt.byte_count,
+            )
+            turn_issues.append(ChangeSummaryIssue(turn.turn_id, "inference_limit_reached" if limit_reached else "inference_disabled"))
             updated_cache.append(ChangeSummaryCacheEntry(turn.turn_id, evidence_hash, None, None, tuple(turn_issues)))
             issues.extend(turn_issues)
             continue
 
         attempts += 1
+        record_inference_metric("change_summary", "execution", prompt.byte_count)
         try:
             generated = cli_runner.generate(prompt.text)
             validated = _validate_generated_content(
@@ -289,6 +305,7 @@ def generate_change_summaries(
             cache = ChangeSummaryCacheEntry(
                 turn.turn_id, evidence_hash, summary, None, tuple(turn_issues)
             )
+            record_inference_metric("change_summary", "success", prompt.byte_count)
         except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
             kind = _runner_error_kind(error)
             turn_issues.append(ChangeSummaryIssue(turn.turn_id, kind))
@@ -298,6 +315,7 @@ def generate_change_summaries(
                 kind,
             )
             cache = _failure_cache(turn, evidence_hash, turn_issues, current_time)
+            record_inference_metric("change_summary", "failure", prompt.byte_count)
         issues.extend(turn_issues)
         updated_cache.append(cache)
 

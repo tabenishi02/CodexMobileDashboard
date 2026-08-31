@@ -368,6 +368,7 @@ def execute_combined_turn(
         reason = eligibility.fallback_reason or "combined_turn_ineligible"
         if reason == "rule_based_sufficient":
             return CombinedTurnExecution(None, False, reason, True)
+        record("combined_turn", "fallback", len(prompt.encode("utf-8")))
         fallback_to_individual(reason)
         return CombinedTurnExecution(None, True, reason)
     if can_infer is not None and not can_infer():
@@ -380,8 +381,10 @@ def execute_combined_turn(
     except (OSError, RuntimeError, subprocess.TimeoutExpired):
         reason = "combined_inference_failed"
         record("combined_turn", "failure", len(prompt.encode("utf-8")))
+        record("combined_turn", "fallback", len(prompt.encode("utf-8")))
         fallback_to_individual(reason)
         return CombinedTurnExecution(None, True, reason)
+    record("combined_turn", "success", len(prompt.encode("utf-8")))
     return CombinedTurnExecution(conversion, False, None)
 
 class CombinedTurnCliRunner:

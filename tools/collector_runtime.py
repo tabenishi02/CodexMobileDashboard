@@ -47,6 +47,7 @@ from tools.git_change_collector import collect_git_changes
 from tools.https_sender import HttpsSnapshotSender, prepare_snapshot_uploads
 from tools.inference_ledger import InferenceLedgerEntry, append as append_inference_ledger, combined_turn_cache_entry, decision_inference_entries, latest_decision_history, load as load_inference_ledger, next_task_cache_entry, next_task_payload, summary_cache_entries, summary_payload
 from tools.incremental_collector import collect_incremental_records
+from tools.inference_metrics import collect_run as collect_inference_run_metrics
 from tools.inference_metrics import record as record_inference_metric
 from tools.json_converter import CollectorMetadata, JsonContext, ProjectPresentation, build_json_snapshot
 from tools.json_writer import save_json_snapshot
@@ -90,14 +91,17 @@ class InferenceCallBudget:
     def try_acquire(self) -> bool:
         if self.calls >= self.limit:
             self.deferred += 1
-            record_inference_metric("collector", "limit_reached")
             return False
         self.calls += 1
-        record_inference_metric("collector", "execution")
         return True
 
 
 def run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | None = None) -> int:
+    with collect_inference_run_metrics() as inference_metrics:
+        return _run_once(settings, sender, inference_metrics)
+
+
+def _run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | None, inference_metrics) -> int:
     """Build and persist one current Snapshot per permitted Git workspace.
 
     State and history advance only after a complete local JSON save. Sending is
@@ -161,6 +165,7 @@ def run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | N
         len(next_pending - initial_pending),
         len(next_pending),
     )
+    inference_metrics.pending_remaining = len(next_pending)
     return completed
 
 
@@ -432,6 +437,7 @@ def _try_combined_inference(
     )
     inference_attempted = False
     if cached is not None:
+        record_inference_metric("combined_turn", "cache_hit", prompt.byte_count)
         conversion = CombinedTurnConversion(
             cached.summary,
             cached.decision_proposals,
