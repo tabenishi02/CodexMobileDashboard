@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime, timezone
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -14,6 +15,22 @@ from typing import Callable, Iterable, Optional, Sequence, Tuple
 
 
 COMBINED_INFERENCE_INPUT_MAX_BYTES = 64 * 1024
+_RULE_BASED_NONCHANGE_MAX_CHARACTERS = 120
+_RULE_BASED_NONCHANGE_RESPONSES = frozenset(
+    {
+        "了解しました",
+        "承知しました",
+        "確認します",
+        "調査します",
+        "待機します",
+        "ありがとうございます",
+        "どういたしまして",
+        "問題ありません",
+        "お願いします",
+        "続けてください",
+    }
+)
+
 
 
 @dataclass(frozen=True)
@@ -277,6 +294,30 @@ def _append_prompt_item(instruction, payload, key, item, input_max_bytes):
 def _prompt_size(instruction, payload):
     return len((instruction + json.dumps(payload, ensure_ascii=False, separators=(",", ":"))).encode("utf-8"))
 
+def assess_rule_based_skip(
+    turn_id: str,
+    messages: Sequence[CombinedTurnPromptMessage],
+    *,
+    has_git_changes: bool,
+    has_file_references: bool,
+) -> Optional[str]:
+    """Return a skip reason only for unequivocal short non-change turns."""
+    target_messages = tuple(message for message in messages if message.turn_id == turn_id)
+    texts = tuple(_normalized_short_text(message.masked_text) for message in target_messages)
+    if (
+        has_git_changes
+        or has_file_references
+        or not texts
+        or sum(len(value) for value in texts) > _RULE_BASED_NONCHANGE_MAX_CHARACTERS
+        or any(not value or value not in _RULE_BASED_NONCHANGE_RESPONSES for value in texts)
+    ):
+        return None
+    return "rule_based_sufficient"
+
+
+def _normalized_short_text(text: str) -> str:
+    return re.sub(r"[\s。！？!?、,]+", "", text).strip()
+
 def assess_combined_turn(
     turn_status: str,
     turn_id: str,
@@ -284,6 +325,8 @@ def assess_combined_turn(
     message_turn_ids: Iterable[Optional[str]],
     inputs_masked: bool,
     has_next_task_candidate: bool,
+    *,
+    rule_based_sufficient: bool = False,
 ) -> CombinedTurnEligibility:
     if turn_status == "in_progress":
         return CombinedTurnEligibility(False, "turn_in_progress")
@@ -291,6 +334,8 @@ def assess_combined_turn(
         return CombinedTurnEligibility(False, "turn_not_incremental")
     if not inputs_masked:
         return CombinedTurnEligibility(False, "inference_input_not_masked")
+    if rule_based_sufficient:
+        return CombinedTurnEligibility(False, "rule_based_sufficient")
     if not has_next_task_candidate:
         return CombinedTurnEligibility(False, "next_task_context_missing")
     if any(value not in (None, turn_id) for value in message_turn_ids):
@@ -303,6 +348,7 @@ class CombinedTurnExecution:
     conversion: Optional[CombinedTurnConversion]
     used_individual_fallback: bool
     fallback_reason: Optional[str]
+    skipped_by_rule: bool = False
 
 
 def execute_combined_turn(
@@ -316,6 +362,8 @@ def execute_combined_turn(
     """Execute one combined CLI call or delegate once to the individual path."""
     if not eligibility.eligible:
         reason = eligibility.fallback_reason or "combined_turn_ineligible"
+        if reason == "rule_based_sufficient":
+            return CombinedTurnExecution(None, False, reason, True)
         fallback_to_individual(reason)
         return CombinedTurnExecution(None, True, reason)
     try:

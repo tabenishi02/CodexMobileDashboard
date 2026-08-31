@@ -12,6 +12,7 @@ from tools.combined_inference import (
     CombinedTurnPromptMessage,
     CombinedTurnCliRunner,
     assess_combined_turn,
+    assess_rule_based_skip,
     build_combined_turn_prompt,
     combined_turn_schema,
     convert_combined_result,
@@ -30,6 +31,28 @@ class CombinedInferenceEligibilityTests(unittest.TestCase):
         self.assertEqual("inference_input_not_masked", assess_combined_turn("completed", "turn-1", None, ("turn-1",), False, True).fallback_reason)
         self.assertEqual("cross_turn_context", assess_combined_turn("completed", "turn-1", None, ("turn-1", "turn-2"), True, True).fallback_reason)
 
+
+class RuleBasedInferenceSkipTests(unittest.TestCase):
+    def test_only_unambiguous_short_non_change_turn_is_skipped(self):
+        messages = (CombinedTurnPromptMessage("message-1", "turn-1", "assistant", "chat", "final_answer", "了解しました。", True),)
+
+        reason = assess_rule_based_skip("turn-1", messages, has_git_changes=False, has_file_references=False)
+
+        self.assertEqual("rule_based_sufficient", reason)
+        self.assertIsNone(assess_rule_based_skip("turn-1", messages, has_git_changes=True, has_file_references=False))
+        self.assertIsNone(assess_rule_based_skip("turn-1", (CombinedTurnPromptMessage("message-1", "turn-1", "assistant", "chat", "final_answer", "実装しました。", True),), has_git_changes=False, has_file_references=False))
+
+    def test_rule_based_skip_does_not_start_cli_or_individual_fallback(self):
+        runner = Mock()
+        fallback = Mock()
+        eligibility = assess_combined_turn("completed", "turn-1", ("turn-1",), ("turn-1",), True, True, rule_based_sufficient=True)
+
+        execution = execute_combined_turn(eligibility, "masked prompt", runner=runner, convert=Mock(), fallback_to_individual=fallback)
+
+        self.assertEqual("rule_based_sufficient", execution.fallback_reason)
+        self.assertTrue(execution.skipped_by_rule)
+        runner.infer.assert_not_called()
+        fallback.assert_not_called()
 
 class CombinedInferencePromptTests(unittest.TestCase):
     def test_prompt_limits_messages_to_target_turn_and_metadata(self):
