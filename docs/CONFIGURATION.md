@@ -147,6 +147,14 @@ C:\codex
 | `require_initial_commit` | 必須 | boolean、`true` | MVPでは`false`を許可しない |
 | `auto_register` | 必須 | boolean、`true` | 条件を満たすGitルートを登録 |
 
+### `[ai_inference]`
+
+| キー | 既定値 | 説明 |
+|---|---|---|
+| `mode` | `incremental` | `off`はCodex CLIを停止、`incremental`は新規turnだけを通常推論、`backfill`は明示補完用 |
+| `max_calls_per_run` | `3` | 1回のcollector実行における全Codex CLI呼び出しの共有上限。0はCLIを起動しない |
+
+`backfill`は通常の`collect-once`へ常用せず、`backfill-ai`コマンドで過去未処理turnを補完する場合だけ使用する。
 ### `[collector]`
 
 | キー | 必須 | 型・既定値 | 許容範囲・規則 |

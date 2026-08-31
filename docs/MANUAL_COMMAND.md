@@ -52,3 +52,14 @@ python -m tools.collector --config "$env:LOCALAPPDATA\CodexMobileDashboard\confi
 ```
 
 HTTPS送信を行わず、ローカルJSON、読取位置、マスク済み履歴だけを更新する確認には`--no-send`を付ける。
+## 推論モードの運用
+
+通常は`[ai_inference] mode = incremental`のまま`collect-once`を実行する。初回導入時の過去履歴は通常推論しない。CLIを使わずに収集する場合は`mode = off`へ変更する。
+
+過去の未処理turnを明示的に補完する場合だけ、共有上限を適用する次を実行する。送信を省略する確認には`--no-send`を付ける。
+
+```powershell
+python -m tools.collector --config "$env:LOCALAPPDATA\CodexMobileDashboard\config\collector.ini" backfill-ai --no-send
+```
+
+`max_calls_per_run`は1回の実行における共有上限で、0ならCLIを起動しない。実行数と上限到達は`logs/collector.log`を確認する。
