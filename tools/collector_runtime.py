@@ -22,6 +22,7 @@ from tools.combined_inference import (
     CombinedTurnConversion,
     CombinedTurnPromptMessage,
     assess_combined_turn,
+    assess_rule_based_skip,
     build_combined_turn_prompt,
     convert_combined_result,
     execute_combined_turn,
@@ -353,6 +354,24 @@ def _try_combined_inference(
         )
         for message in target_messages
     )
+    target_message_ids = {message.message_id for message in target_messages}
+    has_target_file_references = any(
+        target_message_ids.intersection(
+            getattr(reference, "source_message_ids", tuple())
+        )
+        for reference in file_references
+    )
+    repository = getattr(git, "repository", None)
+    has_git_changes = (
+        getattr(repository, "clean", None) is not True
+        or bool(getattr(git, "files", tuple()))
+    )
+    skip_reason = assess_rule_based_skip(
+        turn_id,
+        prompt_messages,
+        has_git_changes=has_git_changes,
+        has_file_references=has_target_file_references,
+    )
     eligibility = assess_combined_turn(
         turn.status,
         turn_id,
@@ -360,7 +379,39 @@ def _try_combined_inference(
         (message.turn_id for message in prompt_messages),
         True,
         bool(target_messages),
+        rule_based_sufficient=skip_reason is not None,
     )
+    if eligibility.fallback_reason == "rule_based_sufficient":
+        record_inference_metric("combined_turn", "skipped")
+        decision_message = next(
+            (message for message in reversed(target_messages) if message.role == "user"),
+            target_messages[-1],
+        )
+        decisions = apply_inferred_decision_proposals(
+            tuple(),
+            workspace_id,
+            turn_sessions.get(turn_id, latest_session_id),
+            decision_message,
+            tuple(message.message_id for message in target_messages),
+            restored_decisions=latest_decision_history(ledger_entries, workspace_id),
+        )
+        summaries = ChangeSummaryGenerationResult(
+            tuple(), tuple(), tuple(), 0
+        )
+        cached_task = next_task_cache_entry(
+            ledger_entries,
+            workspace_id,
+            turn_sessions.get(turn_id, latest_session_id),
+        )
+        next_task = NextTaskExtractionResult(
+            cached_task.task if cached_task is not None else None,
+            tuple(),
+            cached_task,
+            False,
+            0,
+            False,
+        )
+        return decisions, summaries, next_task, tuple(target_messages[-2:])
     if not eligibility.eligible:
         return None
     try:

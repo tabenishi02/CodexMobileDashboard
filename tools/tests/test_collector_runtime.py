@@ -19,7 +19,74 @@ from tools.collector_state import CollectorState, PendingInference
 
 
 class CollectorRuntimeTests(unittest.TestCase):
-    def test_collector_uses_one_combined_cli_and_skips_individual_routes(self) -> None:
+    def test_collector_skips_ai_for_known_short_non_change_turn(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "workspace"
+            root.mkdir()
+            settings = SimpleNamespace(
+                inference_ledger_file=Path(directory) / "ledger.json",
+                ai_inference_mode="incremental",
+                tasks_path=Path(directory) / "TASKS.md",
+                output_dir=Path(directory) / "output",
+                queue_dir=Path(directory) / "queue",
+            )
+            message = _runtime_message("message-1", "turn-1", "了解しました。")
+            chat = ChatExtractionResult((message,), tuple(), tuple())
+            work = SimpleNamespace(
+                codex_status="idle", turns=(_runtime_turn("turn-1"),)
+            )
+            combined_runner = Mock()
+            decisions = Mock()
+            summaries = Mock()
+            next_task = Mock()
+            budget = InferenceCallBudget()
+            with patch(
+                "tools.collector_runtime.extract_chat_messages", return_value=chat
+            ), patch(
+                "tools.collector_runtime.extract_current_work_status", return_value=work
+            ), patch(
+                "tools.collector_runtime.extract_decisions", decisions
+            ), patch(
+                "tools.collector_runtime.generate_change_summaries", summaries
+            ), patch(
+                "tools.collector_runtime.extract_next_task", next_task
+            ), patch(
+                "tools.collector_runtime.CombinedTurnCliRunner",
+                return_value=combined_runner,
+            ), patch(
+                "tools.collector_runtime.extract_file_references",
+                return_value=SimpleNamespace(references=tuple()),
+            ), patch(
+                "tools.collector_runtime.extract_development_errors",
+                return_value=object(),
+            ), patch(
+                "tools.collector_runtime.collect_git_changes",
+                return_value=_runtime_git(),
+            ), patch(
+                "tools.collector_runtime.build_json_snapshot", return_value=object()
+            ), patch(
+                "tools.collector_runtime.record_inference_metric"
+            ) as metric, patch("tools.collector_runtime.save_json_snapshot"):
+                remaining = _build_workspace_snapshot(
+                    root,
+                    "workspace-1",
+                    "session-1",
+                    {"session-1": tuple()},
+                    settings,
+                    None,
+                    {"session-1": (_terminal_record("turn-1"),)},
+                    budget.try_acquire,
+                )
+
+        combined_runner.infer.assert_not_called()
+        decisions.assert_not_called()
+        summaries.assert_not_called()
+        next_task.assert_not_called()
+        metric.assert_called_once_with("combined_turn", "skipped")
+        self.assertEqual(0, budget.calls)
+        self.assertEqual(tuple(), remaining)
+
+    def test_collector_change_candidate_uses_one_combined_cli_and_skips_individual_routes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "workspace"
             root.mkdir()
@@ -34,7 +101,7 @@ class CollectorRuntimeTests(unittest.TestCase):
             outside = _runtime_message(
                 "message-outside", "turn-outside", "outside-turn-secret"
             )
-            message = _runtime_message("message-1", "turn-1", "target-turn-text")
+            message = _runtime_message("message-1", "turn-1", "実装しました。")
             chat = ChatExtractionResult((outside, message), tuple(), tuple())
             work = SimpleNamespace(
                 codex_status="idle",
@@ -101,7 +168,7 @@ class CollectorRuntimeTests(unittest.TestCase):
 
         combined_runner.infer.assert_called_once()
         prompt = combined_runner.infer.call_args.args[0]
-        self.assertIn("target-turn-text", prompt)
+        self.assertIn("実装しました。", prompt)
         self.assertIn("src/target.py", prompt)
         self.assertNotIn("outside-turn-secret", prompt)
         self.assertNotIn("secret/outside.txt", prompt)
