@@ -34,7 +34,7 @@ CLIは`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore
 
 - 変更要約はversioned payloadを保存・復元し、同一turn内の全履歴から入力SHA-256が一致するentryを再利用する。
 - 個別の決定事項推論は`schema_version: 2`でCLI proposalと、その時点の完全な決定履歴を保存する。決定履歴には`supersedes`・`superseded_by`、決定時刻と時刻の由来、根拠session・message IDを含める。
-- 決定事項キャッシュはworkspaceを絞り込んだうえでsession・turn・入力SHA-256の完全一致を要求する。collector再起動時は最新の完全な決定履歴を復元し、既処理の根拠messageを再適用せず新しい決定だけを差分反映する。
+- 決定事項キャッシュはworkspaceを絞り込んだうえでsession・turn・入力SHA-256の完全一致を要求する。collector再起動時は、個別`decision`と完全な`combined_turn`を`generated_at`のUTC時系列（同時刻は台帳内の後方を優先）で比較して最新の完全な決定履歴を復元し、既処理の根拠messageを再適用せず新しい決定だけを差分反映する。
 - 従来のproposalだけを持つ個別`schema_version: 1`は完全な決定履歴として復元せず、安全に再推論候補へ戻す。旧`combined_turn`内のproposal-only payloadは、入力SHA-256が完全一致する統合結果キャッシュとして互換利用するが、最新の完全な決定履歴としては復元しない。
 - entryごとに推論種別が対応する`schema_version`を必須にし、旧形式・不完全payloadは安全に再推論候補へ戻す。個別の決定事項と新しい`combined_turn`内の決定事項はversion 2、変更要約・次タスクと`combined_turn`外枠はversion 1を使用する。
 - 次タスクも同じversioned payloadで保存・復元する。
@@ -45,7 +45,7 @@ CLIは`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore
 
 台帳の`append`は1 entryごとにファイルを原子的置換し、失敗・不完全payloadは成功キャッシュとして保存または復元しない。個別の決定事項は成功コールバック内、`combined_turn`は統合成功直後、次タスクは単一推論の成功後に保存する。変更要約だけは現在、対象turnをすべて処理して`generate_change_summaries`が返った後に成功entryを順番に保存する。このため複数turnの処理途中で中断すると、それ以前の成功結果が未保存になる可能性があり、turnごとの即時保存はPhase 3.1の残タスクである。
 
-変更要約payloadは表題、短文、詳細、highlights、verification、confidence、状態、根拠IDを持つ。個別および新しい`combined_turn`内の決定事項payloadは、CLI proposalに加えて、最終決定のID、状態、内容、理由、`topic_key`、`supersedes`、`superseded_by`、決定時刻、時刻の由来、根拠session・message IDを持つ。次タスクpayloadは本文、状態、origin、confidence、理由と根拠IDを持つ。統合完全履歴を個別台帳と合わせて最新履歴として選択する処理はPhase 3.1の残タスクである。
+変更要約payloadは表題、短文、詳細、highlights、verification、confidence、状態、根拠IDを持つ。個別および新しい`combined_turn`内の決定事項payloadは、CLI proposalに加えて、最終決定のID、状態、内容、理由、`topic_key`、`supersedes`、`superseded_by`、決定時刻、時刻の由来、根拠session・message IDを持つ。次タスクpayloadは本文、状態、origin、confidence、理由と根拠IDを持つ。個別と統合の完全履歴は`generated_at`をUTCへ正規化して比較し、最新のentryを復元する。同時刻の場合は台帳内で後にあるentryを採用する。
 
 ## これまでの実装順序
 
@@ -81,7 +81,7 @@ runner自体は`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、
 
 適格なのは、今回のincremental対象で完了済みの同一turnだけである。すべての入力がマスク済みで、次タスク候補があり、turn外の文脈を必要としないことが必要である。適格なら統合runnerは1回だけ実行し、成功時は個別経路を起動しない。非適格、CLI失敗、JSON/schema不正、台帳payload不完全、または入力SHA-256不一致なら、個別経路へfallbackする。
 
-運用時に推論本文・Token・未マスク本文を台帳やログへ保存してはならない。`combined_turn`は3種のversioned payloadを1 entryとして原子的保存し、復元時はworkspace・session・turn・入力SHA-256の完全一致を要求する。通常の`incremental`収集では完全一致キャッシュをCLIより先に確認し、復元できた場合も個別経路を起動しない。統合proposalから構築した完全履歴も決定payloadへ保存するが、統合決定を個別台帳と合わせて最新の完全履歴として復元する処理は未実装である。`off`、`backfill`、複数turn、3経路の対象turn不一致は統合対象外であり、既存の個別経路を使用する。
+運用時に推論本文・Token・未マスク本文を台帳やログへ保存してはならない。`combined_turn`は3種のversioned payloadを1 entryとして原子的保存し、復元時はworkspace・session・turn・入力SHA-256の完全一致を要求する。通常の`incremental`収集では完全一致キャッシュをCLIより先に確認し、復元できた場合も個別経路を起動しない。統合proposalから構築した完全履歴も決定payloadへ保存し、個別`decision`台帳と`generated_at`の時系列で比較して最新履歴を復元する。`off`、`backfill`、複数turn、3経路の対象turn不一致は統合対象外であり、既存の個別経路を使用する。
 ## 統合promptの入力範囲と上限
 
 統合promptには対象turnのマスク済みメッセージだけを入れる。Gitについては収集状態、branch、clean状態、変更ファイルのパス・旧パス・状態だけを含め、diff本文、ファイル本文、コミットメッセージは含めない。ファイル参照は採用済みの対象メッセージを根拠にするものだけを含める。
@@ -105,7 +105,7 @@ runner自体は`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、
 プロンプト本文、メッセージ本文、Token、入力SHA-256、workspace・session・turn ID、ファイルパスはメトリクスログに出力しない。kindとeventは固定値検証に失敗した値を拒否し、識別子やパスをラベルへ混入させない。専用テストでは集計値とpending残件数を確認し、これらの秘密情報・識別情報がログに含まれないことを検証する。
 ## 推論回帰テスト
 
-回帰テストは、incrementalで新規完了turnだけを3経路へ渡し、追加途中では推論を許可せずterminal event受信後の収集で許可すること、台帳復元による再起動後のキャッシュ利用、台帳ファイル置換失敗時の直前データ保持、collector state保存中断後のpending復帰、共有上限、`off`、`backfill-ai`、入力が同一の場合のキャッシュ利用と入力変更時の再推論を確認する。`off`と上限到達ではCodex CLIを起動しない。変更要約の複数turn処理中断後に成功済みturnを再利用するテストと、統合決定の完全履歴を再起動後に復元するテストは未実装である。
+回帰テストは、incrementalで新規完了turnだけを3経路へ渡し、追加途中では推論を許可せずterminal event受信後の収集で許可すること、台帳復元による再起動後のキャッシュ利用、台帳ファイル置換失敗時の直前データ保持、collector state保存中断後のpending復帰、共有上限、`off`、`backfill-ai`、入力が同一の場合のキャッシュ利用と入力変更時の再推論を確認する。`off`と上限到達ではCodex CLIを起動しない。個別決定と完全な統合決定を時系列で選択する台帳テストは実装済みである。変更要約の複数turn処理中断後に成功済みturnを再利用するテストと、統合決定の表示・後続の置換関係をcollector再起動後まで検証するテストは未実装である。
 
 collector統合テストでは、新規完了turnを処理した次の収集に追加データがなければ全経路のCLI実行数が0になることを確認する。さらに初回履歴除外、共有上限3回、pendingへの持ち越し、状態保存中断、再起動後の再処理を連続したcollector実行として検証する。変更要約・決定事項・次タスク・`combined_turn`は、種別別テストと統合テストを合わせて、同一入力の再利用、入力変更時の再推論、失敗結果の永続台帳への非保存を確認する。統合推論の初回結果、永続キャッシュ復元結果、個別fallback結果から生成するSnapshot用JSONと表示モデルが同じ内容を維持することも比較する。
 

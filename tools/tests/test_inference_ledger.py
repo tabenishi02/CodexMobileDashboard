@@ -93,6 +93,33 @@ class InferenceLedgerTests(unittest.TestCase):
         self.assertEqual((old, new), latest_decision_history((legacy, complete), "workspace-1"))
         self.assertEqual({}, decision_inference_entries((complete,), "other-workspace"))
 
+    def test_latest_decision_history_orders_complete_individual_and_combined_entries_by_time(self) -> None:
+        summary = ChangeSummary("summary-1", "turn-2", "jsonl", "completed", False, "title", "short", "details", tuple(), tuple(), "codex_generated", "high", ("session-1",), ("message-2",))
+        proposals = (_Proposal("adopted", "new", "new description", None, "topic"),)
+        old = ExtractedDecision("old", "2026-08-31T00:00:00+00:00", "created_at", "superseded", "old", "old description", None, ("session-1",), ("message-1",), None, "new", "topic")
+        new = ExtractedDecision("new", "2026-08-31T00:01:00+00:00", "created_at", "adopted", "new", "new description", None, ("session-1",), ("message-2",), "old", None, "topic")
+        task = NextTask("task-1", "task text", "pending", "codex_inferred", "high", "reason", ("message-2",))
+        task_cache = NextTaskCacheEntry("b" * 64, task, None, tuple())
+        combined = InferenceLedgerEntry("workspace-1", "session-1", "turn-2", "b" * 64, combined_turn_payload(summary, proposals, (old, new), task_cache), "2026-08-31T09:02:00+09:00", "combined_turn")
+        prior = ExtractedDecision("old", "2026-08-31T00:00:00+00:00", "created_at", "adopted", "old", "old description", None, ("session-1",), ("message-1",), None, None, "topic")
+        older_individual_cache = DecisionInferenceCacheEntry("session-1", "turn-1", "a" * 64, proposals, (prior,))
+        older_individual = InferenceLedgerEntry("workspace-1", "session-1", "turn-1", "a" * 64, decision_inference_payload(older_individual_cache), "2026-08-31T00:01:00Z", "decision")
+
+        self.assertEqual(
+            (old, new),
+            latest_decision_history((combined, older_individual), "workspace-1"),
+        )
+
+        newest = ExtractedDecision("latest", "2026-08-31T00:03:00+00:00", "created_at", "adopted", "latest", "latest description", None, ("session-2",), ("message-3",), None, None, "other-topic")
+        newest_cache = DecisionInferenceCacheEntry("session-2", "turn-3", "c" * 64, tuple(), (newest,))
+        newest_individual = InferenceLedgerEntry("workspace-1", "session-2", "turn-3", "c" * 64, decision_inference_payload(newest_cache), "2026-08-31T00:03:00+00:00", "decision")
+        self.assertEqual(
+            (newest,),
+            latest_decision_history(
+                (newest_individual, combined, older_individual), "workspace-1"
+            ),
+        )
+
     def test_failed_replace_preserves_previous_ledger(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "ledger.json"

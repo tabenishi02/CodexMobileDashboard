@@ -106,14 +106,51 @@ def decision_inference_entries(entries, workspace_id):
 
 
 def latest_decision_history(entries, workspace_id):
-    '''Restore the latest complete decision history for one workspace.'''
-    cache = decision_inference_entries(entries, workspace_id)
-    for entry in reversed(tuple(entries)):
-        key = (entry.session_id, entry.turn_id, entry.input_sha256)
-        cached = cache.get(key)
-        if entry.workspace_id == workspace_id and cached is not None:
-            return cached.decisions
-    return tuple()
+    '''Restore the newest complete individual or combined decision history.'''
+    candidates = []
+    for position, entry in enumerate(entries):
+        if entry.workspace_id != workspace_id:
+            continue
+        cache_entry = _complete_decision_cache_entry(entry)
+        if cache_entry is None:
+            continue
+        candidates.append(
+            (_generated_at_sort_key(entry.generated_at, position), cache_entry.decisions)
+        )
+    return max(candidates, default=(None, tuple()), key=lambda item: item[0])[1]
+
+
+def _complete_decision_cache_entry(entry):
+    from tools.decision_extractor import decision_inference_cache_entry_from_payload
+
+    if entry.inference_kind == 'decision':
+        source_entry = entry
+    elif entry.inference_kind == 'combined_turn':
+        subentries = _combined_subentries((entry,), 'decision', 'decision')
+        if len(subentries) != 1:
+            return None
+        source_entry = subentries[0]
+    else:
+        return None
+    try:
+        return decision_inference_cache_entry_from_payload(
+            source_entry.result,
+            source_entry.session_id,
+            source_entry.turn_id,
+            source_entry.input_sha256,
+        )
+    except (RuntimeError, ValueError):
+        return None
+
+
+def _generated_at_sort_key(value, position):
+    try:
+        generated_at = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        if generated_at.tzinfo is None:
+            generated_at = generated_at.replace(tzinfo=timezone.utc)
+        return (1, generated_at.astimezone(timezone.utc), position)
+    except ValueError:
+        return (0, datetime.min.replace(tzinfo=timezone.utc), position)
 
 
 def combined_turn_cache_entry(entries, workspace_id, session_id, turn_id, input_sha256):
