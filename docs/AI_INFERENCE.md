@@ -59,3 +59,8 @@ collector終了時には、実行したCLI回数と上限到達で次回へ持�
 ## 統合推論の対象条件
 
 統合推論は、完了済みで今回のincremental対象となる同一turnに限る。入力はすべてマスク済みで、次タスク候補があり、turn外の文脈を必要としないことを必須とする。条件外、または統合推論の失敗時は既存の個別推論経路へfallbackする。
+## 統合JSON schemaとCLI runner
+
+`CombinedTurnCliRunner`は、変更要約（`summary`）、決定事項配列（`decisions`）、次タスク（`next_task`）を必須とする単一のJSON schemaを`codex exec`へ渡す。各値は既存の個別推論に変換できる最小の構造（表題・内容・理由・確信度など）を検証する。
+
+runner自体は`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore-rules`、`--output-schema`を指定して1回だけCLIを起動する。CLI失敗、JSON構文不正、schemaと異なる応答は成功結果として扱わない。collectorへの接続、個別payloadへの変換、台帳保存は後続タスクで行う。
