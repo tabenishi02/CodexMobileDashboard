@@ -73,14 +73,13 @@ def summary_cache_entries(entries, workspace_id, session_id):
 
 def decision_inference_cache(entries, workspace_id):
     """Restore only complete, versioned decision CLI results from the ledger."""
-    from tools.decision_extractor import proposals_from_inference_payload
     result={}
     source_entries = tuple(entry for entry in entries if entry.inference_kind == "decision") + _combined_subentries(entries, "decision", "decision")
     for entry in source_entries:
         if entry.workspace_id != workspace_id:
             continue
         try:
-            result[entry.input_sha256] = proposals_from_inference_payload(entry.result)
+            result[entry.input_sha256] = _decision_proposals(entry)
         except ValueError:
             continue
     return result
@@ -119,8 +118,6 @@ def latest_decision_history(entries, workspace_id):
 
 def combined_turn_cache_entry(entries, workspace_id, session_id, turn_id, input_sha256):
     """Restore a complete combined result only for the exact prompt SHA-256."""
-    from tools.decision_extractor import proposals_from_inference_payload
-
     for entry in reversed(tuple(entries)):
         if (
             entry.workspace_id != workspace_id
@@ -140,7 +137,7 @@ def combined_turn_cache_entry(entries, workspace_id, session_id, turn_id, input_
         if len(summaries) != 1 or task_cache is None:
             continue
         try:
-            proposals = proposals_from_inference_payload(decisions[0].result)
+            proposals = _decision_proposals(decisions[0])
         except ValueError:
             continue
         return CombinedTurnCacheEntry(input_sha256, summaries[0].summary, proposals, task_cache)
@@ -159,18 +156,39 @@ def _combined_subentries(entries, payload_name, inference_kind):
         result.append(InferenceLedgerEntry(entry.workspace_id, entry.session_id, entry.turn_id, entry.input_sha256, value, entry.generated_at, inference_kind))
     return tuple(result)
 
-def combined_turn_payload(summary, proposals, next_task_entry):
+def combined_turn_payload(summary, proposals, decision_history, next_task_entry):
     """Return versioned individual payloads for one atomically saved combined turn."""
-    from tools.decision_extractor import inference_payload
+    from tools.decision_extractor import complete_decision_inference_payload
 
     return {
         "schema_version": 1,
         "payload": {
             "change_summary": {"schema_version": 1, "payload": summary_payload(summary)},
-            "decision": inference_payload(proposals),
+            "decision": complete_decision_inference_payload(
+                proposals, decision_history
+            ),
             "next_task": next_task_payload(next_task_entry),
         },
     }
+
+
+def _decision_proposals(entry):
+    from tools.decision_extractor import (
+        decision_inference_cache_entry_from_payload,
+        proposals_from_inference_payload,
+    )
+
+    try:
+        return decision_inference_cache_entry_from_payload(
+            entry.result,
+            entry.session_id,
+            entry.turn_id,
+            entry.input_sha256,
+        ).proposals
+    except ValueError:
+        return proposals_from_inference_payload(entry.result)
+
+
 def next_task_payload(entry):
     task = entry.task
     assert task is not None

@@ -473,6 +473,15 @@ def proposals_from_inference_payload(value: object) -> Tuple[_Proposal, ...]:
 
 def decision_inference_payload(entry: DecisionInferenceCacheEntry) -> dict:
     '''Return a complete, prompt-free individual decision inference payload.'''
+    return complete_decision_inference_payload(entry.proposals, entry.decisions)
+
+
+def complete_decision_inference_payload(
+    proposals: Sequence[_Proposal],
+    decisions: Sequence[ExtractedDecision],
+) -> dict:
+    '''Return a complete version 2 payload for individual or combined inference.'''
+    _validate_decision_relationships(decisions)
     return {
         'schema_version': 2,
         'payload': {
@@ -484,7 +493,7 @@ def decision_inference_payload(entry: DecisionInferenceCacheEntry) -> dict:
                     'reason': proposal.reason,
                     'topic_key': proposal.topic_key,
                 }
-                for proposal in entry.proposals
+                for proposal in proposals
             ],
             'decisions': [
                 {
@@ -501,7 +510,7 @@ def decision_inference_payload(entry: DecisionInferenceCacheEntry) -> dict:
                     'superseded_by': decision.superseded_by,
                     'topic_key': decision.topic_key,
                 }
-                for decision in entry.decisions
+                for decision in decisions
             ],
         },
     }

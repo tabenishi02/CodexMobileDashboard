@@ -153,6 +153,8 @@ def save_combined_turn(
     from tools.inference_ledger import InferenceLedgerEntry, append, combined_turn_payload
     from tools.inference_metrics import record
 
+    if conversion.decision_proposals and not conversion.decision_history:
+        raise ValueError("combined_turn_decision_history_missing")
     entry = InferenceLedgerEntry(
         workspace_id,
         session_id,
@@ -161,6 +163,7 @@ def save_combined_turn(
         combined_turn_payload(
             conversion.summary,
             conversion.decision_proposals,
+            conversion.decision_history,
             conversion.next_task_cache_entry,
         ),
         generated_at or datetime.now(timezone.utc).isoformat(timespec="seconds"),

@@ -43,9 +43,10 @@ class InferenceLedgerTests(unittest.TestCase):
     def test_combined_turn_restores_only_exact_sha_and_individual_caches(self) -> None:
         summary = ChangeSummary("summary-1", "turn-1", "jsonl", "completed", False, "title", "short", "details", tuple(), tuple(), "codex_generated", "high", ("session-1",), ("message-1",))
         proposals = (_Proposal("adopted", "decision", "description", None, "topic"),)
+        decision = ExtractedDecision("decision-1", "2026-08-31T00:00:00+00:00", "message_timestamp", "adopted", "decision", "description", None, ("session-1",), ("message-1",), None, None, "topic")
         task = NextTask("task-1", "task text", "pending", "codex_inferred", "high", "reason", ("message-1",))
         cache = NextTaskCacheEntry("a" * 64, task, None, tuple())
-        combined = InferenceLedgerEntry("workspace-1", "session-1", "turn-1", "a" * 64, combined_turn_payload(summary, proposals, cache), "2026-08-31T00:00:00+00:00", "combined_turn")
+        combined = InferenceLedgerEntry("workspace-1", "session-1", "turn-1", "a" * 64, combined_turn_payload(summary, proposals, (decision,), cache), "2026-08-31T00:00:00+00:00", "combined_turn")
 
         restored = combined_turn_cache_entry((combined,), "workspace-1", "session-1", "turn-1", "a" * 64)
 

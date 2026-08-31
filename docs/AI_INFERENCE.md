@@ -30,13 +30,13 @@ CLIは`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore
 
 `[storage] inference_ledger_file`として`%LOCALAPPDATA%\CodexMobileDashboard\state\ai-inference-ledger.json`を追加し、トップレベル`version: 1`とentries配列を原子的置換する実装がある。entryはworkspace、session、turn、推論種別、入力SHA-256、生成日時、resultを持つ。
 
-変更要約・個別の決定事項・次タスクは完全payloadを台帳へ保存し、collector再起動後は各経路の照合条件と入力SHA-256が一致する結果を復元してCodex CLIを再実行しない。統合経路はproposalを既存の完全な決定履歴へ適用し、`supersedes`・`superseded_by`・時系列・根拠IDを含む表示モデルを構築してから保存処理へ渡す。現行の`combined_turn`台帳には変更要約・次タスクの完全payloadと決定proposalだけを保存するため、構築した統合決定の完全履歴をpayloadへ保存する処理は未実装である。
+変更要約・個別の決定事項・次タスクは完全payloadを台帳へ保存し、collector再起動後は各経路の照合条件と入力SHA-256が一致する結果を復元してCodex CLIを再実行しない。統合経路はproposalを既存の完全な決定履歴へ適用し、`supersedes`・`superseded_by`・時系列・根拠IDを含む表示モデルを構築してから保存処理へ渡す。`combined_turn`台帳には変更要約・次タスクの完全payloadと、proposal・完全な決定履歴を持つschema version 2の決定事項payloadを同じ1 entryへ原子的保存する。
 
 - 変更要約はversioned payloadを保存・復元し、同一turn内の全履歴から入力SHA-256が一致するentryを再利用する。
 - 個別の決定事項推論は`schema_version: 2`でCLI proposalと、その時点の完全な決定履歴を保存する。決定履歴には`supersedes`・`superseded_by`、決定時刻と時刻の由来、根拠session・message IDを含める。
 - 決定事項キャッシュはworkspaceを絞り込んだうえでsession・turn・入力SHA-256の完全一致を要求する。collector再起動時は最新の完全な決定履歴を復元し、既処理の根拠messageを再適用せず新しい決定だけを差分反映する。
-- 従来のproposalだけを持つ個別`schema_version: 1`は完全な決定履歴として復元せず、安全に再推論候補へ戻す。接続済みの`combined_turn`内にあるproposal payloadは、入力SHA-256が完全一致する統合結果キャッシュとして利用するが、最新の完全な決定履歴としては復元しない。
-- entryごとに推論種別が対応する`schema_version`を必須にし、旧形式・不完全payloadは安全に再推論候補へ戻す。個別の決定事項はversion 2、その他の既存payloadはversion 1を使用する。
+- 従来のproposalだけを持つ個別`schema_version: 1`は完全な決定履歴として復元せず、安全に再推論候補へ戻す。旧`combined_turn`内のproposal-only payloadは、入力SHA-256が完全一致する統合結果キャッシュとして互換利用するが、最新の完全な決定履歴としては復元しない。
+- entryごとに推論種別が対応する`schema_version`を必須にし、旧形式・不完全payloadは安全に再推論候補へ戻す。個別の決定事項と新しい`combined_turn`内の決定事項はversion 2、変更要約・次タスクと`combined_turn`外枠はversion 1を使用する。
 - 次タスクも同じversioned payloadで保存・復元する。
 
 ## 現行の台帳設計と制約
@@ -45,7 +45,7 @@ CLIは`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore
 
 台帳の`append`は1 entryごとにファイルを原子的置換し、失敗・不完全payloadは成功キャッシュとして保存または復元しない。個別の決定事項は成功コールバック内、`combined_turn`は統合成功直後、次タスクは単一推論の成功後に保存する。変更要約だけは現在、対象turnをすべて処理して`generate_change_summaries`が返った後に成功entryを順番に保存する。このため複数turnの処理途中で中断すると、それ以前の成功結果が未保存になる可能性があり、turnごとの即時保存はPhase 3.1の残タスクである。
 
-変更要約payloadは表題、短文、詳細、highlights、verification、confidence、状態、根拠IDを持つ。個別の決定事項payloadはCLI proposalに加えて、最終決定のID、状態、内容、理由、`topic_key`、`supersedes`、`superseded_by`、決定時刻、時刻の由来、根拠session・message IDを持つ。統合経路も同じ完全履歴をメモリ上で構築するが、現行の`combined_turn`内の決定事項payloadはproposalだけであり、完全履歴の保存・復元はPhase 3.1の残タスクである。次タスクpayloadは本文、状態、origin、confidence、理由と根拠IDを持つ。
+変更要約payloadは表題、短文、詳細、highlights、verification、confidence、状態、根拠IDを持つ。個別および新しい`combined_turn`内の決定事項payloadは、CLI proposalに加えて、最終決定のID、状態、内容、理由、`topic_key`、`supersedes`、`superseded_by`、決定時刻、時刻の由来、根拠session・message IDを持つ。次タスクpayloadは本文、状態、origin、confidence、理由と根拠IDを持つ。統合完全履歴を個別台帳と合わせて最新履歴として選択する処理はPhase 3.1の残タスクである。
 
 ## これまでの実装順序
 
@@ -72,7 +72,7 @@ collector終了時には、実行したCLI回数と上限到達で次回へ持�
 runner自体は`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore-rules`、`--output-schema`を指定して1回だけCLIを起動する。CLI失敗、JSON構文不正、schemaと異なる応答は成功結果として扱わない。`collector_runtime`は、3経路の対象が同じ単一完了turnに揃う場合に統合runnerを1回だけ呼び、成功時は個別経路を起動しない。非適格、統合runner失敗、または統合台帳の保存失敗時は追加の統合CLIを起動せず、既存の個別経路へ委譲する。
 ## 統合結果の保存形式
 
-統合結果は既存の`ChangeSummary`、決定事項推論proposal、`NextTask`へ変換する。決定proposalは既存の完全履歴へ適用し、置換関係・時系列・根拠IDを含む`decision_history`として変換結果へ保持する。その後、変換結果を表示モデルと保存処理へ渡す。`combined_turn`台帳entryの`payload`には、変更要約と次タスクの完全なversioned payload、および決定proposalのversioned payloadをそれぞれ`change_summary`、`decision`、`next_task`として格納する。現行形式は`decision_history`をまだ保存しない。プロンプト本文や未マスク入力は保存しない。
+統合結果は既存の`ChangeSummary`、決定事項推論proposal、`NextTask`へ変換する。決定proposalは既存の完全履歴へ適用し、置換関係・時系列・根拠IDを含む`decision_history`として変換結果へ保持する。その後、変換結果を表示モデルと保存処理へ渡す。`combined_turn`台帳entryの`payload`には、変更要約と次タスクの完全なversioned payload、およびproposalと`decision_history`を含むschema version 2の決定事項payloadを、それぞれ`change_summary`、`decision`、`next_task`として格納する。proposalがあるのに完全履歴がない変換結果は保存しない。プロンプト本文や未マスク入力も保存しない。
 
 統合結果は`combined_turn` 1 entryとして既存の原子的`append`で保存する。置換に失敗した場合は、直前の台帳を保持し一時ファイルを残さない。復元時はworkspace・session・turn・入力SHA-256がすべて一致する完全な`combined_turn`だけを採用する。不完全な統合entry、またはSHA-256不一致は復元せず、従来の個別台帳entryを安全に利用する。
 ## 統合推論の設定・制約・運用
@@ -81,7 +81,7 @@ runner自体は`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、
 
 適格なのは、今回のincremental対象で完了済みの同一turnだけである。すべての入力がマスク済みで、次タスク候補があり、turn外の文脈を必要としないことが必要である。適格なら統合runnerは1回だけ実行し、成功時は個別経路を起動しない。非適格、CLI失敗、JSON/schema不正、台帳payload不完全、または入力SHA-256不一致なら、個別経路へfallbackする。
 
-運用時に推論本文・Token・未マスク本文を台帳やログへ保存してはならない。`combined_turn`は3種のversioned payloadを1 entryとして原子的保存し、復元時はworkspace・session・turn・入力SHA-256の完全一致を要求する。通常の`incremental`収集では完全一致キャッシュをCLIより先に確認し、復元できた場合も個別経路を起動しない。統合proposalから完全履歴を構築する処理は接続済みだが、現行の決定payloadはproposal-onlyであり、統合決定を最新の完全履歴として復元する処理は未実装である。`off`、`backfill`、複数turn、3経路の対象turn不一致は統合対象外であり、既存の個別経路を使用する。
+運用時に推論本文・Token・未マスク本文を台帳やログへ保存してはならない。`combined_turn`は3種のversioned payloadを1 entryとして原子的保存し、復元時はworkspace・session・turn・入力SHA-256の完全一致を要求する。通常の`incremental`収集では完全一致キャッシュをCLIより先に確認し、復元できた場合も個別経路を起動しない。統合proposalから構築した完全履歴も決定payloadへ保存するが、統合決定を個別台帳と合わせて最新の完全履歴として復元する処理は未実装である。`off`、`backfill`、複数turn、3経路の対象turn不一致は統合対象外であり、既存の個別経路を使用する。
 ## 統合promptの入力範囲と上限
 
 統合promptには対象turnのマスク済みメッセージだけを入れる。Gitについては収集状態、branch、clean状態、変更ファイルのパス・旧パス・状態だけを含め、diff本文、ファイル本文、コミットメッセージは含めない。ファイル参照は採用済みの対象メッセージを根拠にするものだけを含める。

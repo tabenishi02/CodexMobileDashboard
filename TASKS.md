@@ -165,7 +165,7 @@
 - [x] 推論モードと運用方法を設定例・手順書へ反映する
 - [ ] 統合推論の決定事項を完全履歴payloadとして保存・復元する
   - [x] 統合proposalを既存決定履歴へ適用してから、`supersedes`・`superseded_by`・時系列・根拠IDを含む完全履歴を構築する
-  - [ ] `combined_turn`の決定事項payloadを版更新し、proposalと完全な決定履歴を1 entryへ原子的保存する
+  - [x] `combined_turn`の決定事項payloadを版更新し、proposalと完全な決定履歴を1 entryへ原子的保存する
   - [ ] 最新決定履歴の復元対象へ完全な`combined_turn`を追加し、個別`decision`台帳と時系列順に扱う
   - [ ] 旧proposal-only統合payloadは統合結果キャッシュとして互換利用し、完全履歴としては復元しない
   - [ ] 統合決定の表示が追加データなしの次回収集でも残り、再起動後の後続決定で置換関係が維持されることをテストする

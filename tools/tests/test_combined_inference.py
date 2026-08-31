@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 from tools.combined_inference import (
     COMBINED_INFERENCE_INPUT_MAX_BYTES,
     CombinedInferenceResult,
+    CombinedTurnConversion,
     CombinedTurnPromptMessage,
     CombinedTurnCliRunner,
     assess_combined_turn,
@@ -19,6 +20,7 @@ from tools.combined_inference import (
     execute_combined_turn,
     save_combined_turn,
 )
+from tools.decision_extractor import ExtractedDecision
 from tools.inference_ledger import load
 
 
@@ -178,7 +180,24 @@ class CombinedInferenceRunnerTests(unittest.TestCase):
         self.assertEqual("combined_turn", entries[0].inference_kind)
         payload = entries[0].result["payload"]
         self.assertEqual("Title", payload["change_summary"]["payload"]["title"])
+        self.assertEqual(2, payload["decision"]["schema_version"])
         self.assertEqual("Decision", payload["decision"]["payload"]["proposals"][0]["title"])
+        self.assertEqual(
+            "decision-new",
+            payload["decision"]["payload"]["decisions"][0]["superseded_by"],
+        )
+        self.assertEqual(
+            "decision-old",
+            payload["decision"]["payload"]["decisions"][1]["supersedes"],
+        )
+        self.assertEqual(
+            ["session-1"],
+            payload["decision"]["payload"]["decisions"][1]["source_session_ids"],
+        )
+        self.assertEqual(
+            ["message-1"],
+            payload["decision"]["payload"]["decisions"][1]["source_message_ids"],
+        )
         self.assertEqual("Task", payload["next_task"]["payload"]["task"]["text"])
 
     def test_failed_combined_save_keeps_previous_ledger(self):
@@ -192,6 +211,34 @@ class CombinedInferenceRunnerTests(unittest.TestCase):
 
         self.assertEqual(1, len(entries))
         self.assertEqual("turn-1", entries[0].turn_id)
+
+    def test_combined_save_rejects_proposals_without_complete_history(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = Path(directory) / "ledger.json"
+            incomplete = convert_combined_result(
+                _result(),
+                session_id="session-1",
+                turn_id="turn-1",
+                turn_id_source="jsonl",
+                turn_status="completed",
+                rolled_back=False,
+                source_message_ids=("message-1",),
+                input_sha256="a" * 64,
+            )
+
+            with self.assertRaisesRegex(
+                ValueError, "combined_turn_decision_history_missing"
+            ):
+                save_combined_turn(
+                    ledger,
+                    workspace_id="workspace-1",
+                    session_id="session-1",
+                    turn_id="turn-1",
+                    input_sha256="a" * 64,
+                    conversion=incomplete,
+                )
+
+            self.assertFalse(ledger.exists())
 
     @patch("tools.combined_inference.subprocess.run")
     def test_runner_uses_isolated_cli_and_returns_structured_result(self, run):
@@ -236,7 +283,7 @@ def _result():
     )
 
 def _conversion(input_sha256):
-    return convert_combined_result(
+    conversion = convert_combined_result(
         CombinedInferenceResult(
             {"title": "Title", "short_summary": "Short", "details": "Details", "confidence": "high"},
             ({"status": "adopted", "title": "Decision", "description": "Description", "reason": None, "topic_key": "topic"},),
@@ -249,6 +296,42 @@ def _conversion(input_sha256):
         rolled_back=False,
         source_message_ids=("message-1",),
         input_sha256=input_sha256,
+    )
+    history = (
+        ExtractedDecision(
+            "decision-old",
+            "2026-08-30T00:00:00+00:00",
+            "message_timestamp",
+            "superseded",
+            "Old decision",
+            "Old description",
+            None,
+            ("session-1",),
+            ("message-old",),
+            None,
+            "decision-new",
+            "topic",
+        ),
+        ExtractedDecision(
+            "decision-new",
+            "2026-08-31T00:00:00+00:00",
+            "message_timestamp",
+            "adopted",
+            "Decision",
+            "Description",
+            None,
+            ("session-1",),
+            ("message-1",),
+            "decision-old",
+            None,
+            "topic",
+        ),
+    )
+    return CombinedTurnConversion(
+        conversion.summary,
+        conversion.decision_proposals,
+        conversion.next_task_cache_entry,
+        history,
     )
 
 
