@@ -59,6 +59,40 @@ class InferenceLedgerTests(unittest.TestCase):
         self.assertEqual(proposals, decision_inference_cache((combined,), "workspace-1")["a" * 64])
         self.assertEqual(cache, next_task_cache_entry((combined,), "workspace-1", "session-1"))
 
+    def test_legacy_combined_proposals_are_cached_but_not_restored_as_history(self) -> None:
+        summary = ChangeSummary("summary-1", "turn-2", "jsonl", "completed", False, "title", "short", "details", tuple(), tuple(), "codex_generated", "high", ("session-1",), ("message-2",))
+        proposals = (_Proposal("adopted", "legacy", "legacy description", None, "topic"),)
+        task = NextTask("task-1", "task text", "pending", "codex_inferred", "high", "reason", ("message-2",))
+        task_cache = NextTaskCacheEntry("b" * 64, task, None, tuple())
+        legacy_combined = InferenceLedgerEntry(
+            "workspace-1", "session-1", "turn-2", "b" * 64,
+            {"schema_version": 1, "payload": {
+                "change_summary": {"schema_version": 1, "payload": summary_payload(summary)},
+                "decision": inference_payload(proposals),
+                "next_task": next_task_payload(task_cache),
+            }},
+            "2026-08-31T00:02:00+00:00", "combined_turn",
+        )
+        decision = ExtractedDecision("decision-1", "2026-08-31T00:01:00+00:00", "created_at", "adopted", "current", "current description", None, ("session-1",), ("message-1",), None, None, "topic")
+        individual_cache = DecisionInferenceCacheEntry("session-1", "turn-1", "a" * 64, tuple(), (decision,))
+        individual = InferenceLedgerEntry("workspace-1", "session-1", "turn-1", "a" * 64, decision_inference_payload(individual_cache), "2026-08-31T00:01:00+00:00", "decision")
+
+        restored = combined_turn_cache_entry(
+            (individual, legacy_combined),
+            "workspace-1", "session-1", "turn-2", "b" * 64,
+        )
+
+        self.assertIsInstance(restored, CombinedTurnCacheEntry)
+        self.assertEqual(proposals, restored.decision_proposals)
+        self.assertIsNone(combined_turn_cache_entry(
+            (legacy_combined,),
+            "workspace-1", "session-1", "turn-2", "c" * 64,
+        ))
+        self.assertEqual(
+            (decision,),
+            latest_decision_history((individual, legacy_combined), "workspace-1"),
+        )
+
     def test_incomplete_combined_turn_falls_back_to_individual_entries(self) -> None:
         summary = ChangeSummary("summary-1", "turn-1", "jsonl", "completed", False, "title", "short", "details", tuple(), tuple(), "codex_generated", "high", ("session-1",), ("message-1",))
         proposals = (_Proposal("adopted", "decision", "description", None, "topic"),)

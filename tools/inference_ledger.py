@@ -210,6 +210,7 @@ def combined_turn_payload(summary, proposals, decision_history, next_task_entry)
 
 
 def _decision_proposals(entry):
+    """Restore proposals from a complete v2 or legacy proposal-only v1 payload."""
     from tools.decision_extractor import (
         decision_inference_cache_entry_from_payload,
         proposals_from_inference_payload,
