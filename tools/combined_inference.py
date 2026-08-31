@@ -13,6 +13,27 @@ from pathlib import Path
 from typing import Callable, Iterable, Optional, Sequence, Tuple
 
 
+COMBINED_INFERENCE_INPUT_MAX_BYTES = 64 * 1024
+
+
+@dataclass(frozen=True)
+class CombinedTurnPromptMessage:
+    message_id: str
+    turn_id: Optional[str]
+    role: str
+    message_type: str
+    phase: Optional[str]
+    masked_text: str
+    is_masked: bool
+
+
+@dataclass(frozen=True)
+class CombinedTurnPrompt:
+    text: str
+    byte_count: int
+    truncated: bool
+    source_message_ids: Tuple[str, ...]
+
 @dataclass(frozen=True)
 class CombinedTurnEligibility:
     eligible: bool
@@ -125,6 +146,136 @@ def save_combined_turn(
         "combined_turn",
     )
     return append(ledger_path, entry)
+
+def build_combined_turn_prompt(
+    turn_id: str,
+    turn_status: str,
+    rolled_back: bool,
+    messages: Sequence[CombinedTurnPromptMessage],
+    git_changes: object,
+    file_references: Sequence[object],
+    *,
+    input_max_bytes: int = COMBINED_INFERENCE_INPUT_MAX_BYTES,
+) -> CombinedTurnPrompt:
+    """Build a bounded prompt from one turn and metadata only, never diff bodies."""
+    if input_max_bytes <= 0:
+        raise ValueError("combined_turn_input_limit_invalid")
+    target_messages = tuple(message for message in messages if message.turn_id == turn_id)
+    if any(not message.is_masked for message in target_messages):
+        raise ValueError("combined_turn_input_not_masked")
+    instruction = (
+        "次のマスク済みの単一Codexターン、Gitメタデータ、ファイル参照だけを根拠に、"
+        "変更要約・ユーザー確定の決定事項・次タスクを生成してください。"
+        "Git差分本文、プロジェクトファイル、外部情報を参照せず、入力にない事実を補わないでください。"
+        "決定事項はユーザーが明示的に確定したものだけを返してください。"
+        "summary、decisions、next_taskをJSONで返してください。\n"
+    )
+    payload = {
+        "turn": {"turn_id": turn_id, "status": turn_status, "rolled_back": rolled_back},
+        "messages": [],
+        "git": _git_metadata(git_changes),
+        "file_references": [],
+    }
+    truncated = False
+    accepted_ids = []
+    for message in target_messages:
+        item = {
+            "message_id": message.message_id,
+            "role": message.role,
+            "message_type": message.message_type,
+            "phase": message.phase,
+            "text": message.masked_text,
+        }
+        accepted, shortened = _append_prompt_item(instruction, payload, "messages", item, input_max_bytes)
+        if accepted is None:
+            truncated = True
+            break
+        payload = accepted
+        accepted_ids.append(message.message_id)
+        truncated = truncated or shortened
+        if shortened:
+            break
+    for item in _git_file_metadata(git_changes):
+        candidate = dict(payload)
+        git_value = dict(payload["git"])
+        git_value["files"] = list(git_value["files"]) + [item]
+        candidate["git"] = git_value
+        if _prompt_size(instruction, candidate) > input_max_bytes:
+            truncated = True
+            break
+        payload = candidate
+    accepted_set = set(accepted_ids)
+    for reference in file_references:
+        source_ids = tuple(getattr(reference, "source_message_ids", tuple()))
+        if not accepted_set.intersection(source_ids):
+            continue
+        item = {
+            "path": getattr(reference, "path", None),
+            "display_name": getattr(reference, "display_name", ""),
+            "scope": getattr(reference, "scope", ""),
+            "source_message_ids": [value for value in source_ids if value in accepted_set],
+        }
+        accepted, _ = _append_prompt_item(instruction, payload, "file_references", item, input_max_bytes)
+        if accepted is None:
+            truncated = True
+            break
+        payload = accepted
+    rendered = instruction + json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    return CombinedTurnPrompt(rendered, len(rendered.encode("utf-8")), truncated, tuple(accepted_ids))
+
+
+def _git_metadata(git_changes: object) -> dict:
+    repository = getattr(git_changes, "repository", None)
+    return {
+        "collection_status": getattr(repository, "collection_status", None),
+        "branch": getattr(repository, "branch", None),
+        "clean": getattr(repository, "clean", None),
+        "files": [],
+    }
+
+
+def _git_file_metadata(git_changes: object):
+    for change in getattr(git_changes, "files", tuple()):
+        status = getattr(change, "status", None)
+        yield {
+            "path": getattr(change, "path", None),
+            "old_path": getattr(change, "old_path", None),
+            "index": getattr(status, "index", None),
+            "worktree": getattr(status, "worktree", None),
+            "committed_in_session": getattr(status, "committed_in_session", None),
+        }
+
+
+def _append_prompt_item(instruction, payload, key, item, input_max_bytes):
+    candidate = dict(payload)
+    candidate[key] = list(payload[key]) + [item]
+    if _prompt_size(instruction, candidate) <= input_max_bytes:
+        return candidate, False
+    text = item.get("text")
+    if not isinstance(text, str):
+        return None, False
+    low, high = 0, len(text)
+    while low < high:
+        middle = (low + high + 1) // 2
+        shortened = dict(item)
+        shortened["text"] = text[:middle] + "…"
+        candidate = dict(payload)
+        candidate[key] = list(payload[key]) + [shortened]
+        if _prompt_size(instruction, candidate) <= input_max_bytes:
+            low = middle
+        else:
+            high = middle - 1
+    if low == 0:
+        return None, False
+    shortened = dict(item)
+    shortened["text"] = text[:low] + "…"
+    candidate = dict(payload)
+    candidate[key] = list(payload[key]) + [shortened]
+    return candidate, True
+
+
+def _prompt_size(instruction, payload):
+    return len((instruction + json.dumps(payload, ensure_ascii=False, separators=(",", ":"))).encode("utf-8"))
 
 def assess_combined_turn(
     turn_status: str,

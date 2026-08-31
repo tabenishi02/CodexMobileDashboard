@@ -2,13 +2,17 @@ import json
 import subprocess
 import tempfile
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 from tools.combined_inference import (
+    COMBINED_INFERENCE_INPUT_MAX_BYTES,
     CombinedInferenceResult,
+    CombinedTurnPromptMessage,
     CombinedTurnCliRunner,
     assess_combined_turn,
+    build_combined_turn_prompt,
     combined_turn_schema,
     convert_combined_result,
     execute_combined_turn,
@@ -26,6 +30,45 @@ class CombinedInferenceEligibilityTests(unittest.TestCase):
         self.assertEqual("inference_input_not_masked", assess_combined_turn("completed", "turn-1", None, ("turn-1",), False, True).fallback_reason)
         self.assertEqual("cross_turn_context", assess_combined_turn("completed", "turn-1", None, ("turn-1", "turn-2"), True, True).fallback_reason)
 
+
+class CombinedInferencePromptTests(unittest.TestCase):
+    def test_prompt_limits_messages_to_target_turn_and_metadata(self):
+        prompt = build_combined_turn_prompt(
+            "turn-1",
+            "completed",
+            False,
+            (
+                CombinedTurnPromptMessage("message-1", "turn-1", "user", "chat", None, "masked target", True),
+                CombinedTurnPromptMessage("message-2", "turn-2", "assistant", "chat", "final_answer", "outside turn", True),
+            ),
+            _git_changes(),
+            (
+                SimpleNamespace(path="src/app.py", display_name="app.py", scope="workspace", source_message_ids=("message-1",)),
+                SimpleNamespace(path="secret.txt", display_name="secret.txt", scope="workspace", source_message_ids=("message-2",)),
+            ),
+        )
+        payload = json.loads(prompt.text.split("\n", 1)[1])
+
+        self.assertEqual(("message-1",), prompt.source_message_ids)
+        self.assertEqual(["message-1"], [item["message_id"] for item in payload["messages"]])
+        self.assertEqual(["src/app.py"], [item["path"] for item in payload["file_references"]])
+        self.assertEqual("src/app.py", payload["git"]["files"][0]["path"])
+        self.assertNotIn("outside turn", prompt.text)
+        self.assertNotIn("secret.txt", prompt.text)
+        self.assertLessEqual(prompt.byte_count, COMBINED_INFERENCE_INPUT_MAX_BYTES)
+
+    def test_prompt_truncates_to_requested_limit_and_rejects_unmasked_input(self):
+        long_message = "x" * 4000
+        prompt = build_combined_turn_prompt(
+            "turn-1", "completed", False,
+            (CombinedTurnPromptMessage("message-1", "turn-1", "assistant", "chat", "final_answer", long_message, True),),
+            _git_changes(), tuple(), input_max_bytes=1024,
+        )
+
+        self.assertTrue(prompt.truncated)
+        self.assertLessEqual(prompt.byte_count, 1024)
+        with self.assertRaisesRegex(ValueError, "combined_turn_input_not_masked"):
+            build_combined_turn_prompt("turn-1", "completed", False, (CombinedTurnPromptMessage("message-1", "turn-1", "user", "chat", None, "unmasked", False),), _git_changes(), tuple())
 
 class CombinedInferenceExecutionTests(unittest.TestCase):
     def test_eligible_turn_calls_combined_cli_once_without_individual_fallback(self):
@@ -135,6 +178,12 @@ class CombinedInferenceRunnerTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "codex_invalid_result"):
             CombinedTurnCliRunner(executable="codex-test").infer("masked prompt")
 
+
+def _git_changes():
+    return SimpleNamespace(
+        repository=SimpleNamespace(collection_status="ok", branch="main", clean=False),
+        files=(SimpleNamespace(path="src/app.py", old_path=None, status=SimpleNamespace(index="modified", worktree="none", committed_in_session="none")),),
+    )
 
 def _result():
     return CombinedInferenceResult(

@@ -10,7 +10,7 @@
 | 決定事項 | `extract_decisions()` → `DecisionCliRunner.extract()` | 曖昧参照を含む決定候補メッセージごと |
 | 次タスク | `extract_next_task()` → `CodexCliRunner.infer()` | 明示的な次タスクがないworkspaceごとに最大1回 |
 
-CLIは`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore-rules`、`--output-schema`を指定する。モデル指定は渡さないため、Codex CLI側の既定モデルと利用枠を使う。1呼び出しのタイムアウトは120秒、入力上限は128 KiBである。collector全体のCodex CLI呼び出しは`max_calls_per_run`で共有上限を設け、既定は3回である。
+CLIは`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore-rules`、`--output-schema`を指定する。モデル指定は渡さないため、Codex CLI側の既定モデルと利用枠を使う。1呼び出しのタイムアウトは120秒である。個別推論の入力上限は128 KiB、統合推論promptの入力上限は64 KiBである。collector全体のCodex CLI呼び出しは`max_calls_per_run`で共有上限を設け、既定は3回である。
 
 ## 推論モード
 
@@ -76,3 +76,8 @@ runner自体は`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、
 適格なのは、今回のincremental対象で完了済みの同一turnだけである。すべての入力がマスク済みで、次タスク候補があり、turn外の文脈を必要としないことが必要である。適格なら統合runnerは1回だけ実行し、成功時は個別経路を起動しない。非適格、CLI失敗、JSON/schema不正、台帳payload不完全、または入力SHA-256不一致なら、個別経路へfallbackする。
 
 運用時に推論本文・Token・未マスク本文を台帳やログへ保存してはならない。`combined_turn`は3種の個別versioned payloadを1 entryとして原子的保存し、復元時はworkspace・session・turn・入力SHA-256の完全一致を要求する。現時点では統合runner・台帳・fallbackオーケストレータは実装済みだが、`collector_runtime`への接続は未実装である。そのため通常のcollector運用は既存の個別推論経路を継続する。
+## 統合promptの入力範囲と上限
+
+統合promptには対象turnのマスク済みメッセージだけを入れる。Gitについては収集状態、branch、clean状態、変更ファイルのパス・旧パス・状態だけを含め、diff本文、ファイル本文、コミットメッセージは含めない。ファイル参照は採用済みの対象メッセージを根拠にするものだけを含める。
+
+統合promptの上限は64 KiBである。メッセージを優先し、Gitファイルメタデータとファイル参照は上限内に収まる分だけを追加する。超過時はメッセージ本文を安全に切り詰め、それ以上のメタデータは省略する。未マスクの対象メッセージが含まれる場合はpromptを生成せず個別fallbackを選ぶ。
