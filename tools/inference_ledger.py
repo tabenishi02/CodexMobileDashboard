@@ -75,6 +75,18 @@ def decision_inference_cache(entries, workspace_id):
             continue
     return result
 
+def combined_turn_payload(summary, proposals, next_task_entry):
+    """Return versioned individual payloads for one atomically saved combined turn."""
+    from tools.decision_extractor import inference_payload
+
+    return {
+        "schema_version": 1,
+        "payload": {
+            "change_summary": {"schema_version": 1, "payload": summary_payload(summary)},
+            "decision": inference_payload(proposals),
+            "next_task": next_task_payload(next_task_entry),
+        },
+    }
 def next_task_payload(entry):
     task = entry.task
     assert task is not None

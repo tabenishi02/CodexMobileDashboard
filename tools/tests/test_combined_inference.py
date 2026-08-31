@@ -1,13 +1,19 @@
 import json
 import subprocess
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from tools.combined_inference import (
+    CombinedInferenceResult,
     CombinedTurnCliRunner,
     assess_combined_turn,
     combined_turn_schema,
+    convert_combined_result,
+    save_combined_turn,
 )
+from tools.inference_ledger import load
 
 
 class CombinedInferenceEligibilityTests(unittest.TestCase):
@@ -25,6 +31,31 @@ class CombinedInferenceRunnerTests(unittest.TestCase):
         schema = combined_turn_schema()
         self.assertEqual(["summary", "decisions", "next_task"], schema["required"])
         self.assertFalse(schema["additionalProperties"])
+
+    def test_conversion_and_combined_ledger_save_preserve_individual_payloads(self):
+        conversion = _conversion("a" * 64)
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = Path(directory) / "ledger.json"
+            save_combined_turn(ledger, workspace_id="workspace-1", session_id="session-1", turn_id="turn-1", input_sha256="a" * 64, conversion=conversion, generated_at="2026-08-31T00:00:00+00:00")
+            entries = load(ledger)
+
+        self.assertEqual("combined_turn", entries[0].inference_kind)
+        payload = entries[0].result["payload"]
+        self.assertEqual("Title", payload["change_summary"]["payload"]["title"])
+        self.assertEqual("Decision", payload["decision"]["payload"]["proposals"][0]["title"])
+        self.assertEqual("Task", payload["next_task"]["payload"]["task"]["text"])
+
+    def test_failed_combined_save_keeps_previous_ledger(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = Path(directory) / "ledger.json"
+            save_combined_turn(ledger, workspace_id="workspace-1", session_id="session-1", turn_id="turn-1", input_sha256="a" * 64, conversion=_conversion("a" * 64))
+            with patch("tools.inference_ledger.os.replace", side_effect=OSError("replace failed")):
+                with self.assertRaises(OSError):
+                    save_combined_turn(ledger, workspace_id="workspace-1", session_id="session-1", turn_id="turn-2", input_sha256="b" * 64, conversion=_conversion("b" * 64))
+            entries = load(ledger)
+
+        self.assertEqual(1, len(entries))
+        self.assertEqual("turn-1", entries[0].turn_id)
 
     @patch("tools.combined_inference.subprocess.run")
     def test_runner_uses_isolated_cli_and_returns_structured_result(self, run):
@@ -53,6 +84,23 @@ class CombinedInferenceRunnerTests(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "codex_invalid_result"):
             CombinedTurnCliRunner(executable="codex-test").infer("masked prompt")
+
+
+def _conversion(input_sha256):
+    return convert_combined_result(
+        CombinedInferenceResult(
+            {"title": "Title", "short_summary": "Short", "details": "Details", "confidence": "high"},
+            ({"status": "adopted", "title": "Decision", "description": "Description", "reason": None, "topic_key": "topic"},),
+            {"task": "Task", "reason": "Reason", "confidence": "medium"},
+        ),
+        session_id="session-1",
+        turn_id="turn-1",
+        turn_id_source="jsonl",
+        turn_status="completed",
+        rolled_back=False,
+        source_message_ids=("message-1",),
+        input_sha256=input_sha256,
+    )
 
 
 if __name__ == "__main__":

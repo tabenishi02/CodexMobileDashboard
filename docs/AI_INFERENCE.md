@@ -63,4 +63,9 @@ collector終了時には、実行したCLI回数と上限到達で次回へ持�
 
 `CombinedTurnCliRunner`は、変更要約（`summary`）、決定事項配列（`decisions`）、次タスク（`next_task`）を必須とする単一のJSON schemaを`codex exec`へ渡す。各値は既存の個別推論に変換できる最小の構造（表題・内容・理由・確信度など）を検証する。
 
-runner自体は`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore-rules`、`--output-schema`を指定して1回だけCLIを起動する。CLI失敗、JSON構文不正、schemaと異なる応答は成功結果として扱わない。collectorへの接続、個別payloadへの変換、台帳保存は後続タスクで行う。
+runner自体は`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore-rules`、`--output-schema`を指定して1回だけCLIを起動する。CLI失敗、JSON構文不正、schemaと異なる応答は成功結果として扱わない。collectorへの接続、台帳復元、個別経路との互換fallbackは後続タスクで行う。
+## 統合結果の保存形式
+
+統合結果は既存の`ChangeSummary`、決定事項推論proposal、`NextTask`へ変換する。`combined_turn`台帳entryの`payload`には、既存の変更要約・決定事項・次タスクと同じversioned payloadをそれぞれ`change_summary`、`decision`、`next_task`として格納する。プロンプト本文や未マスク入力は保存しない。
+
+統合結果は`combined_turn` 1 entryとして既存の原子的`append`で保存する。置換に失敗した場合は、直前の台帳を保持し一時ファイルを残さない。復元・SHA-256照合は後続タスクでこのentryを扱う。

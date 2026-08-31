@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import hashlib
+from datetime import datetime, timezone
 import json
 import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional, Tuple
+from typing import Iterable, Optional, Sequence, Tuple
 
 
 @dataclass(frozen=True)
@@ -24,6 +25,106 @@ class CombinedInferenceResult:
     decisions: Tuple[dict, ...]
     next_task: dict
 
+
+@dataclass(frozen=True)
+class CombinedTurnConversion:
+    """Combined CLI output expressed through the existing individual data models."""
+
+    summary: object
+    decision_proposals: Tuple[object, ...]
+    next_task_cache_entry: object
+
+
+def convert_combined_result(
+    result: CombinedInferenceResult,
+    *,
+    session_id: str,
+    turn_id: str,
+    turn_id_source: str,
+    turn_status: str,
+    rolled_back: bool,
+    source_message_ids: Sequence[str],
+    input_sha256: str,
+) -> CombinedTurnConversion:
+    """Convert a validated combined result without inventing source evidence."""
+    from tools.change_summary_generator import ChangeSummary
+    from tools.decision_extractor import _Proposal
+    from tools.next_task_extractor import NextTask, NextTaskCacheEntry
+
+    source_ids = tuple(dict.fromkeys(source_message_ids))
+    if not source_ids:
+        raise ValueError("combined_turn_source_messages_missing")
+    if len(input_sha256) != 64:
+        raise ValueError("combined_turn_input_sha256_invalid")
+    summary_value = result.summary
+    identity = "\0".join((session_id, turn_id, *source_ids))
+    summary = ChangeSummary(
+        "change_summary_" + hashlib.sha256(identity.encode("utf-8")).hexdigest(),
+        turn_id,
+        turn_id_source,
+        turn_status,
+        rolled_back,
+        summary_value["title"],
+        summary_value["short_summary"],
+        summary_value["details"],
+        tuple(),
+        tuple(),
+        "codex_generated",
+        summary_value["confidence"],
+        (session_id,),
+        source_ids,
+    )
+    proposals = tuple(
+        _Proposal(
+            item["status"], item["title"], item["description"], item["reason"], item["topic_key"]
+        )
+        for item in result.decisions
+    )
+    task_value = result.next_task
+    task_identity = "\0".join(("codex_inferred", task_value["task"], *source_ids))
+    task = NextTask(
+        "task_" + hashlib.sha256(task_identity.encode("utf-8")).hexdigest(),
+        task_value["task"],
+        "pending",
+        "codex_inferred",
+        task_value["confidence"],
+        task_value["reason"],
+        source_ids,
+    )
+    return CombinedTurnConversion(
+        summary,
+        proposals,
+        NextTaskCacheEntry(input_sha256, task, None, tuple()),
+    )
+
+
+def save_combined_turn(
+    ledger_path: Path,
+    *,
+    workspace_id: str,
+    session_id: str,
+    turn_id: str,
+    input_sha256: str,
+    conversion: CombinedTurnConversion,
+    generated_at: Optional[str] = None,
+):
+    """Atomically save all three converted outputs as one `combined_turn` entry."""
+    from tools.inference_ledger import InferenceLedgerEntry, append, combined_turn_payload
+
+    entry = InferenceLedgerEntry(
+        workspace_id,
+        session_id,
+        turn_id,
+        input_sha256,
+        combined_turn_payload(
+            conversion.summary,
+            conversion.decision_proposals,
+            conversion.next_task_cache_entry,
+        ),
+        generated_at or datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "combined_turn",
+    )
+    return append(ledger_path, entry)
 
 def assess_combined_turn(
     turn_status: str,
