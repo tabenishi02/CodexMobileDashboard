@@ -3,7 +3,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from tools.combined_inference import (
     CombinedInferenceResult,
@@ -11,6 +11,7 @@ from tools.combined_inference import (
     assess_combined_turn,
     combined_turn_schema,
     convert_combined_result,
+    execute_combined_turn,
     save_combined_turn,
 )
 from tools.inference_ledger import load
@@ -25,6 +26,55 @@ class CombinedInferenceEligibilityTests(unittest.TestCase):
         self.assertEqual("inference_input_not_masked", assess_combined_turn("completed", "turn-1", None, ("turn-1",), False, True).fallback_reason)
         self.assertEqual("cross_turn_context", assess_combined_turn("completed", "turn-1", None, ("turn-1", "turn-2"), True, True).fallback_reason)
 
+
+class CombinedInferenceExecutionTests(unittest.TestCase):
+    def test_eligible_turn_calls_combined_cli_once_without_individual_fallback(self):
+        conversion = _conversion("a" * 64)
+        runner = Mock()
+        runner.infer.return_value = _result()
+        convert = Mock(return_value=conversion)
+        fallback = Mock()
+
+        execution = execute_combined_turn(
+            assess_combined_turn("completed", "turn-1", ("turn-1",), ("turn-1",), True, True),
+            "masked prompt",
+            runner=runner,
+            convert=convert,
+            fallback_to_individual=fallback,
+        )
+
+        runner.infer.assert_called_once_with("masked prompt")
+        convert.assert_called_once_with(_result())
+        fallback.assert_not_called()
+        self.assertEqual(conversion, execution.conversion)
+        self.assertFalse(execution.used_individual_fallback)
+
+    def test_failed_or_ineligible_turn_uses_individual_fallback_without_extra_cli_call(self):
+        runner = Mock()
+        runner.infer.side_effect = RuntimeError("codex_nonzero_exit")
+        fallback = Mock()
+        convert = Mock()
+
+        failed = execute_combined_turn(
+            assess_combined_turn("completed", "turn-1", ("turn-1",), ("turn-1",), True, True),
+            "masked prompt",
+            runner=runner,
+            convert=convert,
+            fallback_to_individual=fallback,
+        )
+        ineligible = execute_combined_turn(
+            assess_combined_turn("completed", "turn-1", tuple(), ("turn-1",), True, True),
+            "masked prompt",
+            runner=runner,
+            convert=convert,
+            fallback_to_individual=fallback,
+        )
+
+        self.assertEqual(1, runner.infer.call_count)
+        convert.assert_not_called()
+        self.assertEqual([(("combined_inference_failed",), {}), (("turn_not_incremental",), {})], fallback.call_args_list)
+        self.assertTrue(failed.used_individual_fallback)
+        self.assertTrue(ineligible.used_individual_fallback)
 
 class CombinedInferenceRunnerTests(unittest.TestCase):
     def test_schema_requires_all_three_outputs(self):
@@ -85,6 +135,13 @@ class CombinedInferenceRunnerTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "codex_invalid_result"):
             CombinedTurnCliRunner(executable="codex-test").infer("masked prompt")
 
+
+def _result():
+    return CombinedInferenceResult(
+        {"title": "Title", "short_summary": "Short", "details": "Details", "confidence": "high"},
+        ({"status": "adopted", "title": "Decision", "description": "Description", "reason": None, "topic_key": "topic"},),
+        {"task": "Task", "reason": "Reason", "confidence": "medium"},
+    )
 
 def _conversion(input_sha256):
     return convert_combined_result(

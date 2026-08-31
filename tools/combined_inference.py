@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional, Sequence, Tuple
+from typing import Callable, Iterable, Optional, Sequence, Tuple
 
 
 @dataclass(frozen=True)
@@ -146,6 +146,34 @@ def assess_combined_turn(
         return CombinedTurnEligibility(False, "cross_turn_context")
     return CombinedTurnEligibility(True, None)
 
+
+@dataclass(frozen=True)
+class CombinedTurnExecution:
+    conversion: Optional[CombinedTurnConversion]
+    used_individual_fallback: bool
+    fallback_reason: Optional[str]
+
+
+def execute_combined_turn(
+    eligibility: CombinedTurnEligibility,
+    prompt: str,
+    *,
+    runner: "CombinedTurnCliRunner",
+    convert: Callable[[CombinedInferenceResult], CombinedTurnConversion],
+    fallback_to_individual: Callable[[str], None],
+) -> CombinedTurnExecution:
+    """Execute one combined CLI call or delegate once to the individual path."""
+    if not eligibility.eligible:
+        reason = eligibility.fallback_reason or "combined_turn_ineligible"
+        fallback_to_individual(reason)
+        return CombinedTurnExecution(None, True, reason)
+    try:
+        conversion = convert(runner.infer(prompt))
+    except (OSError, RuntimeError, subprocess.TimeoutExpired):
+        reason = "combined_inference_failed"
+        fallback_to_individual(reason)
+        return CombinedTurnExecution(None, True, reason)
+    return CombinedTurnExecution(conversion, False, None)
 
 class CombinedTurnCliRunner:
     """Run one isolated structured Codex CLI inference for a completed turn."""
