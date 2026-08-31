@@ -21,6 +21,7 @@ from tools.git_change_collector import collect_git_changes
 from tools.https_sender import HttpsSnapshotSender, prepare_snapshot_uploads
 from tools.inference_ledger import InferenceLedgerEntry, append as append_inference_ledger, decision_inference_cache, load as load_inference_ledger, next_task_cache_entry, next_task_payload, summary_cache_entries, summary_payload
 from tools.incremental_collector import collect_incremental_records
+from tools.inference_metrics import record as record_inference_metric
 from tools.json_converter import CollectorMetadata, JsonContext, ProjectPresentation, build_json_snapshot
 from tools.json_writer import save_json_snapshot
 from tools.next_task_extractor import InferenceMessage, NextTaskInferenceContext, extract_next_task
@@ -69,8 +70,12 @@ def run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | N
     deferred_inferences = [0]
     def can_infer():
         if remaining_calls[0] <= 0:
+            deferred_inferences[0] += 1
+            record_inference_metric("collector", "limit_reached")
             return False
         remaining_calls[0] -= 1
+        inference_calls[0] += 1
+        record_inference_metric("collector", "execution")
         return True
     completed = 0
     for root, entries in workspaces.items():
@@ -160,4 +165,3 @@ def _merge_records(previous: tuple, appended: tuple) -> tuple:
 
 def _text(message: object) -> str:
     return "\n".join(part.text or "" for part in message.content)
-

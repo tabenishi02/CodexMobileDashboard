@@ -86,3 +86,8 @@ runner自体は`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、
 統合実行では、Git変更も対象メッセージ由来のファイル参照もなく、対象turnの全メッセージが「了解しました」「確認します」等の明確な短文・非変更応答だけである場合に限り、`rule_based_sufficient`としてAI推論をスキップする。この場合は統合CLIも個別fallbackも起動しない。
 
 変更を示す語を含む短文、未認識の短文、Git変更、またはファイル参照が一つでもある場合はスキップしない。これにより変更要約・決定事項・次タスクを取りこぼさない保守的な判定とする。現時点ではこの判定も統合オーケストレータで利用可能であり、collectorへの接続は後続作業で行う。
+## 推論メトリクスログ
+
+`inference_metric`は`kind`、`event`、`input_bytes`だけを記録する。eventは`execution`、`cache_hit`、`skipped`、`limit_reached`、`success`、`failure`、`fallback`を使用する。collector終了時には実行許可数・上限による持越し数・上限値も記録する。
+
+プロンプト本文、メッセージ本文、Token、入力SHA-256、workspace・session・turn ID、ファイルパスはメトリクスログに出力しない。

@@ -16,6 +16,7 @@ from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, 
 
 from tools.chat_extractor import ExtractedChatMessage
 from tools.next_task_extractor import INFERENCE_INPUT_MAX_BYTES, INFERENCE_TIMEOUT_SECONDS
+from tools.inference_metrics import record as record_inference_metric
 
 
 LOGGER = logging.getLogger("converter")
@@ -235,6 +236,7 @@ def extract_decisions(
                 issues.append(
                     DecisionExtractionIssue(source.session_id, message.message_id, kind)
                 )
+                record_inference_metric("decision", "failure")
                 LOGGER.warning("決定事項のCodex CLI抽出に失敗: kind=%s", kind)
                 continue
         else:

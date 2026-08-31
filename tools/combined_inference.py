@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable, Optional, Sequence, Tuple
 
+from tools.inference_metrics import record
+
 
 COMBINED_INFERENCE_INPUT_MAX_BYTES = 64 * 1024
 _RULE_BASED_NONCHANGE_MAX_CHARACTERS = 120
@@ -148,6 +150,7 @@ def save_combined_turn(
 ):
     """Atomically save all three converted outputs as one `combined_turn` entry."""
     from tools.inference_ledger import InferenceLedgerEntry, append, combined_turn_payload
+    from tools.inference_metrics import record
 
     entry = InferenceLedgerEntry(
         workspace_id,
@@ -367,9 +370,11 @@ def execute_combined_turn(
         fallback_to_individual(reason)
         return CombinedTurnExecution(None, True, reason)
     try:
+        record("combined_turn", "execution", len(prompt.encode("utf-8")))
         conversion = convert(runner.infer(prompt))
     except (OSError, RuntimeError, subprocess.TimeoutExpired):
         reason = "combined_inference_failed"
+        record("combined_turn", "failure", len(prompt.encode("utf-8")))
         fallback_to_individual(reason)
         return CombinedTurnExecution(None, True, reason)
     return CombinedTurnExecution(conversion, False, None)
