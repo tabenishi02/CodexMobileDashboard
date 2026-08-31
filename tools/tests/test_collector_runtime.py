@@ -11,10 +11,246 @@ from tools.decision_extractor import DecisionInferenceCacheEntry, ExtractedDecis
 from tools.next_task_extractor import NextTask, NextTaskCacheEntry, NextTaskIssue
 from tools.inference_ledger import InferenceLedgerEntry, append, next_task_payload, summary_payload
 from tools.collector_history import CollectorHistory
-from tools.collector_state import CollectorState
+from tools.collector_state import CollectorState, PendingInference
 
 
 class CollectorRuntimeTests(unittest.TestCase):
+    def test_pending_routes_precede_new_turn_and_only_successes_are_removed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "workspace"
+            root.mkdir()
+            settings = SimpleNamespace(
+                inference_ledger_file=Path(directory) / "ledger.json",
+                ai_inference_mode="incremental",
+                tasks_path=Path(directory) / "TASKS.md",
+                output_dir=Path(directory) / "output",
+                queue_dir=Path(directory) / "queue",
+            )
+
+            def message(message_id, turn_id):
+                return SimpleNamespace(
+                    message_id=message_id,
+                    created_at=message_id,
+                    turn_id=turn_id,
+                    role="assistant",
+                    message_type="chat",
+                    phase="final_answer",
+                    content=(SimpleNamespace(kind="text", text="masked"),),
+                )
+
+            old_message = message("01-old", "old-turn")
+            new_message = message("02-new", "new-turn")
+            chat = ChatExtractionResult(
+                (old_message, new_message), tuple(), tuple()
+            )
+            work = SimpleNamespace(
+                codex_status="idle",
+                turns=(
+                    SimpleNamespace(
+                        turn_id="old-turn", status="completed", rolled_back=False
+                    ),
+                    SimpleNamespace(
+                        turn_id="new-turn", status="completed", rolled_back=False
+                    ),
+                ),
+            )
+            terminal = SimpleNamespace(
+                category="turn",
+                subtype="turn_status",
+                turn_id="new-turn",
+                attributes={"status": "completed"},
+            )
+            initial = tuple(
+                PendingInference("workspace-1", "session-1", "old-turn", kind)
+                for kind in ("decision", "change_summary", "next_task")
+            )
+            captured = {}
+
+            def decisions(sources, *args, **kwargs):
+                captured["decision_turns"] = {
+                    source.message.turn_id for source in sources
+                }
+                return SimpleNamespace(
+                    decisions=tuple(),
+                    issues=(
+                        SimpleNamespace(
+                            session_id="session-1",
+                            message_id="01-old",
+                            kind="codex_timeout",
+                        ),
+                    ),
+                )
+
+            def summaries(*args, **kwargs):
+                captured["summary_turns"] = kwargs["inference_turn_ids"]
+                return SimpleNamespace(cache_entries=tuple(), issues=tuple())
+
+            def next_task(messages, *args, **kwargs):
+                captured["next_turns"] = {message.turn_id for message in messages}
+                return SimpleNamespace(
+                    inference_attempted=False,
+                    cache_entry=None,
+                    issues=(SimpleNamespace(kind="inference_limit_reached"),),
+                )
+
+            with patch(
+                "tools.collector_runtime.extract_chat_messages", return_value=chat
+            ), patch(
+                "tools.collector_runtime.extract_current_work_status", return_value=work
+            ), patch(
+                "tools.collector_runtime.extract_decisions", side_effect=decisions
+            ), patch(
+                "tools.collector_runtime.extract_file_references",
+                return_value=SimpleNamespace(references=tuple()),
+            ), patch(
+                "tools.collector_runtime.extract_development_errors",
+                return_value=object(),
+            ), patch(
+                "tools.collector_runtime.generate_change_summaries",
+                side_effect=summaries,
+            ), patch(
+                "tools.collector_runtime.extract_next_task", side_effect=next_task
+            ), patch(
+                "tools.collector_runtime.collect_git_changes", return_value=object()
+            ), patch(
+                "tools.collector_runtime.build_json_snapshot", return_value=object()
+            ), patch("tools.collector_runtime.save_json_snapshot"):
+                remaining = _build_workspace_snapshot(
+                    root,
+                    "workspace-1",
+                    "session-1",
+                    {"session-1": tuple()},
+                    settings,
+                    None,
+                    {"session-1": (terminal,)},
+                    pending_inferences=initial,
+                )
+
+        self.assertEqual({"old-turn"}, captured["decision_turns"])
+        self.assertEqual({"old-turn"}, captured["summary_turns"])
+        self.assertEqual({"old-turn"}, captured["next_turns"])
+        self.assertEqual(
+            {
+                (item.turn_id, item.inference_kind) for item in remaining
+            },
+            {
+                ("old-turn", "decision"),
+                ("old-turn", "next_task"),
+                ("new-turn", "decision"),
+                ("new-turn", "change_summary"),
+                ("new-turn", "next_task"),
+            },
+        )
+
+    def test_pending_success_after_restart_is_cleared(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "workspace"
+            root.mkdir()
+            settings = SimpleNamespace(
+                inference_ledger_file=Path(directory) / "ledger.json",
+                ai_inference_mode="incremental",
+                tasks_path=Path(directory) / "TASKS.md",
+                output_dir=Path(directory) / "output",
+                queue_dir=Path(directory) / "queue",
+            )
+            message = SimpleNamespace(
+                message_id="message-1",
+                created_at="01",
+                turn_id="turn-1",
+                role="assistant",
+                message_type="chat",
+                phase="final_answer",
+                content=(SimpleNamespace(kind="text", text="masked"),),
+            )
+            pending = (
+                PendingInference(
+                    "workspace-1", "session-1", "turn-1", "decision"
+                ),
+            )
+            with patch(
+                "tools.collector_runtime.extract_chat_messages",
+                return_value=ChatExtractionResult((message,), tuple(), tuple()),
+            ), patch(
+                "tools.collector_runtime.extract_current_work_status",
+                return_value=SimpleNamespace(codex_status="idle", turns=tuple()),
+            ), patch(
+                "tools.collector_runtime.extract_decisions",
+                return_value=SimpleNamespace(decisions=tuple(), issues=tuple()),
+            ), patch(
+                "tools.collector_runtime.extract_file_references",
+                return_value=SimpleNamespace(references=tuple()),
+            ), patch(
+                "tools.collector_runtime.extract_development_errors",
+                return_value=object(),
+            ), patch(
+                "tools.collector_runtime.generate_change_summaries",
+                return_value=SimpleNamespace(cache_entries=tuple(), issues=tuple()),
+            ), patch(
+                "tools.collector_runtime.extract_next_task",
+                return_value=SimpleNamespace(
+                    inference_attempted=False, cache_entry=None, issues=tuple()
+                ),
+            ), patch(
+                "tools.collector_runtime.collect_git_changes", return_value=object()
+            ), patch(
+                "tools.collector_runtime.build_json_snapshot", return_value=object()
+            ), patch("tools.collector_runtime.save_json_snapshot"):
+                remaining = _build_workspace_snapshot(
+                    root,
+                    "workspace-1",
+                    "session-1",
+                    {"session-1": tuple()},
+                    settings,
+                    None,
+                    pending_inferences=pending,
+                )
+
+        self.assertEqual(tuple(), remaining)
+
+    def test_run_log_reports_pending_counts_without_identifiers(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            pending = PendingInference(
+                "secret-workspace",
+                "secret-session",
+                "secret-turn",
+                "decision",
+            )
+            settings = SimpleNamespace(
+                state_file=Path(directory) / "state.json",
+                history_file=Path(directory) / "history.json",
+                sessions_dir=Path(directory),
+                archived_sessions_dir=None,
+                scan_archived_sessions=False,
+                allowed_roots=tuple(),
+                max_calls_per_run=3,
+            )
+            saved = []
+            with patch(
+                "tools.collector_runtime.load_collector_state",
+                return_value=CollectorState(pending_inferences=(pending,)),
+            ), patch(
+                "tools.collector_runtime.load_collector_history",
+                return_value=CollectorHistory(),
+            ), patch(
+                "tools.collector_runtime.discover_session_files",
+                return_value=tuple(),
+            ), patch(
+                "tools.collector_runtime.build_session_index", return_value={}
+            ), patch(
+                "tools.collector_runtime.save_collector_history"
+            ), patch(
+                "tools.collector_runtime.save_collector_state",
+                side_effect=lambda state, path: saved.append(state),
+            ), self.assertLogs("collector", level="INFO") as logs:
+                self.assertEqual(0, run_once(settings))
+
+        output = "\n".join(logs.output)
+        self.assertIn(
+            "inference_pending_completed carried=1 added=0 remaining=1", output
+        )
+        self.assertNotIn("secret-", output)
+        self.assertEqual((pending,), saved[0].pending_inferences)
+
     def test_default_budget_is_shared_across_all_individual_routes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "workspace"

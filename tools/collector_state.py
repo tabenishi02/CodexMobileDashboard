@@ -30,8 +30,17 @@ class SessionReadCursor:
 
 
 @dataclass(frozen=True)
+class PendingInference:
+    workspace_id: str
+    session_id: str
+    turn_id: str
+    inference_kind: str
+
+
+@dataclass(frozen=True)
 class CollectorState:
     sessions: Tuple[SessionReadCursor, ...] = tuple()
+    pending_inferences: Tuple[PendingInference, ...] = tuple()
 
 
 @dataclass(frozen=True)
@@ -61,7 +70,16 @@ def load_collector_state(path: Path) -> CollectorState:
     cursors = tuple(_cursor_from_value(entry) for entry in entries)
     if len({cursor.session_id for cursor in cursors}) != len(cursors):
         raise InvalidCollectorStateError("state_session_duplicate")
-    return CollectorState(tuple(sorted(cursors, key=lambda cursor: cursor.session_id)))
+    pending_value = value.get("pending_inferences", [])
+    if not isinstance(pending_value, list):
+        raise InvalidCollectorStateError("state_pending_invalid")
+    pending = tuple(_pending_from_value(entry) for entry in pending_value)
+    if len(set(pending)) != len(pending):
+        raise InvalidCollectorStateError("state_pending_duplicate")
+    return CollectorState(
+        tuple(sorted(cursors, key=lambda cursor: cursor.session_id)),
+        tuple(sorted(pending, key=_pending_key)),
+    )
 
 
 def save_collector_state(state: CollectorState, path: Path) -> None:
@@ -72,6 +90,9 @@ def save_collector_state(state: CollectorState, path: Path) -> None:
     value = {
         "version": STATE_VERSION,
         "sessions": [_cursor_value(cursor) for cursor in state.sessions],
+        "pending_inferences": [
+            _pending_value(entry) for entry in state.pending_inferences
+        ],
     }
     data = (json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode(
         "utf-8"
@@ -151,7 +172,23 @@ def advance_session_cursor(
         value.session_id: value for value in state.sessions
     }
     cursors[session_id] = cursor
-    return CollectorState(tuple(sorted(cursors.values(), key=lambda value: value.session_id)))
+    return CollectorState(
+        tuple(sorted(cursors.values(), key=lambda value: value.session_id)),
+        state.pending_inferences,
+    )
+
+
+def replace_pending_inferences(
+    state: CollectorState,
+    pending_inferences: Tuple[PendingInference, ...],
+) -> CollectorState:
+    unique = set(pending_inferences)
+    if len(unique) != len(pending_inferences):
+        raise ValueError("pending_inference_duplicate")
+    return CollectorState(
+        state.sessions,
+        tuple(sorted(pending_inferences, key=_pending_key)),
+    )
 
 
 def _prefix_sha256(path: Path, length: int) -> str:
@@ -204,6 +241,45 @@ def _cursor_from_value(value: object) -> SessionReadCursor:
     deduplication = _deduplication_from_value(value.get("deduplication"))
     return SessionReadCursor(
         session_id, offset, line_number, prefix_sha256, deduplication
+    )
+
+
+def _pending_value(entry: PendingInference) -> Dict[str, str]:
+    return {
+        "workspace_id": entry.workspace_id,
+        "session_id": entry.session_id,
+        "turn_id": entry.turn_id,
+        "inference_kind": entry.inference_kind,
+    }
+
+
+def _pending_from_value(value: object) -> PendingInference:
+    if not isinstance(value, dict):
+        raise InvalidCollectorStateError("state_pending_invalid")
+    fields = ("workspace_id", "session_id", "turn_id", "inference_kind")
+    if not all(isinstance(value.get(field), str) and value[field] for field in fields):
+        raise InvalidCollectorStateError("state_pending_invalid")
+    if value["inference_kind"] not in (
+        "change_summary",
+        "decision",
+        "next_task",
+        "combined_turn",
+    ):
+        raise InvalidCollectorStateError("state_pending_invalid")
+    return PendingInference(
+        value["workspace_id"],
+        value["session_id"],
+        value["turn_id"],
+        value["inference_kind"],
+    )
+
+
+def _pending_key(entry: PendingInference) -> Tuple[str, str, str, str]:
+    return (
+        entry.workspace_id,
+        entry.session_id,
+        entry.turn_id,
+        entry.inference_kind,
     )
 
 

@@ -7,8 +7,10 @@ from unittest.mock import patch
 from tools.collector_state import (
     CollectorState,
     InvalidCollectorStateError,
+    PendingInference,
     advance_session_cursor,
     load_collector_state,
+    replace_pending_inferences,
     resume_position,
     save_collector_state,
 )
@@ -16,6 +18,30 @@ from tools.record_deduplicator import RecordDeduplicationState
 
 
 class CollectorStateTests(unittest.TestCase):
+    def test_saves_restores_and_preserves_pending_inferences(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "rollout.jsonl"
+            source.write_bytes(b"first\n")
+            pending = PendingInference(
+                "workspace-1", "session-1", "turn-1", "decision"
+            )
+            state = replace_pending_inferences(CollectorState(), (pending,))
+            state = advance_session_cursor(
+                state,
+                "session-1",
+                source,
+                len(b"first\n"),
+                1,
+                RecordDeduplicationState(),
+            )
+            state_path = root / "collector-state.json"
+
+            save_collector_state(state, state_path)
+            restored = load_collector_state(state_path)
+
+            self.assertEqual((pending,), restored.pending_inferences)
+
     def test_saves_and_restores_cursor_and_deduplication_state(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -119,7 +145,14 @@ class CollectorStateTests(unittest.TestCase):
             source = root / "rollout.jsonl"
             source.write_bytes(b"first\n")
             path = root / "collector-state.json"
-            path.write_bytes(b"previous\n")
+            pending = PendingInference(
+                "workspace-1", "session-1", "turn-1", "change_summary"
+            )
+            previous_state = replace_pending_inferences(
+                CollectorState(), (pending,)
+            )
+            save_collector_state(previous_state, path)
+            previous = path.read_bytes()
             state = advance_session_cursor(
                 CollectorState(),
                 "session-1",
@@ -136,7 +169,10 @@ class CollectorStateTests(unittest.TestCase):
                 with self.assertRaises(PermissionError):
                     save_collector_state(state, path)
 
-            self.assertEqual(b"previous\n", path.read_bytes())
+            self.assertEqual(previous, path.read_bytes())
+            self.assertEqual(
+                (pending,), load_collector_state(path).pending_inferences
+            )
             self.assertEqual([], list(root.glob(".collector-state.json.*.tmp")))
 
 

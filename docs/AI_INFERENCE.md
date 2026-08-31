@@ -98,3 +98,11 @@ runner自体は`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、
 ## 推論回帰テスト
 
 回帰テストは、incrementalで新規完了turnだけを3経路へ渡し、追加途中では推論を許可せずterminal event受信後の収集で許可すること、台帳復元による再起動後のキャッシュ利用、中断時の原子的台帳保持、共有上限、`off`、`backfill-ai`、入力が同一の場合のキャッシュ利用と入力変更時の再推論を確認する。`off`と上限到達ではCodex CLIを起動しない。
+
+## 通常収集のpending管理
+
+通常の`incremental`収集でCLI失敗、入力マスク拒否、または共有上限到達となった変更要約・決定事項・次タスクは、`state_file`の`pending_inferences`へworkspace・session・turn・推論種別単位で保存する。履歴カーソルとpendingは同じcollector stateの原子的置換で確定するため、state保存の中断時は更新前のカーソルとpendingが維持される。
+
+次回の通常`incremental`収集では、既存pendingを今回新たに完了したturnより先に処理する。処理中に見つかった新規完了turnはpendingへ追加して次回へ回す。各経路で成功した項目だけをpendingから除外し、CLI失敗、入力マスク拒否、再度の上限到達、および処理されなかった項目は残す。`off`と`backfill`は通常収集のpendingを変更しない。
+
+collector終了時の`inference_pending_completed`ログは、実行開始時の持ち越し件数`carried`、今回追加した件数`added`、保存後の残件数`remaining`だけを記録する。workspace・session・turn ID、入力SHA-256、プロンプト本文などは記録しない。
