@@ -308,6 +308,26 @@ class DecisionExtractorTests(unittest.TestCase):
         self.assertEqual("codex_timeout", result.issues[0].kind)
         self.assertEqual(1, runner.calls)
 
+    def test_shared_limit_prevents_decision_cli_start(self) -> None:
+        runner = StubRunner(
+            (_Proposal("adopted", "title", "description", None, "topic"),)
+        )
+        sources = (
+            source("session-1", "assistant", "案Aを推奨します。", "msg-a", masked=True),
+            source("session-1", "user", "案Aを採用します。", "msg-u", masked=True),
+        )
+
+        result = extract_decisions(
+            sources,
+            "workspace-1",
+            runner=runner,
+            can_infer=lambda: False,
+        )
+
+        self.assertEqual(0, runner.calls)
+        self.assertEqual(tuple(), result.decisions)
+        self.assertEqual("inference_limit_reached", result.issues[0].kind)
+
     def test_missing_timestamp_uses_file_mtime(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "rollout.jsonl"

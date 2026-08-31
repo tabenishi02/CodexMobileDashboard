@@ -259,6 +259,15 @@ def extract_decisions(
                 turn_id = message.turn_id or message.message_id
                 cached = inference_cache.get((source.session_id, turn_id, input_sha256))
                 if cached is None:
+                    if can_infer is not None and not can_infer():
+                        issues.append(
+                            DecisionExtractionIssue(
+                                source.session_id,
+                                message.message_id,
+                                "inference_limit_reached",
+                            )
+                        )
+                        continue
                     proposals = cli_runner.extract(prompt)
                     successful_inference = DecisionInferenceCacheEntry(
                         source.session_id,

@@ -48,6 +48,24 @@ class CollectorRuntimeSettings:
     max_calls_per_run: int = 3
 
 
+class InferenceCallBudget:
+    def __init__(self, limit: int = 3) -> None:
+        if limit < 0:
+            raise ValueError("inference_call_limit_invalid")
+        self.limit = limit
+        self.calls = 0
+        self.deferred = 0
+
+    def try_acquire(self) -> bool:
+        if self.calls >= self.limit:
+            self.deferred += 1
+            record_inference_metric("collector", "limit_reached")
+            return False
+        self.calls += 1
+        record_inference_metric("collector", "execution")
+        return True
+
+
 def run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | None = None) -> int:
     """Build and persist one current Snapshot per permitted Git workspace.
 
@@ -65,18 +83,9 @@ def run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | N
             workspaces.setdefault(root, []).append(entry)
     next_state = state
     next_history = history
-    remaining_calls = [getattr(settings, "max_calls_per_run", 3)]
-    inference_calls = [0]
-    deferred_inferences = [0]
-    def can_infer():
-        if remaining_calls[0] <= 0:
-            deferred_inferences[0] += 1
-            record_inference_metric("collector", "limit_reached")
-            return False
-        remaining_calls[0] -= 1
-        inference_calls[0] += 1
-        record_inference_metric("collector", "execution")
-        return True
+    inference_budget = InferenceCallBudget(
+        getattr(settings, "max_calls_per_run", 3)
+    )
     completed = 0
     for root, entries in workspaces.items():
         workspace_id = _workspace_id(root)
@@ -91,11 +100,11 @@ def run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | N
             next_state = result.next_state
             session_records[entry.session_id] = records
             inference_records[entry.session_id] = tuple() if settings.ai_inference_mode == "incremental" and entry.session_id not in known_session_ids else result.records
-        _build_workspace_snapshot(root, workspace_id, latest.session_id, session_records, settings, sender, inference_records, can_infer)
+        _build_workspace_snapshot(root, workspace_id, latest.session_id, session_records, settings, sender, inference_records, inference_budget.try_acquire)
         completed += 1
     save_collector_history(next_history, settings.history_file)
     save_collector_state(next_state, settings.state_file)
-    LOGGER.info("inference_run_completed calls=%d deferred=%d limit=%d", inference_calls[0], deferred_inferences[0], getattr(settings, "max_calls_per_run", 3))
+    LOGGER.info("inference_run_completed calls=%d deferred=%d limit=%d", inference_budget.calls, inference_budget.deferred, inference_budget.limit)
     return completed
 
 

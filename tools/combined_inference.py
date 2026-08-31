@@ -361,6 +361,7 @@ def execute_combined_turn(
     runner: "CombinedTurnCliRunner",
     convert: Callable[[CombinedInferenceResult], CombinedTurnConversion],
     fallback_to_individual: Callable[[str], None],
+    can_infer: Optional[Callable[[], bool]] = None,
 ) -> CombinedTurnExecution:
     """Execute one combined CLI call or delegate once to the individual path."""
     if not eligibility.eligible:
@@ -369,6 +370,10 @@ def execute_combined_turn(
             return CombinedTurnExecution(None, False, reason, True)
         fallback_to_individual(reason)
         return CombinedTurnExecution(None, True, reason)
+    if can_infer is not None and not can_infer():
+        reason = "inference_limit_reached"
+        record("combined_turn", "limit_reached", len(prompt.encode("utf-8")))
+        return CombinedTurnExecution(None, False, reason)
     try:
         record("combined_turn", "execution", len(prompt.encode("utf-8")))
         conversion = convert(runner.infer(prompt))

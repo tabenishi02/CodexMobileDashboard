@@ -142,6 +142,26 @@ class CombinedInferenceExecutionTests(unittest.TestCase):
         self.assertTrue(failed.used_individual_fallback)
         self.assertTrue(ineligible.used_individual_fallback)
 
+    def test_shared_limit_prevents_combined_cli_and_individual_fallback(self):
+        runner = Mock()
+        fallback = Mock()
+        convert = Mock()
+
+        execution = execute_combined_turn(
+            assess_combined_turn("completed", "turn-1", ("turn-1",), ("turn-1",), True, True),
+            "masked prompt",
+            runner=runner,
+            convert=convert,
+            fallback_to_individual=fallback,
+            can_infer=lambda: False,
+        )
+
+        runner.infer.assert_not_called()
+        convert.assert_not_called()
+        fallback.assert_not_called()
+        self.assertEqual("inference_limit_reached", execution.fallback_reason)
+        self.assertFalse(execution.used_individual_fallback)
+
 class CombinedInferenceRunnerTests(unittest.TestCase):
     def test_schema_requires_all_three_outputs(self):
         schema = combined_turn_schema()

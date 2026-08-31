@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from tools.change_summary_generator import ChangeSummary, SummaryEvidenceItem
 from tools.chat_extractor import ChatExtractionResult
-from tools.collector_runtime import _build_workspace_snapshot, _incremental_completed_turn_ids, run_once
+from tools.collector_runtime import InferenceCallBudget, _build_workspace_snapshot, _incremental_completed_turn_ids, run_once
 from tools.decision_extractor import DecisionInferenceCacheEntry, ExtractedDecision, _Proposal, decision_inference_payload
 from tools.next_task_extractor import NextTask, NextTaskCacheEntry, NextTaskIssue
 from tools.inference_ledger import InferenceLedgerEntry, append, next_task_payload, summary_payload
@@ -15,6 +15,34 @@ from tools.collector_state import CollectorState
 
 
 class CollectorRuntimeTests(unittest.TestCase):
+    def test_default_budget_is_shared_across_all_individual_routes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "workspace"
+            root.mkdir()
+            settings = SimpleNamespace(inference_ledger_file=Path(directory) / "ledger.json", ai_inference_mode="backfill", tasks_path=Path(directory) / "TASKS.md", output_dir=Path(directory) / "output", queue_dir=Path(directory) / "queue")
+            budget = InferenceCallBudget()
+            acquired = []
+            def decisions(*args, **kwargs):
+                acquired.extend(("decision", kwargs["can_infer"]()) for _ in range(2))
+                return SimpleNamespace(decisions=tuple())
+            def summaries(*args, **kwargs):
+                acquired.extend(("summary", kwargs["can_infer"]()) for _ in range(2))
+                return SimpleNamespace(cache_entries=tuple())
+            def next_task(*args, **kwargs):
+                acquired.append(("next_task", kwargs["can_infer"]()))
+                return SimpleNamespace(inference_attempted=False, cache_entry=None)
+            work = SimpleNamespace(codex_status="idle", turns=tuple())
+            with patch("tools.collector_runtime.extract_chat_messages", return_value=ChatExtractionResult(tuple(), tuple(), tuple())), patch("tools.collector_runtime.extract_current_work_status", return_value=work), patch("tools.collector_runtime.extract_decisions", side_effect=decisions), patch("tools.collector_runtime.extract_file_references", return_value=SimpleNamespace(references=tuple())), patch("tools.collector_runtime.extract_development_errors", return_value=object()), patch("tools.collector_runtime.generate_change_summaries", side_effect=summaries), patch("tools.collector_runtime.extract_next_task", side_effect=next_task), patch("tools.collector_runtime.collect_git_changes", return_value=object()), patch("tools.collector_runtime.build_json_snapshot", return_value=object()), patch("tools.collector_runtime.save_json_snapshot"):
+                _build_workspace_snapshot(root, "workspace-1", "session-1", {"session-1": tuple()}, settings, None, can_infer=budget.try_acquire)
+
+        self.assertEqual(
+            [("decision", True), ("decision", True), ("summary", True), ("summary", False), ("next_task", False)],
+            acquired,
+        )
+        self.assertEqual(3, budget.calls)
+        self.assertEqual(2, budget.deferred)
+        self.assertEqual(3, budget.limit)
+
     def test_incremental_completed_turn_ids_include_terminal_failures_and_exclude_rollbacks(self) -> None:
         work = SimpleNamespace(turns=(
             SimpleNamespace(turn_id="completed", status="completed", rolled_back=False),

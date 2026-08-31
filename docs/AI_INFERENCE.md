@@ -10,7 +10,9 @@
 | 決定事項 | `extract_decisions()` → `DecisionCliRunner.extract()` | 曖昧参照を含む決定候補メッセージごと |
 | 次タスク | `extract_next_task()` → `CodexCliRunner.infer()` | 明示的な次タスクがないworkspaceごとに最大1回 |
 
-CLIは`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore-rules`、`--output-schema`を指定する。モデル指定は渡さないため、Codex CLI側の既定モデルと利用枠を使う。1呼び出しのタイムアウトは120秒である。個別推論の入力上限は128 KiB、統合推論promptの入力上限は64 KiBである。collector全体のCodex CLI呼び出しは`max_calls_per_run`で共有上限を設け、既定は3回である。
+CLIは`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore-rules`、`--output-schema`を指定する。モデル指定は渡さないため、Codex CLI側の既定モデルと利用枠を使う。1呼び出しのタイムアウトは120秒である。個別推論の入力上限は128 KiB、統合推論promptの入力上限は64 KiBである。collectorは実行開始時に`max_calls_per_run`を上限とする共有予算を1つ生成し、全workspace・変更要約・決定事項・次タスクで共有する。既定は3回である。
+
+各個別経路は永続キャッシュを確認した後、CLI起動直前に共有予算を1枠消費する。決定事項も同じ予算を使用する。上限到達後はCLIを起動せず`inference_limit_reached`として延期する。統合実行オーケストレータも同じ予算コールバックを受け取り、上限到達時は統合CLIも個別fallbackも起動しない。これにより統合失敗後の個別fallbackを含めても、1回のcollector実行で許可される推論数は共有上限を超えない。
 
 ## 推論モード
 
@@ -73,7 +75,7 @@ runner自体は`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、
 統合結果は`combined_turn` 1 entryとして既存の原子的`append`で保存する。置換に失敗した場合は、直前の台帳を保持し一時ファイルを残さない。復元時はworkspace・session・turn・入力SHA-256がすべて一致する完全な`combined_turn`だけを採用する。不完全な統合entry、またはSHA-256不一致は復元せず、従来の個別台帳entryを安全に利用する。
 ## 統合推論の設定・制約・運用
 
-統合推論専用の設定キーはまだない。`[ai_inference] mode`と`max_calls_per_run`、`[storage] inference_ledger_file`は既存の推論と共通であり、設定例では`incremental`、`3`、`%LOCALAPPDATA%\CodexMobileDashboard\state\ai-inference-ledger.json`を使用する。`max_calls_per_run`は0以上の整数で、統合呼び出しもcollectorへ接続した後はこの共有上限に含める。
+統合推論専用の設定キーはまだない。`[ai_inference] mode`と`max_calls_per_run`、`[storage] inference_ledger_file`は既存の推論と共通であり、設定例では`incremental`、`3`、`%LOCALAPPDATA%\CodexMobileDashboard\state\ai-inference-ledger.json`を使用する。`max_calls_per_run`は0以上の整数である。統合オーケストレータはcollectorの共有予算を受け取れる実装であり、後続タスクで`collector_runtime`へ接続した後も個別経路と同じ上限を使用する。
 
 適格なのは、今回のincremental対象で完了済みの同一turnだけである。すべての入力がマスク済みで、次タスク候補があり、turn外の文脈を必要としないことが必要である。適格なら統合runnerは1回だけ実行し、成功時は個別経路を起動しない。非適格、CLI失敗、JSON/schema不正、台帳payload不完全、または入力SHA-256不一致なら、個別経路へfallbackする。
 

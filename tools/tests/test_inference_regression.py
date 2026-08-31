@@ -1,7 +1,10 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock
 
+from tools.collector_runtime import InferenceCallBudget
+from tools.combined_inference import assess_combined_turn, execute_combined_turn
 from tools.next_task_extractor import InferenceMessage, NextTaskInferenceContext, extract_next_task
 
 
@@ -17,6 +20,37 @@ def _context(text):
 
 
 class InferenceRegressionTests(unittest.TestCase):
+    def test_combined_and_individual_routes_share_one_budget(self):
+        budget = InferenceCallBudget(1)
+        combined_runner = Mock()
+        combined_runner.infer.return_value = object()
+        fallback = Mock()
+        execution = execute_combined_turn(
+            assess_combined_turn("completed", "turn-1", ("turn-1",), ("turn-1",), True, True),
+            "masked prompt",
+            runner=combined_runner,
+            convert=lambda value: value,
+            fallback_to_individual=fallback,
+            can_infer=budget.try_acquire,
+        )
+        individual_runner = _Runner()
+        with tempfile.TemporaryDirectory() as directory:
+            limited = extract_next_task(
+                tuple(),
+                _context("context"),
+                Path(directory) / "TASKS.md",
+                runner=individual_runner,
+                can_infer=budget.try_acquire,
+            )
+
+        self.assertIsNotNone(execution.conversion)
+        combined_runner.infer.assert_called_once_with("masked prompt")
+        fallback.assert_not_called()
+        self.assertEqual(0, individual_runner.calls)
+        self.assertIn("inference_limit_reached", [item.kind for item in limited.issues])
+        self.assertEqual(1, budget.calls)
+        self.assertEqual(1, budget.deferred)
+
     def test_off_and_limit_do_not_start_cli(self):
         runner = _Runner()
         with tempfile.TemporaryDirectory() as directory:
