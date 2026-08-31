@@ -55,3 +55,7 @@ CLIは`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore
 collector終了時には、実行したCLI回数と上限到達で次回へ持ち越した推論件数をログへ記録する。
 
 過去未処理turnの補完はpython -m tools.collector --config <config> backfill-aiで明示実行する。max_calls_per_runの共有上限を適用する。
+
+## 統合推論の対象条件
+
+統合推論は、完了済みで今回のincremental対象となる同一turnに限る。入力はすべてマスク済みで、次タスク候補があり、turn外の文脈を必要としないことを必須とする。条件外、または統合推論の失敗時は既存の個別推論経路へfallbackする。
