@@ -73,6 +73,7 @@ class CombinedTurnConversion:
     summary: object
     decision_proposals: Tuple[object, ...]
     next_task_cache_entry: object
+    decision_history: Tuple[object, ...] = tuple()
 
 
 def convert_combined_result(

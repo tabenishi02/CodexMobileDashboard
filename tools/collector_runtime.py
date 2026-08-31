@@ -465,17 +465,6 @@ def _try_combined_inference(
             return None
         conversion = execution.conversion
         inference_attempted = True
-        try:
-            save_combined_turn(
-                settings.inference_ledger_file,
-                workspace_id=workspace_id,
-                session_id=session_id,
-                turn_id=turn_id,
-                input_sha256=input_sha256,
-                conversion=conversion,
-            )
-        except OSError:
-            return None
     decision_message = next(
         (message for message in reversed(target_messages) if message.role == "user"),
         target_messages[-1],
@@ -488,6 +477,24 @@ def _try_combined_inference(
         prompt.source_message_ids,
         restored_decisions=latest_decision_history(ledger_entries, workspace_id),
     )
+    conversion = CombinedTurnConversion(
+        conversion.summary,
+        conversion.decision_proposals,
+        conversion.next_task_cache_entry,
+        decisions.decisions,
+    )
+    if inference_attempted:
+        try:
+            save_combined_turn(
+                settings.inference_ledger_file,
+                workspace_id=workspace_id,
+                session_id=session_id,
+                turn_id=turn_id,
+                input_sha256=input_sha256,
+                conversion=conversion,
+            )
+        except OSError:
+            return None
     summary_cache = ChangeSummaryCacheEntry(
         turn_id, input_sha256, conversion.summary, None, tuple()
     )

@@ -182,6 +182,108 @@ class CollectorRuntimeTests(unittest.TestCase):
         self.assertEqual(tuple(), remaining)
         self.assertEqual(["combined_turn"], ledger_kinds)
 
+    def test_combined_proposals_build_complete_history_before_save(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "workspace"
+            root.mkdir()
+            ledger = Path(directory) / "ledger.json"
+            old = ExtractedDecision(
+                "decision-old",
+                "2026-08-30T00:00:00+00:00",
+                "message_timestamp",
+                "adopted",
+                "Old decision",
+                "Old description",
+                None,
+                ("session-1",),
+                ("message-old",),
+                None,
+                None,
+                "topic",
+            )
+            old_cache = DecisionInferenceCacheEntry(
+                "session-1",
+                "turn-old",
+                "b" * 64,
+                (_Proposal("adopted", "Old decision", "Old description", None, "topic"),),
+                (old,),
+            )
+            append(
+                ledger,
+                InferenceLedgerEntry(
+                    "workspace-1",
+                    "session-1",
+                    "turn-old",
+                    "b" * 64,
+                    decision_inference_payload(old_cache),
+                    "2026-08-30T00:00:00+00:00",
+                    "decision",
+                ),
+            )
+            settings = SimpleNamespace(
+                inference_ledger_file=ledger,
+                ai_inference_mode="incremental",
+                tasks_path=Path(directory) / "TASKS.md",
+                output_dir=Path(directory) / "output",
+                queue_dir=Path(directory) / "queue",
+            )
+            message = _runtime_message(
+                "message-new", "turn-1", "Implemented the replacement decision."
+            )
+            message.created_at = "2026-08-31T00:00:00+00:00"
+            chat = ChatExtractionResult((message,), tuple(), tuple())
+            work = SimpleNamespace(
+                codex_status="idle", turns=(_runtime_turn("turn-1"),)
+            )
+            combined_runner = Mock()
+            combined_runner.infer.return_value = _combined_result()
+            saved_conversions = []
+            json_builder = Mock(return_value=object())
+            with patch(
+                "tools.collector_runtime.extract_chat_messages", return_value=chat
+            ), patch(
+                "tools.collector_runtime.extract_current_work_status", return_value=work
+            ), patch(
+                "tools.collector_runtime.CombinedTurnCliRunner",
+                return_value=combined_runner,
+            ), patch(
+                "tools.collector_runtime.save_combined_turn",
+                side_effect=lambda *args, **kwargs: saved_conversions.append(
+                    kwargs["conversion"]
+                ),
+            ), patch(
+                "tools.collector_runtime.extract_file_references",
+                return_value=SimpleNamespace(references=tuple()),
+            ), patch(
+                "tools.collector_runtime.extract_development_errors",
+                return_value=object(),
+            ), patch(
+                "tools.collector_runtime.collect_git_changes",
+                return_value=_runtime_git(),
+            ), patch(
+                "tools.collector_runtime.build_json_snapshot", json_builder
+            ), patch("tools.collector_runtime.save_json_snapshot"):
+                _build_workspace_snapshot(
+                    root,
+                    "workspace-1",
+                    "session-1",
+                    {"session-1": tuple()},
+                    settings,
+                    None,
+                    {"session-1": (_terminal_record("turn-1"),)},
+                )
+
+        history = saved_conversions[0].decision_history
+        self.assertEqual(2, len(history))
+        self.assertEqual("superseded", history[0].status)
+        self.assertEqual(history[1].decision_id, history[0].superseded_by)
+        self.assertEqual(history[0].decision_id, history[1].supersedes)
+        self.assertEqual("2026-08-30T00:00:00+00:00", history[0].decided_at)
+        self.assertEqual("2026-08-31T00:00:00+00:00", history[1].decided_at)
+        self.assertEqual(("session-1",), history[1].source_session_ids)
+        self.assertEqual(("message-new",), history[1].source_message_ids)
+        self.assertEqual(history, json_builder.call_args.args[6].decisions)
+
     def test_collector_falls_back_only_for_failed_or_ineligible_combined_turn(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "workspace"
