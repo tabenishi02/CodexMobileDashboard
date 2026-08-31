@@ -688,6 +688,403 @@ class CollectorRuntimeTests(unittest.TestCase):
                 self.assertEqual(1, run_once(settings))
         self.assertEqual({"session-1": tuple()}, captured[0])
 
+    def test_incremental_second_run_without_new_records_starts_no_cli(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "workspace"
+            root.mkdir()
+            settings = SimpleNamespace(
+                inference_ledger_file=Path(directory) / "ledger.json",
+                ai_inference_mode="incremental",
+                tasks_path=Path(directory) / "TASKS.md",
+                output_dir=Path(directory) / "output",
+                queue_dir=Path(directory) / "queue",
+            )
+            message = _runtime_message(
+                "message-1", "turn-1", "Implemented the requested source change."
+            )
+            chat = ChatExtractionResult((message,), tuple(), tuple())
+            work = SimpleNamespace(
+                codex_status="idle", turns=(_runtime_turn("turn-1"),)
+            )
+            combined_runner = Mock()
+            combined_runner.infer.return_value = _combined_result()
+            decision_runner = Mock()
+            summary_runner = Mock()
+            next_task_runner = Mock()
+            budget = InferenceCallBudget()
+            with patch(
+                "tools.collector_runtime.extract_chat_messages", return_value=chat
+            ), patch(
+                "tools.collector_runtime.extract_current_work_status", return_value=work
+            ), patch(
+                "tools.collector_runtime.CombinedTurnCliRunner",
+                return_value=combined_runner,
+            ), patch(
+                "tools.decision_extractor.DecisionCliRunner",
+                return_value=decision_runner,
+            ), patch(
+                "tools.change_summary_generator.ChangeSummaryCliRunner",
+                return_value=summary_runner,
+            ), patch(
+                "tools.next_task_extractor.CodexCliRunner",
+                return_value=next_task_runner,
+            ), patch(
+                "tools.collector_runtime.extract_file_references",
+                return_value=SimpleNamespace(references=tuple()),
+            ), patch(
+                "tools.collector_runtime.extract_development_errors",
+                return_value=object(),
+            ), patch(
+                "tools.collector_runtime.collect_git_changes",
+                return_value=_runtime_git(),
+            ), patch(
+                "tools.collector_runtime.build_json_snapshot", return_value=object()
+            ), patch("tools.collector_runtime.save_json_snapshot"):
+                _build_workspace_snapshot(
+                    root,
+                    "workspace-1",
+                    "session-1",
+                    {"session-1": tuple()},
+                    settings,
+                    None,
+                    {"session-1": (_terminal_record("turn-1"),)},
+                    budget.try_acquire,
+                )
+                _build_workspace_snapshot(
+                    root,
+                    "workspace-1",
+                    "session-1",
+                    {"session-1": tuple()},
+                    settings,
+                    None,
+                    {"session-1": tuple()},
+                    budget.try_acquire,
+                )
+
+        combined_runner.infer.assert_called_once()
+        decision_runner.extract.assert_not_called()
+        summary_runner.generate.assert_not_called()
+        next_task_runner.infer.assert_not_called()
+        self.assertEqual(1, budget.calls)
+
+    def test_combined_cache_change_and_failure_preserve_snapshot_models_and_ledger(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "workspace"
+            root.mkdir()
+            ledger = Path(directory) / "ledger.json"
+            settings = SimpleNamespace(
+                inference_ledger_file=ledger,
+                ai_inference_mode="incremental",
+                tasks_path=Path(directory) / "TASKS.md",
+                output_dir=Path(directory) / "output",
+                queue_dir=Path(directory) / "queue",
+            )
+            chats = (
+                ChatExtractionResult(
+                    (
+                        _runtime_message(
+                            "message-1", "turn-1", "Implemented source change A."
+                        ),
+                    ),
+                    tuple(),
+                    tuple(),
+                ),
+                ChatExtractionResult(
+                    (
+                        _runtime_message(
+                            "message-1", "turn-1", "Implemented source change A."
+                        ),
+                    ),
+                    tuple(),
+                    tuple(),
+                ),
+                ChatExtractionResult(
+                    (
+                        _runtime_message(
+                            "message-1", "turn-1", "Implemented source change B."
+                        ),
+                    ),
+                    tuple(),
+                    tuple(),
+                ),
+            )
+            work = SimpleNamespace(
+                codex_status="idle", turns=(_runtime_turn("turn-1"),)
+            )
+            combined_runner = Mock()
+            combined_runner.infer.side_effect = (
+                _combined_result(),
+                RuntimeError("codex_nonzero_exit"),
+            )
+            models = []
+            documents = []
+
+            def render_snapshot(
+                context,
+                project,
+                chat,
+                current_work,
+                next_task,
+                errors,
+                decisions,
+                files,
+                git,
+                summaries,
+                collector,
+                **kwargs,
+            ):
+                models.append((next_task, decisions, summaries))
+                document = {
+                    "change_summaries": [
+                        summary_payload(item) for item in summaries.summaries
+                    ],
+                    "decisions": [vars(item) for item in decisions.decisions],
+                    "next_task": vars(next_task.task) if next_task.task else None,
+                }
+                documents.append(document)
+                return SimpleNamespace(documents={"inference.json": document})
+
+            decisions = Mock(side_effect=lambda *args, **kwargs: models[0][1])
+            summaries = Mock(
+                side_effect=lambda *args, **kwargs: SimpleNamespace(
+                    summaries=models[0][2].summaries,
+                    issues=tuple(),
+                    cache_entries=tuple(),
+                    inference_calls=0,
+                )
+            )
+            next_task = Mock(
+                side_effect=lambda *args, **kwargs: SimpleNamespace(
+                    task=models[0][0].task,
+                    issues=tuple(),
+                    cache_entry=None,
+                    inference_attempted=False,
+                    inference_input_bytes=0,
+                    inference_input_truncated=False,
+                )
+            )
+            with patch(
+                "tools.collector_runtime.extract_chat_messages", side_effect=chats
+            ), patch(
+                "tools.collector_runtime.extract_current_work_status", return_value=work
+            ), patch(
+                "tools.collector_runtime.CombinedTurnCliRunner",
+                return_value=combined_runner,
+            ), patch(
+                "tools.collector_runtime.extract_decisions", decisions
+            ), patch(
+                "tools.collector_runtime.generate_change_summaries", summaries
+            ), patch(
+                "tools.collector_runtime.extract_next_task", next_task
+            ), patch(
+                "tools.collector_runtime.extract_file_references",
+                return_value=SimpleNamespace(references=tuple()),
+            ), patch(
+                "tools.collector_runtime.extract_development_errors",
+                return_value=object(),
+            ), patch(
+                "tools.collector_runtime.collect_git_changes",
+                return_value=_runtime_git(),
+            ), patch(
+                "tools.collector_runtime.build_json_snapshot",
+                side_effect=render_snapshot,
+            ), patch("tools.collector_runtime.save_json_snapshot"):
+                for _ in range(3):
+                    _build_workspace_snapshot(
+                        root,
+                        "workspace-1",
+                        "session-1",
+                        {"session-1": tuple()},
+                        settings,
+                        None,
+                        {"session-1": (_terminal_record("turn-1"),)},
+                    )
+                ledger_kinds = [item.inference_kind for item in load(ledger)]
+
+        self.assertEqual(2, combined_runner.infer.call_count)
+        self.assertEqual(documents[0], documents[1])
+        self.assertEqual(documents[0], documents[2])
+        self.assertEqual(["combined_turn"], ledger_kinds)
+        decisions.assert_called_once()
+        summaries.assert_called_once()
+        next_task.assert_called_once()
+
+    def test_failed_individual_inference_results_are_not_persisted(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "workspace"
+            root.mkdir()
+            ledger = Path(directory) / "ledger.json"
+            settings = SimpleNamespace(
+                inference_ledger_file=ledger,
+                ai_inference_mode="incremental",
+                tasks_path=Path(directory) / "TASKS.md",
+                output_dir=Path(directory) / "output",
+                queue_dir=Path(directory) / "queue",
+            )
+            message = _runtime_message(
+                "message-1", "turn-1", "Implemented source change."
+            )
+            failed_task = NextTask(
+                "task-fallback",
+                "Fallback task",
+                "pending",
+                "fallback",
+                "low",
+                "codex_nonzero_exit",
+                ("message-1",),
+            )
+            with patch(
+                "tools.collector_runtime.extract_chat_messages",
+                return_value=ChatExtractionResult((message,), tuple(), tuple()),
+            ), patch(
+                "tools.collector_runtime.extract_current_work_status",
+                return_value=SimpleNamespace(
+                    codex_status="idle", turns=(_runtime_turn("turn-1"),)
+                ),
+            ), patch(
+                "tools.collector_runtime._try_combined_inference", return_value=None
+            ), patch(
+                "tools.collector_runtime.extract_decisions",
+                return_value=SimpleNamespace(decisions=tuple(), issues=tuple()),
+            ), patch(
+                "tools.collector_runtime.generate_change_summaries",
+                return_value=SimpleNamespace(
+                    summaries=tuple(),
+                    issues=tuple(),
+                    cache_entries=(SimpleNamespace(summary=None),),
+                ),
+            ), patch(
+                "tools.collector_runtime.extract_next_task",
+                return_value=SimpleNamespace(
+                    task=failed_task,
+                    issues=tuple(),
+                    cache_entry=NextTaskCacheEntry(
+                        "a" * 64, failed_task, None, tuple()
+                    ),
+                    inference_attempted=True,
+                ),
+            ), patch(
+                "tools.collector_runtime.extract_file_references",
+                return_value=SimpleNamespace(references=tuple()),
+            ), patch(
+                "tools.collector_runtime.extract_development_errors",
+                return_value=object(),
+            ), patch(
+                "tools.collector_runtime.collect_git_changes",
+                return_value=_runtime_git(),
+            ), patch(
+                "tools.collector_runtime.build_json_snapshot", return_value=object()
+            ), patch("tools.collector_runtime.save_json_snapshot"):
+                _build_workspace_snapshot(
+                    root,
+                    "workspace-1",
+                    "session-1",
+                    {"session-1": tuple()},
+                    settings,
+                    None,
+                    {"session-1": (_terminal_record("turn-1"),)},
+                )
+
+            self.assertEqual(tuple(), load(ledger))
+
+    def test_incremental_sequence_excludes_history_carries_limit_and_recovers_interrupted_save(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "workspace"
+            root.mkdir()
+            settings = SimpleNamespace(
+                state_file=Path(directory) / "state.json",
+                history_file=Path(directory) / "history.json",
+                sessions_dir=Path(directory),
+                archived_sessions_dir=None,
+                scan_archived_sessions=False,
+                allowed_roots=(root,),
+                ai_inference_mode="incremental",
+                max_calls_per_run=3,
+            )
+            session = SimpleNamespace(
+                session_id="session-1",
+                current_file=SimpleNamespace(
+                    workspace_candidates=tuple(),
+                    last_timestamp="2026-08-31T00:00:00+00:00",
+                    path=Path(directory) / "session.jsonl",
+                ),
+            )
+            cursor = SimpleNamespace(session_id="session-1")
+            known_state = CollectorState((cursor,), tuple())
+            record = _terminal_record("turn-1")
+            stored = [CollectorState()]
+            build_calls = []
+            save_calls = [0]
+
+            def collect_records(*args):
+                return SimpleNamespace(
+                    records=(record,),
+                    resume=SimpleNamespace(replay_from_start=True),
+                    next_state=known_state,
+                )
+
+            def build_snapshot(*args):
+                build_calls.append((args[6], args[8]))
+                invocation = len(build_calls)
+                if invocation == 1:
+                    return tuple()
+                if invocation == 2:
+                    self.assertEqual(
+                        [True, True, True, False],
+                        [args[7]() for _ in range(4)],
+                    )
+                    return (
+                        PendingInference(
+                            args[1], "session-1", "turn-1", "change_summary"
+                        ),
+                    )
+                return tuple()
+
+            def save_state(state, path):
+                save_calls[0] += 1
+                if save_calls[0] == 3:
+                    raise OSError("interrupted state replace")
+                stored[0] = state
+
+            with patch(
+                "tools.collector_runtime.load_collector_state",
+                side_effect=lambda path: stored[0],
+            ), patch(
+                "tools.collector_runtime.load_collector_history",
+                return_value=CollectorHistory(),
+            ), patch(
+                "tools.collector_runtime.discover_session_files", return_value=tuple()
+            ), patch(
+                "tools.collector_runtime.build_session_index",
+                return_value={"session-1": session},
+            ), patch(
+                "tools.collector_runtime._workspace_root", return_value=root
+            ), patch(
+                "tools.collector_runtime.collect_incremental_records",
+                side_effect=collect_records,
+            ), patch(
+                "tools.collector_runtime._build_workspace_snapshot",
+                side_effect=build_snapshot,
+            ), patch(
+                "tools.collector_runtime.save_collector_history"
+            ), patch(
+                "tools.collector_runtime.save_collector_state",
+                side_effect=save_state,
+            ):
+                self.assertEqual(1, run_once(settings))
+                self.assertEqual(1, run_once(settings))
+                self.assertEqual(1, len(stored[0].pending_inferences))
+                with self.assertRaisesRegex(OSError, "interrupted state replace"):
+                    run_once(settings)
+                self.assertEqual(1, len(stored[0].pending_inferences))
+                self.assertEqual(1, run_once(settings))
+
+        self.assertEqual(tuple(), build_calls[0][0]["session-1"])
+        self.assertEqual((record,), build_calls[1][0]["session-1"])
+        self.assertEqual(tuple(), build_calls[1][1])
+        self.assertEqual(build_calls[2][1], build_calls[3][1])
+        self.assertEqual(tuple(), stored[0].pending_inferences)
+
 def _runtime_message(message_id, turn_id, text="実装しました。"):
     return SimpleNamespace(
         message_id=message_id,
