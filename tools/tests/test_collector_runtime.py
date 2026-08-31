@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from tools.change_summary_generator import ChangeSummary, SummaryEvidenceItem
 from tools.chat_extractor import ChatExtractionResult
-from tools.collector_runtime import _build_workspace_snapshot, run_once
+from tools.collector_runtime import _build_workspace_snapshot, _incremental_completed_turn_ids, run_once
 from tools.decision_extractor import DecisionInferenceCacheEntry, ExtractedDecision, _Proposal, decision_inference_payload
 from tools.next_task_extractor import NextTask, NextTaskCacheEntry, NextTaskIssue
 from tools.inference_ledger import InferenceLedgerEntry, append, next_task_payload, summary_payload
@@ -15,6 +15,25 @@ from tools.collector_state import CollectorState
 
 
 class CollectorRuntimeTests(unittest.TestCase):
+    def test_incremental_completed_turn_ids_include_terminal_failures_and_exclude_rollbacks(self) -> None:
+        work = SimpleNamespace(turns=(
+            SimpleNamespace(turn_id="completed", status="completed", rolled_back=False),
+            SimpleNamespace(turn_id="failed", status="failed", rolled_back=False),
+            SimpleNamespace(turn_id="rolled-back", status="completed", rolled_back=True),
+            SimpleNamespace(turn_id="working", status="in_progress", rolled_back=False),
+        ))
+        records = {"session-1": (
+            SimpleNamespace(category="turn", subtype="turn_status", turn_id="completed", attributes={"status": "completed"}),
+            SimpleNamespace(category="turn", subtype="turn_status", turn_id="failed", attributes={"status": "aborted"}),
+            SimpleNamespace(category="turn", subtype="turn_status", turn_id="rolled-back", attributes={"status": "completed"}),
+            SimpleNamespace(category="turn", subtype="turn_status", turn_id="working", attributes={"status": "started"}),
+        )}
+
+        self.assertEqual(
+            {"completed", "failed"},
+            _incremental_completed_turn_ids(work, records),
+        )
+
     def test_restart_reuses_saved_change_summary_ledger_entry(self) -> None:
         summary = ChangeSummary("summary-1", "turn-1", "jsonl", "completed", False, "title", "short", "details", (SummaryEvidenceItem("highlight", ("message-1",)),), tuple(), "codex_generated", "high", ("session-1",), ("message-1",))
         with tempfile.TemporaryDirectory() as directory:
@@ -59,7 +78,7 @@ class CollectorRuntimeTests(unittest.TestCase):
         self.assertEqual((restored_decision,), captured["restored_decisions"])
         self.assertEqual(task, captured["next_task_cache"].task)
 
-    def test_incremental_mode_passes_only_new_turn_ids_to_inference(self) -> None:
+    def test_incremental_mode_passes_only_newly_completed_turn_ids_to_inference(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "workspace"
             root.mkdir()
@@ -71,10 +90,46 @@ class CollectorRuntimeTests(unittest.TestCase):
             def next_task(*args, **kwargs):
                 captured["allow_inference"] = kwargs["allow_inference"]
                 return SimpleNamespace(inference_attempted=False, cache_entry=None)
-            with patch("tools.collector_runtime.extract_chat_messages", return_value=ChatExtractionResult(tuple(), tuple(), tuple())), patch("tools.collector_runtime.extract_current_work_status", return_value=SimpleNamespace(codex_status="idle")), patch("tools.collector_runtime.extract_decisions", return_value=SimpleNamespace(decisions=tuple())), patch("tools.collector_runtime.extract_file_references", return_value=SimpleNamespace(references=tuple())), patch("tools.collector_runtime.extract_development_errors", return_value=object()), patch("tools.collector_runtime.generate_change_summaries", side_effect=summaries), patch("tools.collector_runtime.extract_next_task", side_effect=next_task), patch("tools.collector_runtime.collect_git_changes", return_value=object()), patch("tools.collector_runtime.build_json_snapshot", return_value=object()), patch("tools.collector_runtime.save_json_snapshot"):
-                _build_workspace_snapshot(root, "workspace-1", "session-1", {"session-1": tuple()}, settings, None, {"session-1": (SimpleNamespace(turn_id="new-turn"),)})
+            work = SimpleNamespace(codex_status="idle", turns=(SimpleNamespace(turn_id="new-turn", status="completed", rolled_back=False),))
+            terminal = SimpleNamespace(category="turn", subtype="turn_status", turn_id="new-turn", attributes={"status": "completed"})
+            with patch("tools.collector_runtime.extract_chat_messages", return_value=ChatExtractionResult(tuple(), tuple(), tuple())), patch("tools.collector_runtime.extract_current_work_status", return_value=work), patch("tools.collector_runtime.extract_decisions", return_value=SimpleNamespace(decisions=tuple())), patch("tools.collector_runtime.extract_file_references", return_value=SimpleNamespace(references=tuple())), patch("tools.collector_runtime.extract_development_errors", return_value=object()), patch("tools.collector_runtime.generate_change_summaries", side_effect=summaries), patch("tools.collector_runtime.extract_next_task", side_effect=next_task), patch("tools.collector_runtime.collect_git_changes", return_value=object()), patch("tools.collector_runtime.build_json_snapshot", return_value=object()), patch("tools.collector_runtime.save_json_snapshot"):
+                _build_workspace_snapshot(root, "workspace-1", "session-1", {"session-1": tuple()}, settings, None, {"session-1": (terminal,)})
         self.assertEqual({"new-turn"}, captured["turn_ids"])
         self.assertFalse(captured["allow_inference"])
+
+    def test_in_progress_turn_is_withheld_until_terminal_event_for_all_routes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "workspace"
+            root.mkdir()
+            settings = SimpleNamespace(inference_ledger_file=Path(directory) / "ledger.json", ai_inference_mode="incremental", tasks_path=Path(directory) / "TASKS.md", output_dir=Path(directory) / "output", queue_dir=Path(directory) / "queue")
+            def message(message_id, role, phase, text):
+                return SimpleNamespace(message_id=message_id, created_at=message_id, turn_id="turn-1", role=role, message_type="chat", phase=phase, content=(SimpleNamespace(kind="text", text=text),))
+            user = message("01-user", "user", None, "案Aを採用します。")
+            commentary = message("02-commentary", "assistant", "commentary", "作業中です。")
+            final = message("03-final", "assistant", "final_answer", "完了しました。")
+            partial_chat = ChatExtractionResult((user, commentary), tuple(), tuple())
+            completed_chat = ChatExtractionResult((user, final), tuple(), tuple())
+            in_progress = SimpleNamespace(codex_status="working", turns=(SimpleNamespace(turn_id="turn-1", status="in_progress", rolled_back=False),))
+            completed = SimpleNamespace(codex_status="idle", turns=(SimpleNamespace(turn_id="turn-1", status="completed", rolled_back=False),))
+            started_record = SimpleNamespace(category="turn", subtype="turn_status", turn_id="turn-1", attributes={"status": "started"})
+            completed_record = SimpleNamespace(category="turn", subtype="turn_status", turn_id="turn-1", attributes={"status": "completed"})
+            captured = {"decisions": [], "summaries": [], "next": []}
+            def decisions(sources, *args, **kwargs):
+                captured["decisions"].append(tuple(item.message.turn_id for item in sources))
+                return SimpleNamespace(decisions=tuple())
+            def summaries(*args, **kwargs):
+                captured["summaries"].append(kwargs["inference_turn_ids"])
+                return SimpleNamespace(cache_entries=tuple())
+            def next_task(messages, *args, **kwargs):
+                captured["next"].append((kwargs["allow_inference"], tuple(item.turn_id for item in messages)))
+                return SimpleNamespace(inference_attempted=False, cache_entry=None)
+            with patch("tools.collector_runtime.extract_chat_messages", side_effect=(partial_chat, completed_chat)), patch("tools.collector_runtime.extract_current_work_status", side_effect=(in_progress, completed)), patch("tools.collector_runtime.extract_decisions", side_effect=decisions), patch("tools.collector_runtime.extract_file_references", return_value=SimpleNamespace(references=tuple())), patch("tools.collector_runtime.extract_development_errors", return_value=object()), patch("tools.collector_runtime.generate_change_summaries", side_effect=summaries), patch("tools.collector_runtime.extract_next_task", side_effect=next_task), patch("tools.collector_runtime.collect_git_changes", return_value=object()), patch("tools.collector_runtime.build_json_snapshot", return_value=object()), patch("tools.collector_runtime.save_json_snapshot"):
+                _build_workspace_snapshot(root, "workspace-1", "session-1", {"session-1": tuple()}, settings, None, {"session-1": (started_record,)})
+                _build_workspace_snapshot(root, "workspace-1", "session-1", {"session-1": tuple()}, settings, None, {"session-1": (completed_record,)})
+
+        self.assertEqual([tuple(), ("turn-1", "turn-1")], captured["decisions"])
+        self.assertEqual([set(), {"turn-1"}], captured["summaries"])
+        self.assertEqual([(False, tuple()), (True, ("turn-1", "turn-1"))], captured["next"])
 
     def test_initial_history_is_not_passed_to_incremental_inference(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -105,7 +105,9 @@ def _build_workspace_snapshot(root: Path, workspace_id: str, latest_session_id: 
     chats = ChatExtractionResult(ordered_messages, tuple(issue for value in chats_by_session.values() for issue in value.issues), tuple(item for value in chats_by_session.values() for item in value.automatic_context_removals))
     all_records = tuple(record for records in records_by_session.values() for record in records)
     work = extract_current_work_status(all_records, ordered_messages, latest_session_id)
-    inference_turn_ids = {record.turn_id for records in (inference_records_by_session or {}).values() for record in records if record.turn_id} if settings.ai_inference_mode == "incremental" else None
+    inference_turn_ids = _incremental_completed_turn_ids(
+        work, inference_records_by_session or {}
+    ) if settings.ai_inference_mode == "incremental" else None
     ledger_entries = load_inference_ledger(settings.inference_ledger_file)
     decision_sources = tuple(DecisionSourceMessage(session_id, message, _text(message)) for session_id, value in chats_by_session.items() for message in value.messages if inference_turn_ids is None or message.turn_id in inference_turn_ids)
     def save_decision_inference(entry):
@@ -118,7 +120,12 @@ def _build_workspace_snapshot(root: Path, workspace_id: str, latest_session_id: 
         if entry.summary is not None:
             append_inference_ledger(settings.inference_ledger_file, InferenceLedgerEntry(workspace_id, latest_session_id, entry.turn_id, entry.evidence_hash, {"schema_version": 1, "payload": summary_payload(entry.summary)}, datetime.now(timezone.utc).isoformat(timespec="seconds"), "change_summary"))
 
-    recent = tuple(ordered_messages[-2:])
+    inference_messages = tuple(
+        message
+        for message in ordered_messages
+        if inference_turn_ids is None or message.turn_id in inference_turn_ids
+    )
+    recent = tuple(inference_messages[-2:])
     next_task = extract_next_task(recent, NextTaskInferenceContext(work.codex_status, tuple(InferenceMessage(message.message_id, message.role, _text(message)) for message in recent), tuple(item.title for item in decisions.decisions), tuple(), True), settings.tasks_path, cache_entry=next_task_cache_entry(ledger_entries, workspace_id, latest_session_id), allow_inference=settings.ai_inference_mode != "off" and (inference_turn_ids is None or any(message.turn_id in inference_turn_ids for message in recent)), can_infer=can_infer)
     if next_task.inference_attempted and next_task.cache_entry is not None and next_task.cache_entry.task is not None and next_task.cache_entry.task.origin == "codex_inferred":
         turn_id = recent[-1].turn_id or recent[-1].message_id if recent else latest_session_id
@@ -132,6 +139,27 @@ def _build_workspace_snapshot(root: Path, workspace_id: str, latest_session_id: 
         queue = PendingSnapshotQueue(settings.queue_dir)
         uploads = prepare_snapshot_uploads(saved.workspace_directory, (item.path for item in saved.files))
         queue.send_or_enqueue(sender, workspace_id, context.snapshot_id, uploads, commit_delivery_id=str(uuid.uuid4()))
+
+
+def _incremental_completed_turn_ids(work_status, records_by_session):
+    terminal_turn_ids = {
+        record.turn_id
+        for records in records_by_session.values()
+        for record in records
+        if (
+            getattr(record, "category", None) == "turn"
+            and getattr(record, "subtype", None) == "turn_status"
+            and getattr(record, "turn_id", None)
+            and getattr(record, "attributes", {}).get("status")
+            in ("completed", "aborted")
+        )
+    }
+    completed_turn_ids = {
+        turn.turn_id
+        for turn in getattr(work_status, "turns", ())
+        if turn.status in ("completed", "failed") and not turn.rolled_back
+    }
+    return terminal_turn_ids & completed_turn_ids
 
 
 def _workspace_root(candidates: Iterable[str], allowed_roots: Tuple[Path, ...]) -> Path | None:

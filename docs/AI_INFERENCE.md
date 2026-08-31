@@ -17,10 +17,10 @@ CLIは`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore
 `[ai_inference] mode`は`off`、`incremental`、`backfill`を受け付け、未指定時は`incremental`である。
 
 - `off`: 3経路のCodex CLIを起動せず、規則ベース抽出とフォールバックを使う。
-- `incremental`: 今回の増分収集で追加されたturnだけをCLI推論対象にする。初回導入時に取り込む既存履歴は対象外である。
+- `incremental`: 今回の増分収集で`completed`または`aborted`のterminal eventが追加され、全履歴から再構築した状態が`completed`または`failed`になった未rollbackのturnだけをCLI推論対象にする。開始、commentary、途中出力だけが追加されたturnは対象にせず、後続収集でterminal eventを受信した時点で対象にする。初回導入時に取り込む既存履歴は対象外である。
 - `backfill`: `python -m tools.collector --config <config> backfill-ai`で明示実行する過去未処理turnの補完モード。共有上限を適用する。
 
-通常収集は初回導入時の過去履歴を推論対象にせず、増分収集で追加された完了turnだけを対象にする。
+通常収集は初回導入時の過去履歴を推論対象にせず、増分収集で新たにterminal eventを受信した完了turnだけを対象にする。変更要約、決定事項、次タスクは同じ完了turn集合を使用し、次タスクの入力メッセージもその集合内へ限定する。
 
 ## 既存キャッシュと台帳
 
@@ -95,4 +95,4 @@ runner自体は`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、
 プロンプト本文、メッセージ本文、Token、入力SHA-256、workspace・session・turn ID、ファイルパスはメトリクスログに出力しない。
 ## 推論回帰テスト
 
-回帰テストは、incrementalで新規turnだけを渡すこと、台帳復元による再起動後のキャッシュ利用、中断時の原子的台帳保持、共有上限、`off`、`backfill-ai`、入力が同一の場合のキャッシュ利用と入力変更時の再推論を確認する。`off`と上限到達ではCodex CLIを起動しない。
+回帰テストは、incrementalで新規完了turnだけを3経路へ渡し、追加途中では推論を許可せずterminal event受信後の収集で許可すること、台帳復元による再起動後のキャッシュ利用、中断時の原子的台帳保持、共有上限、`off`、`backfill-ai`、入力が同一の場合のキャッシュ利用と入力変更時の再推論を確認する。`off`と上限到達ではCodex CLIを起動しない。
