@@ -13,6 +13,7 @@ from tools.decision_extractor import (
     DecisionSourceMessage,
     ExtractedDecision,
     _Proposal,
+    apply_inferred_decision_proposals,
     decision_inference_cache_entry_from_payload,
     decision_inference_payload,
     extract_decisions,
@@ -84,6 +85,31 @@ class StubRunner:
 
 
 class DecisionExtractorTests(unittest.TestCase):
+    def test_combined_proposals_preserve_supersedes_relationships(self) -> None:
+        first = apply_inferred_decision_proposals(
+            (_Proposal("adopted", "案A", "説明A", None, "topic"),),
+            "workspace-1",
+            "session-1",
+            chat_message("assistant", "案A", "message-1"),
+            ("message-1",),
+        )
+        second = apply_inferred_decision_proposals(
+            (_Proposal("adopted", "案B", "説明B", None, "topic"),),
+            "workspace-1",
+            "session-1",
+            chat_message("assistant", "案B", "message-2"),
+            ("message-2",),
+            restored_decisions=first.decisions,
+        )
+
+        self.assertEqual("superseded", second.decisions[0].status)
+        self.assertEqual(
+            second.decisions[1].decision_id, second.decisions[0].superseded_by
+        )
+        self.assertEqual(
+            second.decisions[0].decision_id, second.decisions[1].supersedes
+        )
+
     def test_assistant_proposal_alone_is_not_a_decision(self) -> None:
         result = extract_decisions(
             (source("session-1", "assistant", "HTTPSを採用します。", "msg-a"),),

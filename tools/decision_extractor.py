@@ -362,6 +362,90 @@ def extract_decisions(
     )
     return DecisionExtractionResult(tuple(decisions), tuple(issues))
 
+
+def apply_inferred_decision_proposals(
+    proposals: Sequence[_Proposal],
+    workspace_id: str,
+    session_id: str,
+    evidence_message: ExtractedChatMessage,
+    source_message_ids: Sequence[str],
+    *,
+    restored_decisions: Sequence[ExtractedDecision] = (),
+) -> DecisionExtractionResult:
+    """Apply combined-turn proposals to the existing versioned decision history."""
+    decisions: List[ExtractedDecision] = list(restored_decisions)
+    active_by_topic: Dict[str, int] = {}
+    same_decision: Dict[str, int] = {}
+    evidence_ids = tuple(dict.fromkeys(source_message_ids))
+    for index, decision in enumerate(decisions):
+        if decision.superseded_by is None:
+            active_by_topic[decision.topic_key] = index
+            same_decision[
+                _semantic_key(
+                    _Proposal(
+                        decision.status,
+                        decision.title,
+                        decision.description,
+                        decision.reason,
+                        decision.topic_key,
+                    )
+                )
+            ] = index
+    for proposal in proposals:
+        decided_at, decided_at_source = _decision_time(evidence_message)
+        semantic_key = _semantic_key(proposal)
+        existing_index = same_decision.get(semantic_key)
+        if existing_index is not None:
+            existing = decisions[existing_index]
+            reason_compatible = (
+                existing.reason is None
+                or proposal.reason is None
+                or _normalize(existing.reason) == _normalize(proposal.reason)
+            )
+            if existing.superseded_by is None and reason_compatible:
+                decisions[existing_index] = replace(
+                    existing,
+                    reason=existing.reason or proposal.reason,
+                    source_session_ids=_merge(
+                        existing.source_session_ids, (session_id,)
+                    ),
+                    source_message_ids=_merge(
+                        existing.source_message_ids, evidence_ids
+                    ),
+                )
+                continue
+        prior_index = active_by_topic.get(proposal.topic_key)
+        identity_message_id = evidence_ids[-1] if evidence_ids else evidence_message.message_id
+        decision_id = _decision_id(
+            workspace_id, session_id, identity_message_id, proposal
+        )
+        prior_id: Optional[str] = None
+        if prior_index is not None:
+            prior = decisions[prior_index]
+            prior_id = prior.decision_id
+            decisions[prior_index] = replace(
+                prior, status="superseded", superseded_by=decision_id
+            )
+        decision = ExtractedDecision(
+            decision_id=decision_id,
+            decided_at=decided_at,
+            decided_at_source=decided_at_source,
+            status=proposal.status,
+            title=_limit(proposal.title, DECISION_TITLE_MAX_CHARACTERS),
+            description=proposal.description,
+            reason=proposal.reason,
+            source_session_ids=(session_id,),
+            source_message_ids=evidence_ids or (evidence_message.message_id,),
+            supersedes=prior_id,
+            superseded_by=None,
+            topic_key=proposal.topic_key,
+        )
+        decisions.append(decision)
+        new_index = len(decisions) - 1
+        active_by_topic[proposal.topic_key] = new_index
+        same_decision[semantic_key] = new_index
+    return DecisionExtractionResult(tuple(decisions), tuple())
+
 def inference_payload(proposals: Sequence[_Proposal]) -> dict:
     """Return the versioned, prompt-free successful CLI result for the ledger."""
     return {"schema_version": 1, "payload": {"proposals": [{"status": proposal.status, "title": proposal.title, "description": proposal.description, "reason": proposal.reason, "topic_key": proposal.topic_key} for proposal in proposals]}}

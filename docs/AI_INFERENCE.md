@@ -67,7 +67,7 @@ collector終了時には、実行したCLI回数と上限到達で次回へ持�
 
 `CombinedTurnCliRunner`は、変更要約（`summary`）、決定事項配列（`decisions`）、次タスク（`next_task`）を必須とする単一のJSON schemaを`codex exec`へ渡す。各値は既存の個別推論に変換できる最小の構造（表題・内容・理由・確信度など）を検証する。
 
-runner自体は`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore-rules`、`--output-schema`を指定して1回だけCLIを起動する。CLI失敗、JSON構文不正、schemaと異なる応答は成功結果として扱わない。実行オーケストレータは適格な同一turnで統合runnerを1回だけ呼び、成功時は個別経路を起動しない。非適格または統合runner失敗時は追加の統合CLIを起動せず、既存の個別経路へ委譲する。collectorへの接続は後続タスクで行う。
+runner自体は`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore-rules`、`--output-schema`を指定して1回だけCLIを起動する。CLI失敗、JSON構文不正、schemaと異なる応答は成功結果として扱わない。`collector_runtime`は、3経路の対象が同じ単一完了turnに揃う場合に統合runnerを1回だけ呼び、成功時は個別経路を起動しない。非適格、統合runner失敗、または統合台帳の保存失敗時は追加の統合CLIを起動せず、既存の個別経路へ委譲する。
 ## 統合結果の保存形式
 
 統合結果は既存の`ChangeSummary`、決定事項推論proposal、`NextTask`へ変換する。`combined_turn`台帳entryの`payload`には、既存の変更要約・決定事項・次タスクと同じversioned payloadをそれぞれ`change_summary`、`decision`、`next_task`として格納する。プロンプト本文や未マスク入力は保存しない。
@@ -75,11 +75,11 @@ runner自体は`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、
 統合結果は`combined_turn` 1 entryとして既存の原子的`append`で保存する。置換に失敗した場合は、直前の台帳を保持し一時ファイルを残さない。復元時はworkspace・session・turn・入力SHA-256がすべて一致する完全な`combined_turn`だけを採用する。不完全な統合entry、またはSHA-256不一致は復元せず、従来の個別台帳entryを安全に利用する。
 ## 統合推論の設定・制約・運用
 
-統合推論専用の設定キーはまだない。`[ai_inference] mode`と`max_calls_per_run`、`[storage] inference_ledger_file`は既存の推論と共通であり、設定例では`incremental`、`3`、`%LOCALAPPDATA%\CodexMobileDashboard\state\ai-inference-ledger.json`を使用する。`max_calls_per_run`は0以上の整数である。統合オーケストレータはcollectorの共有予算を受け取れる実装であり、後続タスクで`collector_runtime`へ接続した後も個別経路と同じ上限を使用する。
+統合推論専用の設定キーはない。`[ai_inference] mode`と`max_calls_per_run`、`[storage] inference_ledger_file`は既存の推論と共通であり、設定例では`incremental`、`3`、`%LOCALAPPDATA%\CodexMobileDashboard\state\ai-inference-ledger.json`を使用する。`max_calls_per_run`は0以上の整数である。統合オーケストレータは`collector_runtime`から個別経路と同じ共有予算を受け取り、統合CLIの起動時に1枠を消費する。
 
 適格なのは、今回のincremental対象で完了済みの同一turnだけである。すべての入力がマスク済みで、次タスク候補があり、turn外の文脈を必要としないことが必要である。適格なら統合runnerは1回だけ実行し、成功時は個別経路を起動しない。非適格、CLI失敗、JSON/schema不正、台帳payload不完全、または入力SHA-256不一致なら、個別経路へfallbackする。
 
-運用時に推論本文・Token・未マスク本文を台帳やログへ保存してはならない。`combined_turn`は3種の個別versioned payloadを1 entryとして原子的保存し、復元時はworkspace・session・turn・入力SHA-256の完全一致を要求する。現時点では統合runner・台帳・fallbackオーケストレータは実装済みだが、`collector_runtime`への接続は未実装である。そのため通常のcollector運用は既存の個別推論経路を継続する。
+運用時に推論本文・Token・未マスク本文を台帳やログへ保存してはならない。`combined_turn`は3種の個別versioned payloadを1 entryとして原子的保存し、復元時はworkspace・session・turn・入力SHA-256の完全一致を要求する。通常の`incremental`収集では完全一致キャッシュをCLIより先に確認し、復元できた場合も個別経路を起動しない。`off`、`backfill`、複数turn、3経路の対象turn不一致は統合対象外であり、既存の個別経路を使用する。
 ## 統合promptの入力範囲と上限
 
 統合promptには対象turnのマスク済みメッセージだけを入れる。Gitについては収集状態、branch、clean状態、変更ファイルのパス・旧パス・状態だけを含め、diff本文、ファイル本文、コミットメッセージは含めない。ファイル参照は採用済みの対象メッセージを根拠にするものだけを含める。
