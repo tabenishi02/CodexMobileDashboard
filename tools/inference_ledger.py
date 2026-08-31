@@ -17,6 +17,12 @@ class InferenceLedgerEntry:
     generated_at: str
     inference_kind: str
 
+@dataclass(frozen=True)
+class CombinedTurnCacheEntry:
+    input_sha256: str
+    summary: object
+    decision_proposals: Tuple[object, ...]
+    next_task_cache_entry: object
 class InvalidInferenceLedgerError(ValueError): pass
 
 def load(path: Path) -> Tuple[InferenceLedgerEntry, ...]:
@@ -51,8 +57,11 @@ def summary_payload(summary):
 def summary_cache_entries(entries, workspace_id, session_id):
     from tools.change_summary_generator import ChangeSummary, ChangeSummaryCacheEntry, SummaryEvidenceItem
     result=[]
-    for entry in entries:
-        if entry.workspace_id != workspace_id or entry.session_id != session_id or entry.inference_kind != 'change_summary': continue
+    source_entries = _combined_subentries(entries, "change_summary", "change_summary") + tuple(
+        entry for entry in entries if entry.inference_kind == "change_summary"
+    )
+    for entry in source_entries:
+        if entry.workspace_id != workspace_id or entry.session_id != session_id: continue
         value=entry.result.get('payload') if isinstance(entry.result,dict) and entry.result.get('schema_version') == 1 else None
         if not isinstance(value,dict): continue
         try:
@@ -66,14 +75,57 @@ def decision_inference_cache(entries, workspace_id):
     """Restore only complete, versioned decision CLI results from the ledger."""
     from tools.decision_extractor import proposals_from_inference_payload
     result={}
-    for entry in entries:
-        if entry.workspace_id != workspace_id or entry.inference_kind != 'decision':
+    source_entries = tuple(entry for entry in entries if entry.inference_kind == "decision") + _combined_subentries(entries, "decision", "decision")
+    for entry in source_entries:
+        if entry.workspace_id != workspace_id:
             continue
         try:
             result[entry.input_sha256] = proposals_from_inference_payload(entry.result)
         except ValueError:
             continue
     return result
+
+def combined_turn_cache_entry(entries, workspace_id, session_id, turn_id, input_sha256):
+    """Restore a complete combined result only for the exact prompt SHA-256."""
+    from tools.decision_extractor import proposals_from_inference_payload
+
+    for entry in reversed(tuple(entries)):
+        if (
+            entry.workspace_id != workspace_id
+            or entry.session_id != session_id
+            or entry.turn_id != turn_id
+            or entry.input_sha256 != input_sha256
+            or entry.inference_kind != "combined_turn"
+        ):
+            continue
+        subentries = _combined_subentries((entry,), "change_summary", "change_summary")
+        decisions = _combined_subentries((entry,), "decision", "decision")
+        tasks = _combined_subentries((entry,), "next_task", "next_task")
+        if len(subentries) != 1 or len(decisions) != 1 or len(tasks) != 1:
+            continue
+        summaries = summary_cache_entries(subentries, workspace_id, session_id)
+        task_cache = next_task_cache_entry(tasks, workspace_id, session_id)
+        if len(summaries) != 1 or task_cache is None:
+            continue
+        try:
+            proposals = proposals_from_inference_payload(decisions[0].result)
+        except ValueError:
+            continue
+        return CombinedTurnCacheEntry(input_sha256, summaries[0].summary, proposals, task_cache)
+    return None
+
+
+def _combined_subentries(entries, payload_name, inference_kind):
+    result=[]
+    for entry in entries:
+        if entry.inference_kind != "combined_turn" or not isinstance(entry.result, dict) or entry.result.get("schema_version") != 1:
+            continue
+        payload = entry.result.get("payload")
+        value = payload.get(payload_name) if isinstance(payload, dict) else None
+        if not isinstance(value, dict):
+            continue
+        result.append(InferenceLedgerEntry(entry.workspace_id, entry.session_id, entry.turn_id, entry.input_sha256, value, entry.generated_at, inference_kind))
+    return tuple(result)
 
 def combined_turn_payload(summary, proposals, next_task_entry):
     """Return versioned individual payloads for one atomically saved combined turn."""
@@ -95,8 +147,9 @@ def next_task_payload(entry):
 def next_task_cache_entry(entries, workspace_id, session_id):
     """Restore the latest complete successful next-task result for a session."""
     from tools.next_task_extractor import NextTask, NextTaskCacheEntry, NextTaskIssue
-    for entry in reversed(tuple(entries)):
-        if entry.workspace_id != workspace_id or entry.session_id != session_id or entry.inference_kind != "next_task":
+    source_entries = tuple(entry for entry in entries if entry.inference_kind == "next_task") + _combined_subentries(entries, "next_task", "next_task")
+    for entry in reversed(source_entries):
+        if entry.workspace_id != workspace_id or entry.session_id != session_id:
             continue
         value = entry.result.get("payload") if isinstance(entry.result, dict) and entry.result.get("schema_version") == 1 else None
         if not isinstance(value, dict) or not isinstance(value.get("evidence_hash"), str) or not isinstance(value.get("task"), dict) or not isinstance(value.get("issues"), list):
