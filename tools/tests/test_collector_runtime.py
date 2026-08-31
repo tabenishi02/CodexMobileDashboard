@@ -6,7 +6,10 @@ from unittest.mock import Mock, patch
 
 from tools.change_summary_generator import ChangeSummary, SummaryEvidenceItem
 from tools.chat_extractor import ChatExtractionResult
-from tools.combined_inference import CombinedInferenceResult
+from tools.combined_inference import (
+    COMBINED_INFERENCE_INPUT_MAX_BYTES,
+    CombinedInferenceResult,
+)
 from tools.collector_runtime import InferenceCallBudget, _build_workspace_snapshot, _incremental_completed_turn_ids, run_once
 from tools.decision_extractor import DecisionInferenceCacheEntry, ExtractedDecision, _Proposal, decision_inference_payload
 from tools.next_task_extractor import NextTask, NextTaskCacheEntry, NextTaskIssue
@@ -28,8 +31,11 @@ class CollectorRuntimeTests(unittest.TestCase):
                 output_dir=Path(directory) / "output",
                 queue_dir=Path(directory) / "queue",
             )
-            message = _runtime_message("message-1", "turn-1")
-            chat = ChatExtractionResult((message,), tuple(), tuple())
+            outside = _runtime_message(
+                "message-outside", "turn-outside", "outside-turn-secret"
+            )
+            message = _runtime_message("message-1", "turn-1", "target-turn-text")
+            chat = ChatExtractionResult((outside, message), tuple(), tuple())
             work = SimpleNamespace(
                 codex_status="idle",
                 turns=(_runtime_turn("turn-1"),),
@@ -56,7 +62,22 @@ class CollectorRuntimeTests(unittest.TestCase):
                 return_value=combined_runner,
             ), patch(
                 "tools.collector_runtime.extract_file_references",
-                return_value=SimpleNamespace(references=tuple()),
+                return_value=SimpleNamespace(
+                    references=(
+                        SimpleNamespace(
+                            path="src/target.py",
+                            display_name="target.py",
+                            scope="workspace",
+                            source_message_ids=("message-1",),
+                        ),
+                        SimpleNamespace(
+                            path="secret/outside.txt",
+                            display_name="outside.txt",
+                            scope="workspace",
+                            source_message_ids=("message-outside",),
+                        ),
+                    )
+                ),
             ), patch(
                 "tools.collector_runtime.extract_development_errors",
                 return_value=object(),
@@ -79,6 +100,14 @@ class CollectorRuntimeTests(unittest.TestCase):
                 ledger_kinds = [entry.inference_kind for entry in load(ledger)]
 
         combined_runner.infer.assert_called_once()
+        prompt = combined_runner.infer.call_args.args[0]
+        self.assertIn("target-turn-text", prompt)
+        self.assertIn("src/target.py", prompt)
+        self.assertNotIn("outside-turn-secret", prompt)
+        self.assertNotIn("secret/outside.txt", prompt)
+        self.assertLessEqual(
+            len(prompt.encode("utf-8")), COMBINED_INFERENCE_INPUT_MAX_BYTES
+        )
         decisions.assert_not_called()
         summaries.assert_not_called()
         next_task.assert_not_called()
@@ -586,7 +615,7 @@ class CollectorRuntimeTests(unittest.TestCase):
                 self.assertEqual(1, run_once(settings))
         self.assertEqual({"session-1": tuple()}, captured[0])
 
-def _runtime_message(message_id, turn_id):
+def _runtime_message(message_id, turn_id, text="実装しました。"):
     return SimpleNamespace(
         message_id=message_id,
         created_at=message_id,
@@ -594,7 +623,7 @@ def _runtime_message(message_id, turn_id):
         role="assistant",
         message_type="chat",
         phase="final_answer",
-        content=(SimpleNamespace(kind="text", text="実装しました。"),),
+        content=(SimpleNamespace(kind="text", text=text),),
     )
 
 
