@@ -55,9 +55,11 @@ python -m tools.collector --config "$env:LOCALAPPDATA\CodexMobileDashboard\confi
 
 `backfill-ai`は既定では1回だけ実行し、従来の共有上限を維持する。明示的な`--until-complete`を付けると`limit_reached=0`まで反復し、`--max-runs N`で全体を有限回に制限する。`N`は1～1,000、省略時は100である。最大反復数に達して未完了の場合は終了コード3を返す。
 
-自動継続でも各反復の`max_calls_per_run`を変更せず、runtimeから受け取ったメトリクスで`limit_reached`と推論失敗を判定する。推論失敗時は終了コード2で停止する。`--no-send`では全反復をローカル処理だけにし、送信ありでは中間Snapshotを送らず、補完完了後に通常`incremental`の完全Snapshotだけを1回送る。ログ本文の文字列解析は使用しない。
+自動継続でも各反復の`max_calls_per_run`を変更せず、runtimeが返す`CollectorRunResult`で`executions`、`successes`、`failures`、`limit_reached`、`pending_remaining`、`progress`を判定する。`progress`はその実行で新たに成功した推論結果数であり、キャッシュヒットとスキップは含めない。CLIは単発時にこの実行結果をJSONで返し、自動継続時は`executions`、`successes`、`failures`、`progress`を全反復分集計し、`limit_reached`と`pending_remaining`は最終反復の値を返す。ログ本文の文字列解析は使用しない。
 
-通常の定期`collect-once`は新規完了turnと永続pendingを段階的に処理するが、過去履歴の大量backfillは自動起動しない。進捗なし・保存失敗・利用者中断を含む停止・再開条件の強化と、実行結果の構造化はPhase 3.2の後続タスクとして扱う。
+推論失敗時は終了コード2で停止する。`--no-send`では全反復をローカル処理だけにし、送信ありでは中間Snapshotを送らず、補完完了後に通常`incremental`の完全Snapshotだけを1回送る。
+
+通常の定期`collect-once`は新規完了turnと永続pendingを段階的に処理するが、過去履歴の大量backfillは自動起動しない。進捗なし・保存失敗・利用者中断を含む停止・再開条件の強化はPhase 3.2の後続タスクとして扱う。
 
 
 ## 既存キャッシュと台帳

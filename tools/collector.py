@@ -12,7 +12,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Optional, Sequence
 
-from tools.collector_runtime import CollectorRuntimeSettings, run_once
+from tools.collector_runtime import CollectorRunResult, CollectorRuntimeSettings, run_once
 from tools.https_sender import HttpsSnapshotSender, SenderError, read_bearer_token
 from tools.logging_setup import configure_component_logging
 from tools.pending_snapshot_queue import InvalidPendingSnapshotError, PendingSnapshotQueue
@@ -67,8 +67,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                         sender,
                         arguments.max_runs or DEFAULT_BACKFILL_MAX_RUNS,
                     )
-            count = run_once(runtime_settings, sender)
-            print(json.dumps({"processed_workspaces": count}, sort_keys=True))
+            result = run_once(runtime_settings, sender)
+            print(json.dumps(result.as_dict(), sort_keys=True))
             return 0
         queue = PendingSnapshotQueue(settings["queue_dir"])
         if arguments.command == "queue-status":
@@ -109,36 +109,26 @@ def _run_backfill_until_complete(
     sender: HttpsSnapshotSender | None,
     max_runs: int,
 ) -> int:
-    processed_workspaces = 0
-    limit_reached = 0
+    result = CollectorRunResult(0, 0, 0, 0, 0, 0, 0)
+    totals = {"executions": 0, "successes": 0, "failures": 0, "progress": 0}
     for run_number in range(1, max_runs + 1):
-        captured_metrics = []
-        processed_workspaces = run_once(
-            runtime_settings,
-            None,
-            metrics_callback=captured_metrics.append,
-        )
-        if len(captured_metrics) != 1:
-            raise ValueError("inference_metrics_missing")
-        metrics = captured_metrics[0]
-        limit_reached = metrics.counts["limit_reached"]
-        failures = metrics.counts["failure"]
-        if failures:
+        result = run_once(runtime_settings, None)
+        _add_run_totals(totals, result)
+        if result.failures:
             print(
                 json.dumps(
-                    {
-                        "completed": False,
-                        "failures": failures,
-                        "limit_reached": limit_reached,
-                        "processed_workspaces": processed_workspaces,
-                        "runs": run_number,
-                        "stop_reason": "inference_failure",
-                    },
+                    _backfill_result(
+                        result,
+                        totals,
+                        run_number,
+                        completed=False,
+                        stop_reason="inference_failure",
+                    ),
                     sort_keys=True,
                 )
             )
             return 2
-        if limit_reached == 0:
+        if result.limit_reached == 0:
             if sender is not None:
                 run_once(
                     replace(runtime_settings, ai_inference_mode="incremental"),
@@ -146,31 +136,48 @@ def _run_backfill_until_complete(
                 )
             print(
                 json.dumps(
-                    {
-                        "completed": True,
-                        "failures": 0,
-                        "limit_reached": 0,
-                        "processed_workspaces": processed_workspaces,
-                        "runs": run_number,
-                    },
+                    _backfill_result(
+                        result, totals, run_number, completed=True
+                    ),
                     sort_keys=True,
                 )
             )
             return 0
     print(
         json.dumps(
-            {
-                "completed": False,
-                "failures": 0,
-                "limit_reached": limit_reached,
-                "processed_workspaces": processed_workspaces,
-                "runs": max_runs,
-                "stop_reason": "max_runs_reached",
-            },
+            _backfill_result(
+                result,
+                totals,
+                max_runs,
+                completed=False,
+                stop_reason="max_runs_reached",
+            ),
             sort_keys=True,
         )
     )
     return BACKFILL_INCOMPLETE_EXIT_CODE
+
+
+def _add_run_totals(totals: dict[str, int], result: CollectorRunResult) -> None:
+    totals["executions"] += result.executions
+    totals["successes"] += result.successes
+    totals["failures"] += result.failures
+    totals["progress"] += result.progress
+
+
+def _backfill_result(
+    result: CollectorRunResult,
+    totals: dict[str, int],
+    runs: int,
+    **values,
+) -> dict:
+    return {
+        **result.as_dict(),
+        **totals,
+        "runs": runs,
+        **values,
+    }
+
 
 def _load_settings(config_path: Path) -> dict:
     parser = configparser.ConfigParser(interpolation=None)
@@ -288,4 +295,3 @@ def _safe_error_kind(error: BaseException) -> str:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

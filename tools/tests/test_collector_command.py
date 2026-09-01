@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tools.collector import main
+from tools.collector_runtime import CollectorRunResult
 
 
 class CollectorCommandTests(unittest.TestCase):
@@ -67,11 +68,14 @@ class CollectorCommandTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             config = self.write_config(directory)
             runtime = unittest.mock.Mock(ai_inference_mode="incremental")
-            with patch("tools.collector._runtime_settings", return_value=runtime), patch("tools.collector.replace", side_effect=lambda value, **kwargs: unittest.mock.Mock(**kwargs)), patch("tools.collector.run_once", return_value=1) as run:
+            output = io.StringIO()
+            result = CollectorRunResult(1, 3, 2, 1, 4, 5, 2)
+            with patch("tools.collector._runtime_settings", return_value=runtime), patch("tools.collector.replace", side_effect=lambda value, **kwargs: unittest.mock.Mock(**kwargs)), patch("tools.collector.run_once", return_value=result) as run, redirect_stdout(output):
                 code = main(["--config", str(config), "backfill-ai", "--no-send"])
         self.assertEqual(0, code)
         self.assertEqual("backfill", run.call_args.args[0].ai_inference_mode)
         self.assertIsNone(run.call_args.args[1])
+        self.assertEqual(result.as_dict(), json.loads(output.getvalue()))
 
     def test_backfill_until_complete_repeats_until_limit_is_zero(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -80,14 +84,10 @@ class CollectorCommandTests(unittest.TestCase):
             limits = iter((4, 2, 0))
             output = io.StringIO()
 
-            def run(_settings, sender, *, metrics_callback=None):
+            def run(_settings, sender):
                 self.assertIsNone(sender)
-                metrics_callback(
-                    unittest.mock.Mock(
-                        counts={"failure": 0, "limit_reached": next(limits)}
-                    )
-                )
-                return 1
+                limit = next(limits)
+                return CollectorRunResult(1, 3, 3, 0, limit, limit, 3)
 
             with patch("tools.collector._runtime_settings", return_value=runtime), patch(
                 "tools.collector.replace",
@@ -110,10 +110,14 @@ class CollectorCommandTests(unittest.TestCase):
         self.assertEqual(
             {
                 "completed": True,
+                "executions": 9,
                 "failures": 0,
                 "limit_reached": 0,
+                "pending_remaining": 0,
                 "processed_workspaces": 1,
+                "progress": 9,
                 "runs": 3,
+                "successes": 9,
             },
             json.loads(output.getvalue()),
         )
@@ -124,11 +128,8 @@ class CollectorCommandTests(unittest.TestCase):
             runtime = unittest.mock.Mock(ai_inference_mode="incremental")
             output = io.StringIO()
 
-            def run(_settings, _sender, *, metrics_callback=None):
-                metrics_callback(
-                    unittest.mock.Mock(counts={"failure": 0, "limit_reached": 7})
-                )
-                return 1
+            def run(_settings, _sender):
+                return CollectorRunResult(1, 3, 3, 0, 7, 7, 3)
 
             with patch("tools.collector._runtime_settings", return_value=runtime), patch(
                 "tools.collector.replace",
@@ -148,7 +149,11 @@ class CollectorCommandTests(unittest.TestCase):
 
         self.assertEqual(3, code)
         self.assertEqual(2, run_mock.call_count)
-        self.assertEqual("max_runs_reached", json.loads(output.getvalue())["stop_reason"])
+        result = json.loads(output.getvalue())
+        self.assertEqual("max_runs_reached", result["stop_reason"])
+        self.assertEqual(6, result["executions"])
+        self.assertEqual(6, result["progress"])
+        self.assertEqual(7, result["pending_remaining"])
 
     def test_backfill_until_complete_sends_only_final_snapshot(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -158,13 +163,9 @@ class CollectorCommandTests(unittest.TestCase):
             sender = object()
             calls = []
 
-            def run(settings, selected_sender, *, metrics_callback=None):
+            def run(settings, selected_sender):
                 calls.append((settings.ai_inference_mode, selected_sender))
-                if metrics_callback is not None:
-                    metrics_callback(
-                        unittest.mock.Mock(counts={"failure": 0, "limit_reached": 0})
-                    )
-                return 1
+                return CollectorRunResult(1, 1, 1, 0, 0, 0, 1)
 
             with patch("tools.collector._runtime_settings", return_value=runtime), patch(
                 "tools.collector._sender", return_value=sender
@@ -200,7 +201,7 @@ class CollectorCommandTests(unittest.TestCase):
             def log_component_events(_settings, _sender):
                 for name in ("collector", "converter", "sender"):
                     logging.getLogger(name).info("manual_collect_component_ready")
-                return 1
+                return CollectorRunResult(1, 0, 0, 0, 0, 0, 0)
 
             try:
                 with patch("tools.collector._runtime_settings", return_value=runtime), patch(

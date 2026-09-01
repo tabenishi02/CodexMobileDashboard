@@ -10,9 +10,10 @@ from tools.combined_inference import (
     COMBINED_INFERENCE_INPUT_MAX_BYTES,
     CombinedInferenceResult,
 )
-from tools.collector_runtime import InferenceCallBudget, _build_workspace_snapshot, _incremental_completed_turn_ids, run_once
+from tools.collector_runtime import InferenceCallBudget, _build_workspace_snapshot, _incremental_completed_turn_ids, _structured_run_result, run_once
 from tools.decision_extractor import DecisionInferenceCacheEntry, ExtractedDecision, _Proposal, decision_inference_payload
 from tools.next_task_extractor import NextTask, NextTaskCacheEntry, NextTaskIssue
+from tools.inference_metrics import InferenceRunMetrics
 from tools.inference_ledger import InferenceLedgerEntry, append, latest_decision_history, load, next_task_payload, summary_payload
 from tools.collector_history import CollectorHistory
 from tools.collector_state import CollectorState, PendingInference
@@ -20,6 +21,31 @@ from tools.record_normalizer import NormalizedContentPart, NormalizedRecord
 
 
 class CollectorRuntimeTests(unittest.TestCase):
+    def test_structured_run_result_exposes_safe_inference_progress(self) -> None:
+        metrics = InferenceRunMetrics()
+        metrics.counts.update(
+            execution=3,
+            success=2,
+            failure=1,
+            limit_reached=4,
+        )
+        metrics.pending_remaining = 7
+
+        result = _structured_run_result(2, metrics)
+
+        self.assertEqual(
+            {
+                "executions": 3,
+                "failures": 1,
+                "limit_reached": 4,
+                "pending_remaining": 7,
+                "processed_workspaces": 2,
+                "progress": 2,
+                "successes": 2,
+            },
+            result.as_dict(),
+        )
+
     def test_multiple_workspaces_keep_phase_and_fallback_tasks_isolated(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
@@ -704,7 +730,15 @@ class CollectorRuntimeTests(unittest.TestCase):
                 "tools.collector_runtime.save_collector_state",
                 side_effect=lambda state, path: saved.append(state),
             ), self.assertLogs("collector", level="INFO") as logs:
-                self.assertEqual(0, run_once(settings))
+                result = run_once(settings)
+
+        self.assertEqual(0, result.processed_workspaces)
+        self.assertEqual(0, result.executions)
+        self.assertEqual(0, result.successes)
+        self.assertEqual(0, result.failures)
+        self.assertEqual(0, result.limit_reached)
+        self.assertEqual(1, result.pending_remaining)
+        self.assertEqual(0, result.progress)
 
         output = "\n".join(logs.output)
         self.assertIn(
@@ -872,7 +906,7 @@ class CollectorRuntimeTests(unittest.TestCase):
             record = _terminal_record("old-turn")
             captured = []
             with patch("tools.collector_runtime.load_collector_state", return_value=CollectorState()), patch("tools.collector_runtime.load_collector_history", return_value=CollectorHistory()), patch("tools.collector_runtime.discover_session_files", return_value=tuple()), patch("tools.collector_runtime.build_session_index", return_value={"session-1": session}), patch("tools.collector_runtime._workspace_root", return_value=root), patch("tools.collector_runtime.collect_incremental_records", return_value=SimpleNamespace(records=(record,), resume=SimpleNamespace(replay_from_start=True), next_state=CollectorState())), patch("tools.collector_runtime._build_workspace_snapshot", side_effect=lambda *args: captured.append(args[6])), patch("tools.collector_runtime.save_collector_history"), patch("tools.collector_runtime.save_collector_state"):
-                self.assertEqual(1, run_once(settings))
+                self.assertEqual(1, run_once(settings).processed_workspaces)
         self.assertEqual({"session-1": tuple()}, captured[0])
 
     def test_incremental_second_run_without_new_records_starts_no_cli(self) -> None:
@@ -1751,7 +1785,7 @@ class CollectorRuntimeTests(unittest.TestCase):
             ), patch("tools.collector_runtime.save_collector_history") as save_history, patch(
                 "tools.collector_runtime.save_collector_state"
             ):
-                self.assertEqual(1, run_once(settings))
+                self.assertEqual(1, run_once(settings).processed_workspaces)
 
         snapshot_record = captured[0]["session-1"][0]
         persisted_record = save_history.call_args.args[0].records_for("session-1")[0]
@@ -1842,13 +1876,13 @@ class CollectorRuntimeTests(unittest.TestCase):
                 "tools.collector_runtime.save_collector_state",
                 side_effect=save_state,
             ):
-                self.assertEqual(1, run_once(settings))
-                self.assertEqual(1, run_once(settings))
+                self.assertEqual(1, run_once(settings).processed_workspaces)
+                self.assertEqual(1, run_once(settings).processed_workspaces)
                 self.assertEqual(1, len(stored[0].pending_inferences))
                 with self.assertRaisesRegex(OSError, "interrupted state replace"):
                     run_once(settings)
                 self.assertEqual(1, len(stored[0].pending_inferences))
-                self.assertEqual(1, run_once(settings))
+                self.assertEqual(1, run_once(settings).processed_workspaces)
 
         self.assertEqual(tuple(), build_calls[0][0]["session-1"])
         self.assertEqual((record,), build_calls[1][0]["session-1"])

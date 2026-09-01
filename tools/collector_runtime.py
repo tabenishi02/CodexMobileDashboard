@@ -8,7 +8,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Dict, Iterable, Tuple
+from typing import Dict, Iterable, Tuple
 
 from tools.change_summary_generator import (
     ChangeSummaryCacheEntry,
@@ -81,6 +81,30 @@ class CollectorRuntimeSettings:
     max_calls_per_run: int = 3
 
 
+@dataclass(frozen=True)
+class CollectorRunResult:
+    """Safe structured outcome for one collector execution."""
+
+    processed_workspaces: int
+    executions: int
+    successes: int
+    failures: int
+    limit_reached: int
+    pending_remaining: int
+    progress: int
+
+    def as_dict(self) -> dict[str, int]:
+        return {
+            "processed_workspaces": self.processed_workspaces,
+            "executions": self.executions,
+            "successes": self.successes,
+            "failures": self.failures,
+            "limit_reached": self.limit_reached,
+            "pending_remaining": self.pending_remaining,
+            "progress": self.progress,
+        }
+
+
 class InferenceCallBudget:
     def __init__(self, limit: int = 3) -> None:
         if limit < 0:
@@ -100,14 +124,25 @@ class InferenceCallBudget:
 def run_once(
     settings: CollectorRuntimeSettings,
     sender: HttpsSnapshotSender | None = None,
-    *,
-    metrics_callback: Callable[[InferenceRunMetrics], None] | None = None,
-) -> int:
+) -> CollectorRunResult:
     with collect_inference_run_metrics() as inference_metrics:
         completed = _run_once(settings, sender, inference_metrics)
-    if metrics_callback is not None:
-        metrics_callback(inference_metrics)
-    return completed
+    return _structured_run_result(completed, inference_metrics)
+
+
+def _structured_run_result(
+    processed_workspaces: int, metrics: InferenceRunMetrics
+) -> CollectorRunResult:
+    successes = metrics.counts["success"]
+    return CollectorRunResult(
+        processed_workspaces=processed_workspaces,
+        executions=metrics.counts["execution"],
+        successes=successes,
+        failures=metrics.counts["failure"],
+        limit_reached=metrics.counts["limit_reached"],
+        pending_remaining=metrics.pending_remaining,
+        progress=successes,
+    )
 
 
 def _run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | None, inference_metrics) -> int:
