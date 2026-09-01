@@ -58,7 +58,7 @@ class JsonContext:
 @dataclass(frozen=True)
 class ProjectPresentation:
     name: str
-    phase: str
+    phase: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -1021,7 +1021,6 @@ def _validate_context(
         context.workspace_id,
         context.session_id,
         project.name,
-        project.phase,
         collector.status,
         collector.last_checked_at,
     )

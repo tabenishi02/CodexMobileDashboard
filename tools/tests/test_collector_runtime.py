@@ -64,7 +64,7 @@ class CollectorRuntimeTests(unittest.TestCase):
                 return_value=_runtime_git(),
             ), patch(
                 "tools.collector_runtime.build_json_snapshot", return_value=object()
-            ), patch(
+            ) as json_builder, patch(
                 "tools.collector_runtime.record_inference_metric"
             ) as metric, patch("tools.collector_runtime.save_json_snapshot"):
                 remaining = _build_workspace_snapshot(
@@ -83,6 +83,7 @@ class CollectorRuntimeTests(unittest.TestCase):
         summaries.assert_not_called()
         next_task.assert_not_called()
         metric.assert_called_once_with("combined_turn", "skipped")
+        self.assertIsNone(json_builder.call_args.args[1].phase)
         self.assertEqual(0, budget.calls)
         self.assertEqual(tuple(), remaining)
 

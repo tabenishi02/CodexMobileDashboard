@@ -85,7 +85,7 @@ msg_019fc728-bdb2-7471-ac9a-370c26f24a2b
 | フィールド | 型 | 必須 | `null` | 定義 |
 |---|---|---|---|---|
 | `project.name` | string | 必須 | 不可 | 表示用プロジェクト名 |
-| `project.phase` | string | 必須 | 不可 | 現在の開発段階 |
+| `project.phase` | string | 必須 | 可 | workspace固有のPhase。明示情報がなければ`null` |
 | `codex.status` | string | 必須 | 不可 | Codex状態 |
 | `codex.current_work` | string | 必須 | 可 | 現在の作業。未取得なら`null` |
 | `latest.user_message_id` | string | 必須 | 可 | 最新ユーザーメッセージ参照 |

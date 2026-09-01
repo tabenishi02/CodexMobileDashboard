@@ -176,7 +176,14 @@ class JsonConverterTests(unittest.TestCase):
             session_id="session-1",
         )
 
-    def build(self, *, messages=None, rolled_back: bool = False, content_is_masked: bool = True):
+    def build(
+        self,
+        *,
+        messages=None,
+        rolled_back: bool = False,
+        content_is_masked: bool = True,
+        phase: Optional[str] = "Phase 3",
+    ):
         source_messages = tuple(messages) if messages is not None else self.messages
         work = CurrentWorkStatus(
             codex_status="idle",
@@ -200,7 +207,7 @@ class JsonConverterTests(unittest.TestCase):
         )
         return build_json_snapshot(
             self.context,
-            ProjectPresentation("サンプル", "Phase 3"),
+            ProjectPresentation("サンプル", phase),
             ChatExtractionResult(source_messages, tuple(), tuple()),
             work,
             NextTaskExtractionResult(
@@ -296,6 +303,11 @@ class JsonConverterTests(unittest.TestCase):
         }
         self.assertNotIn("metadata.json", metadata_paths)
         self.assertIn("messages/summaries/summary-page-000001.json", metadata_paths)
+
+    def test_allows_missing_project_phase(self) -> None:
+        snapshot = self.build(phase=None)
+
+        self.assertIsNone(snapshot.document("dashboard.json")["project"]["phase"])
 
     def test_splits_fenced_code_and_preserves_malformed_fence_as_text(self) -> None:
         snapshot = self.build()

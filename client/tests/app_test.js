@@ -172,6 +172,9 @@ async function run() {
   assert.strictEqual(elements.get("codex-status").textContent, "Codex: 作業中");
   assert.strictEqual(elements.get("current-work").textContent, "作業ステータス表示を実装する");
   assert.strictEqual(elements.get("project-phase").textContent, "Phase: Phase 5");
+  client.getDocument("dashboard").project.phase = null;
+  client.renderDashboard();
+  assert.strictEqual(elements.get("project-phase").textContent, "Phase: 情報なし");
   assert.strictEqual(elements.get("latest-summary").textContent, "ダッシュボード表示を追加");
   assert.strictEqual(elements.get("error-summary").textContent, "未解決 2件 / 重大 1件");
   assert.strictEqual(elements.get("git-summary").textContent, "main / 変更ファイル 3件");

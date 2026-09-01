@@ -541,7 +541,7 @@
 
     const project = dashboard.project && typeof dashboard.project === "object" ? dashboard.project : {};
     setText("project-name", project.name);
-    setText("project-phase", typeof project.phase === "string" && project.phase ? "Phase: " + project.phase : null);
+    setText("project-phase", typeof project.phase === "string" && project.phase ? "Phase: " + project.phase : "Phase: 情報なし");
     const codex = dashboard.codex && typeof dashboard.codex === "object" ? dashboard.codex : null;
     setText("codex-status", "Codex: " + formatCodexStatus(codex));
     setText("current-work", formatCurrentWork(codex));

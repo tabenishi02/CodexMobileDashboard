@@ -257,7 +257,7 @@ def _build_workspace_snapshot(root: Path, workspace_id: str, latest_session_id: 
             append_inference_ledger(settings.inference_ledger_file, InferenceLedgerEntry(workspace_id, latest_session_id, turn_id, next_task.cache_entry.evidence_hash, next_task_payload(next_task.cache_entry), datetime.now(timezone.utc).isoformat(timespec="seconds"), "next_task"))
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     context = JsonContext("snapshot-" + uuid.uuid4().hex, now, workspace_id, latest_session_id)
-    snapshot = build_json_snapshot(context, ProjectPresentation(root.name, "Phase 3"), chats, work, next_task, errors, decisions, files, git, summaries, CollectorMetadata("ok", now, now, None, None), content_is_masked=True)
+    snapshot = build_json_snapshot(context, ProjectPresentation(root.name, None), chats, work, next_task, errors, decisions, files, git, summaries, CollectorMetadata("ok", now, now, None, None), content_is_masked=True)
     saved = save_json_snapshot(snapshot, settings.output_dir)
     if sender is not None:
         queue = PendingSnapshotQueue(settings.queue_dir)
