@@ -1,5 +1,11 @@
 # Codex CLI推論の現状と増分化設計
 
+## Phase 3.1完了状態
+
+Phase 3.1は原指示との最終照合と全ツール回帰テストを完了している。通常収集は新規情報がなければCodex CLIを起動せず、新規完了turnだけを共有上限内で処理し、成功結果を入力SHA-256付き永続台帳へ1件ずつ原子的保存する。同一入力はcollector再起動・中断後も再利用し、上限到達後の未処理推論はpendingへ持ち越す。過去履歴の補完は明示的な`backfill-ai`へ分離し、同一turnの適格な3推論は1回の構造化推論へ統合する。
+
+原指示の設定例にあった`new_completed_turns_only`、`persistent_cache`、`combined_inference`は無効化すると大量・反復推論へ戻る中核仕様のため公開設定にせず常時有効とした。`max_prompt_bytes`も公開設定にはせず、検証済みの内部上限として統合promptは64 KiB、個別promptは128 KiBを使用する。公開設定は運用上変更する意味がある`mode`、`max_calls_per_run`、`inference_ledger_file`に限定し、timeoutは120秒固定である。
+
 ## 現在の呼び出し経路
 
 `collect-once`は検出した各workspaceのSnapshotを構築する。通常の`incremental`で変更要約・決定事項・次タスクの対象が同じ単一turnに揃う場合は、統合経路で`codex exec`を1回だけ起動する。統合対象外または統合失敗時は、次の個別経路を必要に応じて使用する。
