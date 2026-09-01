@@ -4,7 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from tools.change_summary_generator import ChangeSummary, ChangeSummaryCacheEntry, SummaryEvidenceItem
+from tools.change_summary_generator import ChangeSummary, ChangeSummaryCacheEntry, GeneratedSummaryContent, SummaryEvidenceItem
 from tools.chat_extractor import ChatExtractionResult
 from tools.combined_inference import (
     COMBINED_INFERENCE_INPUT_MAX_BYTES,
@@ -1345,6 +1345,152 @@ class CollectorRuntimeTests(unittest.TestCase):
         save.assert_called_once()
         self.assertEqual(1, len(entries))
         self.assertEqual("change_summary", entries[0].inference_kind)
+
+    def test_change_summary_restart_reuses_first_turn_after_second_turn_interruption(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "workspace"
+            root.mkdir()
+            ledger = Path(directory) / "ledger.json"
+
+            def settings():
+                return SimpleNamespace(
+                    inference_ledger_file=ledger,
+                    ai_inference_mode="incremental",
+                    tasks_path=Path(directory) / "TASKS.md",
+                    output_dir=Path(directory) / "output",
+                    queue_dir=Path(directory) / "queue",
+                )
+
+            messages = (
+                _runtime_message("message-1", "turn-1", "確認中です A。"),
+                _runtime_message("message-2", "turn-2", "確認中です B。"),
+            )
+            chat = ChatExtractionResult(messages, tuple(), tuple())
+
+            def summary_turn(turn_id, message_id):
+                return SimpleNamespace(
+                    turn_id=turn_id,
+                    turn_id_source="jsonl",
+                    status="completed",
+                    rolled_back=False,
+                    user_message_id=None,
+                    assistant_message_ids=(message_id,),
+                )
+
+            work = SimpleNamespace(
+                codex_status="idle",
+                turns=(
+                    summary_turn("turn-1", "message-1"),
+                    summary_turn("turn-2", "message-2"),
+                ),
+            )
+
+            def content(message_id):
+                return GeneratedSummaryContent(
+                    "title",
+                    "short",
+                    "details",
+                    (SummaryEvidenceItem("evidence", (message_id,)),),
+                    tuple(),
+                    "high",
+                )
+
+            first_runner = Mock()
+            first_runner.generate.side_effect = (
+                content("message-1"),
+                KeyboardInterrupt(),
+            )
+            restarted_runner = Mock()
+
+            def restarted_generate(prompt):
+                message_id = "message-1" if "message-1" in prompt else "message-2"
+                return content(message_id)
+
+            restarted_runner.generate.side_effect = restarted_generate
+            first_budget = InferenceCallBudget()
+            restarted_budget = InferenceCallBudget()
+            terminals = {
+                "session-1": (
+                    _terminal_record("turn-1"),
+                    _terminal_record("turn-2"),
+                )
+            }
+            common_patches = (
+                patch(
+                    "tools.collector_runtime.extract_chat_messages", return_value=chat
+                ),
+                patch(
+                    "tools.collector_runtime.extract_current_work_status",
+                    return_value=work,
+                ),
+                patch(
+                    "tools.change_summary_generator.ChangeSummaryCliRunner",
+                    side_effect=(first_runner, restarted_runner),
+                ),
+                patch(
+                    "tools.collector_runtime.extract_decisions",
+                    return_value=SimpleNamespace(decisions=tuple(), issues=tuple()),
+                ),
+                patch(
+                    "tools.collector_runtime.extract_next_task",
+                    return_value=SimpleNamespace(
+                        task=None,
+                        issues=tuple(),
+                        cache_entry=None,
+                        inference_attempted=False,
+                    ),
+                ),
+                patch(
+                    "tools.collector_runtime.extract_file_references",
+                    return_value=SimpleNamespace(references=tuple()),
+                ),
+                patch(
+                    "tools.collector_runtime.extract_development_errors",
+                    return_value=object(),
+                ),
+                patch(
+                    "tools.collector_runtime.collect_git_changes",
+                    return_value=_runtime_git(),
+                ),
+                patch(
+                    "tools.collector_runtime.build_json_snapshot", return_value=object()
+                ),
+                patch("tools.collector_runtime.save_json_snapshot"),
+            )
+            with common_patches[0], common_patches[1], common_patches[2], common_patches[3], common_patches[4], common_patches[5], common_patches[6], common_patches[7], common_patches[8], common_patches[9]:
+                with self.assertRaises(KeyboardInterrupt):
+                    _build_workspace_snapshot(
+                        root,
+                        "workspace-1",
+                        "session-1",
+                        {"session-1": tuple()},
+                        settings(),
+                        None,
+                        terminals,
+                        first_budget.try_acquire,
+                    )
+                interrupted_entries = load(ledger)
+                _build_workspace_snapshot(
+                    root,
+                    "workspace-1",
+                    "session-1",
+                    {"session-1": tuple()},
+                    settings(),
+                    None,
+                    terminals,
+                    restarted_budget.try_acquire,
+                )
+                restored_entries = load(ledger)
+
+        self.assertEqual(["turn-1"], [entry.turn_id for entry in interrupted_entries])
+        self.assertEqual(["turn-1", "turn-2"], [entry.turn_id for entry in restored_entries])
+        self.assertEqual(2, first_runner.generate.call_count)
+        restarted_runner.generate.assert_called_once()
+        restarted_prompt = restarted_runner.generate.call_args.args[0]
+        self.assertNotIn("message-1", restarted_prompt)
+        self.assertIn("message-2", restarted_prompt)
+        self.assertEqual(2, first_budget.calls)
+        self.assertEqual(1, restarted_budget.calls)
 
     def test_incremental_sequence_excludes_history_carries_limit_and_recovers_interrupted_save(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
