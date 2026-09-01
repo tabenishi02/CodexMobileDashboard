@@ -74,7 +74,6 @@ class CollectorRuntimeSettings:
     history_file: Path
     output_dir: Path
     queue_dir: Path
-    tasks_path: Path
     ai_inference_mode: str
     inference_ledger_file: Path
     max_calls_per_run: int = 3
@@ -251,7 +250,7 @@ def _build_workspace_snapshot(root: Path, workspace_id: str, latest_session_id: 
             if next_task_turn_ids is None or message.turn_id in next_task_turn_ids
         )
         recent = tuple(inference_messages[-2:])
-        next_task = extract_next_task(recent, NextTaskInferenceContext(work.codex_status, tuple(InferenceMessage(message.message_id, message.role, _text(message)) for message in recent), tuple(item.title for item in decisions.decisions), tuple(), True), settings.tasks_path, cache_entry=next_task_cache_entry(ledger_entries, workspace_id, latest_session_id), allow_inference=settings.ai_inference_mode != "off" and (next_task_turn_ids is None or any(message.turn_id in next_task_turn_ids for message in recent)), can_infer=can_infer)
+        next_task = extract_next_task(recent, NextTaskInferenceContext(work.codex_status, tuple(InferenceMessage(message.message_id, message.role, _text(message)) for message in recent), tuple(item.title for item in decisions.decisions), tuple(), True), root / "TASKS.md", cache_entry=next_task_cache_entry(ledger_entries, workspace_id, latest_session_id), allow_inference=settings.ai_inference_mode != "off" and (next_task_turn_ids is None or any(message.turn_id in next_task_turn_ids for message in recent)), can_infer=can_infer)
         if next_task.inference_attempted and next_task.cache_entry is not None and next_task.cache_entry.task is not None and next_task.cache_entry.task.origin == "codex_inferred":
             turn_id = recent[-1].turn_id or recent[-1].message_id if recent else latest_session_id
             append_inference_ledger(settings.inference_ledger_file, InferenceLedgerEntry(workspace_id, latest_session_id, turn_id, next_task.cache_entry.evidence_hash, next_task_payload(next_task.cache_entry), datetime.now(timezone.utc).isoformat(timespec="seconds"), "next_task"))

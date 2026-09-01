@@ -117,7 +117,7 @@ def _runtime_settings(config_path: Path, settings: dict) -> CollectorRuntimeSett
         raise ValueError("allowed_roots_missing")
     history_value = parser.get("storage", "history_file", fallback="").strip()
     history_file = Path(os.path.expandvars(history_value)) if history_value else settings["queue_dir"].parent / "state" / "collector-history.json"
-    return CollectorRuntimeSettings(roots, _path_value(parser, "discovery", "sessions_dir"), _path_value(parser, "discovery", "archived_sessions_dir"), parser.getboolean("discovery", "scan_archived_sessions", fallback=True), _path_value(parser, "storage", "state_file"), history_file, _path_value(parser, "storage", "output_dir"), settings["queue_dir"], Path.cwd() / "TASKS.md", settings["ai_inference_mode"], _path_value(parser, "storage", "inference_ledger_file"), settings["max_calls_per_run"])
+    return CollectorRuntimeSettings(roots, _path_value(parser, "discovery", "sessions_dir"), _path_value(parser, "discovery", "archived_sessions_dir"), parser.getboolean("discovery", "scan_archived_sessions", fallback=True), _path_value(parser, "storage", "state_file"), history_file, _path_value(parser, "storage", "output_dir"), settings["queue_dir"], settings["ai_inference_mode"], _path_value(parser, "storage", "inference_ledger_file"), settings["max_calls_per_run"])
 def _configure_logging(settings: dict) -> None:
     directory = settings.get("log_directory")
     if directory is None:

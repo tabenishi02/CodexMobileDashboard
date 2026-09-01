@@ -1180,7 +1180,7 @@ class CollectorRuntimeTests(unittest.TestCase):
                     ),
                     inference_attempted=True,
                 ),
-            ), patch(
+            ) as next_task_extractor, patch(
                 "tools.collector_runtime.extract_file_references",
                 return_value=SimpleNamespace(references=tuple()),
             ), patch(
@@ -1203,6 +1203,7 @@ class CollectorRuntimeTests(unittest.TestCase):
                 )
 
             self.assertEqual(tuple(), load(ledger))
+            self.assertEqual(root / "TASKS.md", next_task_extractor.call_args.args[2])
 
     def test_change_summary_success_is_persisted_before_generator_returns(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

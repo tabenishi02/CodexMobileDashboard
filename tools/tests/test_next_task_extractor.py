@@ -218,9 +218,12 @@ class NextTaskExtractorTests(unittest.TestCase):
 
     def test_missing_tasks_file_can_return_no_task(self) -> None:
         runner = StubRunner(error=RuntimeError("codex_nonzero_exit"))
+        workspace = Path(self.directory.name) / "workspace-without-tasks"
+        workspace.mkdir()
+        tasks_path = workspace / "TASKS.md"
 
         result = extract_next_task(
-            [], context(), Path(self.directory.name) / "missing.md", runner=runner
+            [], context(), tasks_path, runner=runner
         )
 
         self.assertIsNone(result.task)
@@ -231,7 +234,7 @@ class NextTaskExtractorTests(unittest.TestCase):
         cached = extract_next_task(
             [],
             context(),
-            Path(self.directory.name) / "missing.md",
+            tasks_path,
             runner=second_runner,
             cache_entry=result.cache_entry,
         )

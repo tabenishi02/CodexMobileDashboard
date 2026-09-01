@@ -182,6 +182,10 @@ async function run() {
   assert.strictEqual(elements.get("refresh-status").textContent, "最終更新: 2026-08-30T12:00:00+09:00 / データが古い可能性があります");
   assert.strictEqual(nextActions.children[0].textContent, "次の作業を確認する");
   assert.strictEqual(nextActions.children[1].textContent, "最近の更新一覧を実装する");
+  client.getDocument("dashboard").next_actions = [];
+  client.renderDashboard();
+  assert.strictEqual(nextActions.children.length, 1);
+  assert.strictEqual(nextActions.children[0].textContent, "データがありません（次の作業）。");
   assert.strictEqual(dashboardState.hidden, true);
   assert.strictEqual(dashboardContent.hidden, false);
   assert.strictEqual(systemState.hidden, true);
