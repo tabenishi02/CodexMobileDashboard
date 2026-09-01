@@ -122,7 +122,7 @@ def _configure_logging(settings: dict) -> None:
         directory,
         level=settings.get("log_level", "INFO"),
         retention_days=settings.get("retention_days", 7),
-        components=("sender",),
+        components=("collector", "converter", "sender"),
     )
 
 

@@ -1,5 +1,6 @@
 import io
 import json
+import logging
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -10,9 +11,22 @@ from tools.collector import main
 
 
 class CollectorCommandTests(unittest.TestCase):
-    def write_config(self, directory, sender=False):
+    @staticmethod
+    def clear_component_handlers():
+        for name in ("collector", "converter", "sender"):
+            logger = logging.getLogger(name)
+            for handler in tuple(logger.handlers):
+                logger.removeHandler(handler)
+                handler.close()
+
+    def tearDown(self):
+        self.clear_component_handlers()
+
+    def write_config(self, directory, sender=False, log_directory=None):
         path = Path(directory) / "collector.ini"
         text = "[storage]\nqueue_dir = " + str(Path(directory) / "queue") + "\n"
+        if log_directory is not None:
+            text += "\n[logging]\ndirectory = " + str(log_directory) + "\n"
         if sender:
             text += (
                 "\n[sender]\nbase_url = https://dashboard.example.test\n"
@@ -58,6 +72,31 @@ class CollectorCommandTests(unittest.TestCase):
         self.assertEqual(0, code)
         self.assertEqual("backfill", run.call_args.args[0].ai_inference_mode)
         self.assertIsNone(run.call_args.args[1])
+
+    def test_collect_once_configures_all_component_logs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            log_directory = Path(directory) / "logs"
+            config = self.write_config(directory, log_directory=log_directory)
+            runtime = unittest.mock.Mock()
+
+            def log_component_events(_settings, _sender):
+                for name in ("collector", "converter", "sender"):
+                    logging.getLogger(name).info("manual_collect_component_ready")
+                return 1
+
+            try:
+                with patch("tools.collector._runtime_settings", return_value=runtime), patch(
+                    "tools.collector.run_once", side_effect=log_component_events
+                ):
+                    code = main(["--config", str(config), "collect-once", "--no-send"])
+            finally:
+                self.clear_component_handlers()
+
+            self.assertEqual(0, code)
+            for name in ("collector", "converter", "sender"):
+                content = (log_directory / f"{name}.log").read_text(encoding="utf-8")
+                self.assertIn(f"INFO {name} manual_collect_component_ready", content)
+
     def test_invalid_configuration_does_not_echo_token_or_path_details(self):
         with tempfile.TemporaryDirectory() as directory:
             config = Path(directory) / "collector.ini"

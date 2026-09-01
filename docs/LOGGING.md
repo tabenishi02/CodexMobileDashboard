@@ -17,6 +17,8 @@ Python標準ライブラリの`logging`と`logging.handlers.TimedRotatingFileHan
 | `sender` | `logs/sender.log` | Androidサーバー端末へのHTTPS送信 |
 | `server` | `logs/server.access.log`、`logs/server.error.log` | HTTPS受付・静的ファイル配信、保存・公開障害 |
 
+手動`collect-once`と`backfill-ai`は、PC側3コンポーネントのログを同じ実行開始時に初期化する。`--no-send`指定時もログファイルは初期化するが、HTTPS送信イベントは出力しない。
+
 ## 出力形式
 
 1行を1イベントとし、次の順序で出力する。
