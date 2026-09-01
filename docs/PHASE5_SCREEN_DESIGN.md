@@ -61,6 +61,8 @@ Phaseはworkspace固有の明示情報だけを使用し、collector側で固定
 
 次タスクのfallbackは対象workspace直下の`TASKS.md`だけを参照する。対象workspaceにファイルがない場合は`dashboard.json`の`next_actions`を空配列とし、画面では「データがありません（次の作業）。」と表示する。他workspaceやcollector起動ディレクトリのタスクは表示しない。
 
+変更要約が存在しない、空文字、または空白だけの場合は、ダッシュボードの最新変更要約へ「データがありません（変更要約）。」と表示する。データ取得中の表示とは区別し、`—`では表現しない。
+
 collector統合テストでは、異なる`TASKS.md`を持つ複数workspaceを連続して処理し、プロジェクト名、`project.phase`、fallback次タスク、タスクIDがworkspace間で混入しないことを検証する。
 
 ### 最近の更新

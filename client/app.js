@@ -228,6 +228,13 @@
     return branch + " / 変更ファイル " + changedFiles + "件";
   }
 
+  function formatChangeSummary(latest) {
+    if (!latest || typeof latest !== "object" || typeof latest.summary !== "string" || !latest.summary.trim()) {
+      return "データがありません（変更要約）。";
+    }
+    return latest.summary;
+  }
+
   function formatErrorSummary(errors) {
     if (!errors || typeof errors !== "object") {
       return "エラー情報を取得できませんでした。";
@@ -559,7 +566,7 @@
     const codex = dashboard.codex && typeof dashboard.codex === "object" ? dashboard.codex : null;
     setText("codex-status", "Codex: " + formatCodexStatus(codex));
     setText("current-work", formatCurrentWork(codex));
-    setText("latest-summary", dashboard.latest && dashboard.latest.summary);
+    setText("latest-summary", formatChangeSummary(dashboard.latest));
     setText("error-summary", formatErrorSummary(dashboard.errors));
     setText("git-summary", formatGitSummary(dashboard.git));
     setText("dashboard-generated-at", formatTimestamp(dashboard.generated_at));

@@ -204,6 +204,9 @@ async function run() {
   client.renderDashboard();
   assert.strictEqual(elements.get("project-phase").textContent, "Phase: 情報なし");
   assert.strictEqual(elements.get("latest-summary").textContent, "ダッシュボード表示を追加");
+  client.getDocument("dashboard").latest.summary = "   ";
+  client.renderDashboard();
+  assert.strictEqual(elements.get("latest-summary").textContent, "データがありません（変更要約）。");
   assert.strictEqual(elements.get("error-summary").textContent, "未解決 2件 / 重大 1件");
   assert.strictEqual(elements.get("git-summary").textContent, "main / 変更ファイル 3件");
   assert.strictEqual(elements.get("dashboard-generated-at").textContent, "2026/08/30 12:00:00 JST");
