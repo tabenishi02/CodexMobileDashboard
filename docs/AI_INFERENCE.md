@@ -30,6 +30,27 @@ CLIは`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore
 
 通常収集は初回導入時の過去履歴を推論対象にせず、増分収集で新たにterminal eventを受信した完了turnだけを対象にする。変更要約、決定事項、次タスクは同じ完了turn集合を使用し、次タスクの入力メッセージもその集合内へ限定する。
 
+## 初回履歴除外と過去推論の補完
+
+`incremental`で初めて検出したsessionは、その収集開始時点ですでに存在する全レコードを履歴と読取位置へ保存する一方、既存の完了turnを変更要約・決定事項・次タスクのCLI推論対象へ渡さない。初回収集後にterminal eventが追加されたturnだけが、通常収集の新規推論対象になる。
+
+初回履歴にも規則ベース抽出と永続台帳の復元は適用する。このため、既存台帳に完全一致する成功結果がある場合や、明示情報を規則で抽出できる場合は表示へ残る。反対に、次の条件がすべて当てはまると、初回Snapshotの決定事項・変更要約は空になり得る。
+
+- 表示候補が初回収集前から存在する過去turnだけに含まれる。
+- workspace・session・turn・入力SHA-256が一致する再利用可能な推論台帳entryがない。
+- 決定事項または変更要約を規則ベースで確定できる明示情報がない。
+
+これは収集失敗ではなく、初回導入で過去履歴を自動推論しないための正常な空状態である。必要な場合だけ、作業PCで次を明示実行する。
+
+```powershell
+cd C:\path\to\CodexMobileDashboard
+python -m tools.collector --config "$env:LOCALAPPDATA\CodexMobileDashboard\config\collector.ini" backfill-ai --no-send
+```
+
+`backfill-ai`は実行時だけ`backfill`モードを使用し、INIの通常設定を変更しない。過去の適格な未処理turnを対象にし、成功済みの同一入力は永続台帳から再利用する。`max_calls_per_run`は全workspace・全推論経路で共有されるため、既定では1回につきCodex CLIを最大3回まで起動する。上限到達分は1回の実行では完了しないので、`collector.log`の`inference_run_metrics`で`limit_reached`、`successes`、`failures`を確認し、`limit_reached`が0になるまで必要に応じて同じコマンドを再実行する。失敗結果は台帳へ保存されないため、`failures`が0でない場合は原因を確認してから再実行する。
+
+`--no-send`を付けた実行はローカルSnapshotと推論台帳だけを更新する。確認後、通常の`collect-once`を実行して完全一致結果を台帳から復元し、Androidサーバーへ送信する。すぐ送信する場合は`backfill-ai`から`--no-send`を外す。`backfill`は通常`incremental`のpendingを変更しない。
+
 ## 既存キャッシュと台帳
 
 各Runnerはプロセス内のプロンプトSHA-256キャッシュを持つが、collector再起動後は再利用できない。変更要約と次タスクのExtractorにはキャッシュエントリ型があるが、従来はcollectorが永続化していなかった。決定事項Runnerのキャッシュもインスタンス内だけである。

@@ -59,7 +59,7 @@ HTTPS送信を行わず、ローカルJSON、読取位置、マスク済み履�
 
 ## 推論モードの運用
 
-通常は`[ai_inference] mode = incremental`のまま`collect-once`を実行する。初回導入時の過去履歴は通常推論しない。CLIを使わずに収集する場合は`mode = off`へ変更する。
+通常は`[ai_inference] mode = incremental`のまま`collect-once`を実行する。初回導入時の過去履歴は通常推論しない。そのため、過去turnしかなく、完全一致する永続台帳も規則で抽出できる明示情報もない場合は、決定事項・変更要約が空でも収集失敗ではない。CLIを使わずに収集する場合は`mode = off`へ変更する。
 
 過去の未処理turnを明示的に補完する場合だけ、共有上限を適用する次を実行する。送信を省略する確認には`--no-send`を付ける。
 
@@ -68,3 +68,13 @@ python -m tools.collector --config "$env:LOCALAPPDATA\CodexMobileDashboard\confi
 ```
 
 `max_calls_per_run`は1回の実行における共有上限で、0ならCLIを起動しない。実行数と上限到達は`logs/collector.log`を確認する。
+
+`backfill-ai`は実行時だけ`backfill`モードを強制するため、INIの`mode = incremental`は変更しない。既定上限3回に達した場合は、`collector.log`の`inference_run_metrics`で`limit_reached`、`successes`、`failures`を確認し、`limit_reached`が0になるまで必要に応じて同じコマンドを再実行する。`failures`がある場合は先に原因を確認する。
+
+`--no-send`で補完した後は、次を実行して台帳から結果を復元したSnapshotをAndroidサーバーへ送信する。
+
+```powershell
+python -m tools.collector --config "$env:LOCALAPPDATA\CodexMobileDashboard\config\collector.ini" collect-once
+```
+
+補完結果を直ちに送信する場合は、`backfill-ai`実行時の`--no-send`を外す。詳細な空条件、永続キャッシュ、pendingとの関係は[`AI_INFERENCE.md`](AI_INFERENCE.md)を参照する。
