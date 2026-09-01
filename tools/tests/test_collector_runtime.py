@@ -1272,6 +1272,80 @@ class CollectorRuntimeTests(unittest.TestCase):
             entries[0].result,
         )
 
+    def test_change_summary_success_uses_only_one_collector_save_path(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "workspace"
+            root.mkdir()
+            ledger = Path(directory) / "ledger.json"
+            settings = SimpleNamespace(
+                inference_ledger_file=ledger,
+                ai_inference_mode="incremental",
+                tasks_path=Path(directory) / "TASKS.md",
+                output_dir=Path(directory) / "output",
+                queue_dir=Path(directory) / "queue",
+            )
+            summary = ChangeSummary("summary-1", "turn-1", "jsonl", "completed", False, "title", "short", "details", tuple(), tuple(), "codex_generated", "high", ("session-1",), ("message-1",))
+            cache_entry = ChangeSummaryCacheEntry(
+                "turn-1", "a" * 64, summary, None, tuple()
+            )
+
+            def generate_success(*args, **kwargs):
+                kwargs["on_inference_success"](cache_entry)
+                return SimpleNamespace(
+                    summaries=(summary,), issues=tuple(), cache_entries=(cache_entry,)
+                )
+
+            with patch(
+                "tools.collector_runtime.extract_chat_messages",
+                return_value=ChatExtractionResult(tuple(), tuple(), tuple()),
+            ), patch(
+                "tools.collector_runtime.extract_current_work_status",
+                return_value=SimpleNamespace(codex_status="idle", turns=tuple()),
+            ), patch(
+                "tools.collector_runtime._try_combined_inference", return_value=None
+            ), patch(
+                "tools.collector_runtime.extract_decisions",
+                return_value=SimpleNamespace(decisions=tuple(), issues=tuple()),
+            ), patch(
+                "tools.collector_runtime.generate_change_summaries",
+                side_effect=generate_success,
+            ), patch(
+                "tools.collector_runtime.extract_next_task",
+                return_value=SimpleNamespace(
+                    task=None,
+                    issues=tuple(),
+                    cache_entry=None,
+                    inference_attempted=False,
+                ),
+            ), patch(
+                "tools.collector_runtime.extract_file_references",
+                return_value=SimpleNamespace(references=tuple()),
+            ), patch(
+                "tools.collector_runtime.extract_development_errors",
+                return_value=object(),
+            ), patch(
+                "tools.collector_runtime.collect_git_changes",
+                return_value=_runtime_git(),
+            ), patch(
+                "tools.collector_runtime.append_inference_ledger", wraps=append
+            ) as save, patch(
+                "tools.collector_runtime.build_json_snapshot", return_value=object()
+            ), patch("tools.collector_runtime.save_json_snapshot"):
+                _build_workspace_snapshot(
+                    root,
+                    "workspace-1",
+                    "session-1",
+                    {"session-1": tuple()},
+                    settings,
+                    None,
+                )
+
+            entries = load(ledger)
+
+        save.assert_called_once()
+        self.assertEqual(1, len(entries))
+        self.assertEqual("change_summary", entries[0].inference_kind)
+
     def test_incremental_sequence_excludes_history_carries_limit_and_recovers_interrupted_save(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "workspace"

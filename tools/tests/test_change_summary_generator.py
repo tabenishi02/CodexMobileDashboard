@@ -124,6 +124,57 @@ class ChangeSummaryGeneratorTests(unittest.TestCase):
         self.assertIsNone(saved[0].expires_at)
         self.assertEqual(tuple(), saved[0].issues)
 
+    def test_success_callback_excludes_explicit_cache_hit_and_failure(self) -> None:
+        explicit_saved = []
+        explicit_runner = StubRunner()
+        generate_change_summaries(
+            "session-1",
+            work_status(turn()),
+            (
+                source_message(
+                    "assistant",
+                    "変更要約機能を実装しました。",
+                    "msg-final",
+                    phase="final_answer",
+                ),
+            ),
+            runner=explicit_runner,
+            on_inference_success=explicit_saved.append,
+        )
+        self.assertEqual(0, explicit_runner.calls)
+        self.assertEqual([], explicit_saved)
+
+        messages = (
+            source_message(
+                "assistant", "確認中です。", "msg-final", phase="final_answer"
+            ),
+        )
+        generated = generate_change_summaries(
+            "session-1", work_status(turn()), messages, runner=StubRunner()
+        )
+        cache_saved = []
+        cached_runner = StubRunner()
+        generate_change_summaries(
+            "session-1",
+            work_status(turn()),
+            messages,
+            runner=cached_runner,
+            cache_entries=generated.cache_entries,
+            on_inference_success=cache_saved.append,
+        )
+        self.assertEqual(0, cached_runner.calls)
+        self.assertEqual([], cache_saved)
+
+        failed_saved = []
+        generate_change_summaries(
+            "session-1",
+            work_status(turn()),
+            messages,
+            runner=StubRunner(error=RuntimeError("codex_nonzero_exit")),
+            on_inference_success=failed_saved.append,
+        )
+        self.assertEqual([], failed_saved)
+
     def test_explicit_final_result_has_priority_over_cli(self) -> None:
         runner = StubRunner()
         messages = (

@@ -239,9 +239,6 @@ def _build_workspace_snapshot(root: Path, workspace_id: str, latest_session_id: 
         def save_summary_inference(entry):
             append_inference_ledger(settings.inference_ledger_file, InferenceLedgerEntry(workspace_id, latest_session_id, entry.turn_id, entry.evidence_hash, {"schema_version": 1, "payload": summary_payload(entry.summary)}, datetime.now(timezone.utc).isoformat(timespec="seconds"), "change_summary"))
         summaries = generate_change_summaries(latest_session_id, work, tuple(SummarySourceMessage(latest_session_id, message.message_id, message.turn_id, message.role, message.message_type, message.phase, _text(message), True) for message in ordered_messages), file_references=files.references, cache_entries=summary_cache_entries(ledger_entries, workspace_id, latest_session_id), inference_turn_ids=inference_turn_ids, allow_inference=settings.ai_inference_mode != "off", can_infer=can_infer, on_inference_success=save_summary_inference)
-        for entry in summaries.cache_entries:
-            if entry.summary is not None:
-                append_inference_ledger(settings.inference_ledger_file, InferenceLedgerEntry(workspace_id, latest_session_id, entry.turn_id, entry.evidence_hash, {"schema_version": 1, "payload": summary_payload(entry.summary)}, datetime.now(timezone.utc).isoformat(timespec="seconds"), "change_summary"))
 
         next_task_turn_ids = (
             active_turn_ids["next_task"]
