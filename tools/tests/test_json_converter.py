@@ -492,6 +492,22 @@ class JsonConverterTests(unittest.TestCase):
             snapshot.document("errors.json")["counts"],
         )
 
+    def test_dashboard_and_errors_documents_have_matching_error_counts(self) -> None:
+        base = development_error()
+        errors = (
+            replace(base, error_id="open-critical", severity="critical"),
+            replace(base, error_id="open-warning", severity="warning"),
+            replace(base, error_id="resolved-critical", severity="critical", status="resolved"),
+            replace(base, error_id="rolled-critical", severity="critical", rolled_back=True),
+        )
+
+        snapshot = self.build(errors=errors)
+        dashboard_counts = snapshot.document("dashboard.json")["errors"]
+        errors_counts = snapshot.document("errors.json")["counts"]
+
+        self.assertEqual(errors_counts["open"], dashboard_counts["open"])
+        self.assertEqual(errors_counts["critical"], dashboard_counts["critical"])
+
     def test_rolled_back_turn_is_not_latest_or_recent(self) -> None:
         snapshot = self.build(rolled_back=True)
 
