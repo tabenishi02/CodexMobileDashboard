@@ -68,6 +68,7 @@ Androidサーバー端末は、作業用PCが生成した表示用JSONと固定�
 ## 静的配信ルート
 
 `/`はクエリ文字列の有無にかかわらず`index.html`を返し、画面は`workspace_id`クエリをワークスペース選択に使用する。
+CSS・JavaScript・vendorファイルは、検証済みの相対パスだけを`static_directory`配下から配信する。
 
 サーバーは`--static-dir`で指定された実在ディレクトリを解決済みの固定ルートとして保持する。未指定時は起動ディレクトリを使用する。`/`はstatic_dir直下の`index.html`だけを配信する。存在しない場合は404を返す。HTMLは`text/html; charset=utf-8`、CSSは`text/css; charset=utf-8`、JavaScriptは`text/javascript; charset=utf-8`として配信する。静的パスはURLデコード後に検証し、`..`、絶対パス、Windowsドライブ指定子、バックスラッシュを拒否する。ディレクトリURLと存在しない静的ファイルは一覧や詳細を返さず404で拒否する。static_dirの`index.html`配信、Content-Type、404、危険なパス拒否は単体テストで確認する。許可されたstatic_dir配下だけを固定ファイルとして配信する。
 

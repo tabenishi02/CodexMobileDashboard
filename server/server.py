@@ -279,7 +279,7 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             self._serve_index()
             return
         if request_url.path != "/health":
-            self.send_error(404)
+            self._serve_static(request_url.path)
             return
         try:
             workspace_id = parse_health_workspace_id(request_url.query)
@@ -536,6 +536,22 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
 
     def _serve_index(self) -> None:
         target = self.server.static_directory / "index.html"
+        if not target.is_file():
+            self.send_error(404)
+            return
+        body = target.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", content_type_for(target))
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _serve_static(self, request_path: str) -> None:
+        try:
+            target = safe_static_path(self.server.static_directory, request_path)
+        except ValueError:
+            self.send_error(404)
+            return
         if not target.is_file():
             self.send_error(404)
             return

@@ -179,6 +179,34 @@ class ServerTests(unittest.TestCase):
                 thread.join()
                 server.server_close()
 
+    def test_static_css_javascript_and_vendor_files_are_served(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            vendor = root / "vendor"
+            vendor.mkdir()
+            (root / "styles.css").write_bytes(b"body {}")
+            (root / "app.js").write_bytes(b"void 0;")
+            (vendor / "library.js").write_bytes(b"void 0;")
+            server = create_server("127.0.0.1", 0, str(root))
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            try:
+                for path, content_type, body in (
+                    ("/styles.css", "text/css; charset=utf-8", b"body {}"),
+                    ("/app.js", "text/javascript; charset=utf-8", b"void 0;"),
+                    ("/vendor/library.js", "text/javascript; charset=utf-8", b"void 0;"),
+                ):
+                    connection = http.client.HTTPConnection("127.0.0.1", server.server_port)
+                    connection.request("GET", path)
+                    response = connection.getresponse()
+                    self.assertEqual(200, response.status)
+                    self.assertEqual(content_type, response.getheader("Content-Type"))
+                    self.assertEqual(body, response.read())
+            finally:
+                server.shutdown()
+                thread.join()
+                server.server_close()
+
     def test_load_server_settings_reads_external_token(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

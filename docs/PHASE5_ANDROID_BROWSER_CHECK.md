@@ -146,6 +146,7 @@ HTTPS・証明書警告なし: 合格 / 不合格
 | 証明書警告 | CA公開証明書の信頼状態、端末時刻、接続先と証明書SANの一致、有効期限を確認する。警告は無視しない。 |
 | workspace指定を求められる | URLの`?workspace_id=...`と文字列の欠落を確認する。 |
 | 公開データなし | workspace指定付き`/health`の`current_snapshot_id`と、PC collectorのcommit成功を確認する。 |
+| 「データを読み込み中」のまま変化しない | `/styles.css`、`/app.js`、`/vendor/`配下のJavaScriptが200で取得できることと、修正版サーバーの配置・再起動を確認する。 |
 | 古い画面が出る | Androidへ`client/`全体が配置済みか確認し、対象サイトのキャッシュを更新して再読込する。CA証明書は削除しない。 |
 | 一部画面だけ失敗 | 該当JSONの表示エラー種別、workspace指定付き`/health`、Androidのエラーログを確認する。 |
 | 更新されない | 表示中か、15秒待ったか、手動更新結果、`last_received_at`、collector送信成功を確認する。 |
