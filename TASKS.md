@@ -294,7 +294,7 @@
     - [x] 手動実行手順とログ確認先を実装結果に合わせて更新する
 - [ ] 実機確認で判明した表示データ・画面遷移の不整合を解消する
   - [ ] システム情報画面の読込・描画を実装する
-    - [ ] 初期取得済みの`metadata.json`とworkspace指定付き`/health`からPC collector・Androidサーバー情報を描画する
+    - [x] 初期取得済みの`metadata.json`とworkspace指定付き`/health`からPC collector・Androidサーバー情報を描画する
     - [ ] システム情報画面への遷移時と初期データ更新後に読込中表示を終了する
     - [ ] 公開中Snapshot ID・最終受信日時・取得失敗を区別して表示するクライアントテストを追加する
   - [ ] Phaseと次タスクをworkspace固有の情報から生成する

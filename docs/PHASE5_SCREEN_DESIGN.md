@@ -81,6 +81,8 @@
 
 PC collectorとAndroidサーバーの状態を分けて表示する。PC側は`metadata.json`からcollector状態、Codex状態、最終確認日時、最終データ変更日時、前回送信成功日時を表示する。Android側は`/health?workspace_id=<workspace_id>`から状態、稼働秒数、public・staging・ログ・容量の利用可否、公開中Snapshot ID、最終受信日時を表示する。`current_snapshot_id`と`last_received_at`が`null`の場合は「公開済みデータなし」または「日時未記録」と表示し、推測で補完しない。
 
+システム情報画面への遷移時は、初期取得で保持した`metadata.json`とworkspace指定付き`/health`を描画に再利用し、画面遷移だけを理由とする追加通信は行わない。
+
 ## 共通の表示状態
 
 データ文書ごとに、読み込み中、データなし、不正データ、通信失敗、古いデータを独立して表示する。ある文書の失敗で他画面を停止しない。更新中はヘッダーへ表示するが、既に表示済みの正常データは消さない。

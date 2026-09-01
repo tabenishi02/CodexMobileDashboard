@@ -163,6 +163,38 @@
     return typeof value === "string" && value ? value : "日時不明";
   }
 
+  function formatOptionalTimestamp(value) {
+    return typeof value === "string" && value ? formatTimestamp(value) : "日時未記録";
+  }
+
+  function renderDefinitionList(elementId, entries) {
+    const container = getElement(elementId);
+    container.replaceChildren();
+    for (const [label, value] of entries) {
+      const term = document.createElement("dt");
+      term.textContent = label;
+      const description = document.createElement("dd");
+      description.textContent = value;
+      container.appendChild(term);
+      container.appendChild(description);
+    }
+  }
+
+  function formatAvailability(value) {
+    if (value === true) { return "利用可能"; }
+    if (value === false) { return "利用不可"; }
+    return "状態不明";
+  }
+
+  function formatCollectorStatus(value) {
+    const labels = { failed: "取得失敗", ok: "正常", warning: "注意あり" };
+    return labels[value] || "状態不明";
+  }
+
+  function formatRawCodexStatus(value) {
+    return CODEX_STATUS_LABELS[value] || CODEX_STATUS_LABELS.unknown;
+  }
+
   function isStaleTimestamp(value) {
     const time = Date.parse(value);
     return Number.isFinite(time) && Date.now() - time > 10 * 60 * 1000;
@@ -463,6 +495,8 @@
       void loadDecisions();
     } else if (activeScreen === "files") {
       void loadFiles();
+    } else if (activeScreen === "system") {
+      renderSystem();
     }
   }
 
@@ -515,6 +549,48 @@
     setText("dashboard-generated-at", formatTimestamp(dashboard.generated_at));
     renderNextActions(dashboard.next_actions);
 
+    screenState.hidden = true;
+    content.hidden = false;
+  }
+
+  function renderSystem() {
+    const metadata = getDocument("metadata");
+    const health = getDocument("health");
+    const screenState = document.querySelector('[data-state-for="system"]');
+    const content = document.querySelector('[data-content-for="system"]');
+    if (!screenState || !content) {
+      throw createClientError("system_elements_missing");
+    }
+    if (!metadata || !health) {
+      content.hidden = true;
+      screenState.hidden = false;
+      screenState.textContent = !metadata
+        ? formatLoadFailure("metadata", "PC収集ツール情報")
+        : formatLoadFailure("health", "Androidサーバー情報");
+      return;
+    }
+
+    const collector = metadata.collector && typeof metadata.collector === "object"
+      ? metadata.collector
+      : {};
+    renderDefinitionList("collector-status", [
+      ["収集状態", formatCollectorStatus(collector.status)],
+      ["Codex状態", formatRawCodexStatus(collector.codex_status)],
+      ["最終確認日時", formatTimestamp(collector.last_checked_at)],
+      ["最終データ変更日時", formatOptionalTimestamp(collector.last_data_change_at)],
+      ["前回送信成功日時", formatOptionalTimestamp(collector.last_send_succeeded_at)],
+    ]);
+    renderDefinitionList("server-status", [
+      ["サーバー状態", health.status === "ok" ? "正常" : "状態不明"],
+      ["サーバーバージョン", typeof health.server_version === "string" && health.server_version ? health.server_version : "不明"],
+      ["稼働秒数", Number.isFinite(health.uptime_seconds) ? health.uptime_seconds + "秒" : "不明"],
+      ["公開領域", formatAvailability(health.public_available)],
+      ["受信領域", formatAvailability(health.staging_available)],
+      ["ログ", formatAvailability(health.logging_available)],
+      ["保存容量", formatAvailability(health.storage_available)],
+      ["公開中Snapshot ID", typeof health.current_snapshot_id === "string" && health.current_snapshot_id ? health.current_snapshot_id : "公開済みデータなし"],
+      ["最終受信日時", formatOptionalTimestamp(health.last_received_at)],
+    ]);
     screenState.hidden = true;
     content.hidden = false;
   }
@@ -579,6 +655,7 @@
     loadRecent,
     renderDashboard,
     renderRecent,
+    renderSystem,
     showScreen,
   };
 

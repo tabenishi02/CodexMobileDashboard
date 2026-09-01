@@ -29,9 +29,14 @@ async function run() {
   const dashboardContent = { hidden: true };
   const recentState = { hidden: false, textContent: "" };
   const recentContent = { hidden: true };
+  const systemState = { hidden: false, textContent: "" };
+  const systemContent = { hidden: true };
+  const collectorStatus = listElement();
+  const serverStatus = listElement();
   const screens = [
     { dataset: { screen: "dashboard" }, hidden: false },
     { dataset: { screen: "recent" }, hidden: true },
+    { dataset: { screen: "system" }, hidden: true },
   ];
   function screenLink(screenLink) {
     return {
@@ -43,7 +48,7 @@ async function run() {
       setAttribute(name, value) { this.attributes[name] = value; },
     };
   }
-  const screenLinks = [screenLink("dashboard"), screenLink("recent")];
+  const screenLinks = [screenLink("dashboard"), screenLink("recent"), screenLink("system")];
   const elements = new Map([
     ["missing-workspace", { hidden: true }],
     ["global-status", { textContent: "" }],
@@ -59,6 +64,8 @@ async function run() {
     ["dashboard-generated-at", { textContent: "" }],
     ["next-actions", nextActions],
     ["recent-turns", recentTurns],
+    ["collector-status", collectorStatus],
+    ["server-status", serverStatus],
   ]);
   const appShell = { dataset: {} };
   const requests = [];
@@ -76,8 +83,27 @@ async function run() {
       ],
       project: { name: "Codex Mobile Dashboard", phase: "Phase 5" },
     }, '"dashboard-v1"'),
-    response(200, { data_type: "metadata" }, '"metadata-v1"'),
-    response(200, { status: "ok" }, '"health-v1"'),
+    response(200, {
+      collector: {
+        codex_status: "idle",
+        last_checked_at: "2026-08-30T12:01:00+09:00",
+        last_data_change_at: "2026-08-30T12:00:30+09:00",
+        last_send_succeeded_at: null,
+        status: "ok",
+      },
+      data_type: "metadata",
+    }, '"metadata-v1"'),
+    response(200, {
+      current_snapshot_id: "snapshot-1",
+      last_received_at: "2026-08-30T03:01:30+00:00",
+      logging_available: true,
+      public_available: true,
+      server_version: "CodexMobileDashboard/0.1",
+      staging_available: false,
+      status: "ok",
+      storage_available: true,
+      uptime_seconds: 321,
+    }, '"health-v1"'),
   ];
   const context = {
     URLSearchParams,
@@ -101,6 +127,12 @@ async function run() {
         }
         if (selector === '[data-content-for="recent"]') {
           return recentContent;
+        }
+        if (selector === '[data-state-for="system"]') {
+          return systemState;
+        }
+        if (selector === '[data-content-for="system"]') {
+          return systemContent;
         }
         return null;
       },
@@ -175,6 +207,33 @@ async function run() {
   assert.match(recentTurns.children[0].textContent, /ユーザー: 最近の更新一覧を実装する/);
   assert.match(recentTurns.children[1].textContent, /状態: 完了/);
   assert.match(recentTurns.children[1].textContent, /ロールバック: あり/);
+
+  const requestCountBeforeSystem = requests.length;
+  client.showScreen("system");
+  assert.strictEqual(requests.length, requestCountBeforeSystem);
+  assert.strictEqual(screens[1].hidden, true);
+  assert.strictEqual(screens[2].hidden, false);
+  assert.strictEqual(screenLinks[2].attributes["aria-current"], "page");
+  assert.strictEqual(systemState.hidden, true);
+  assert.strictEqual(systemContent.hidden, false);
+  assert.deepStrictEqual(collectorStatus.children.map((child) => child.textContent), [
+    "収集状態", "正常",
+    "Codex状態", "待機中",
+    "最終確認日時", "2026-08-30T12:01:00+09:00",
+    "最終データ変更日時", "2026-08-30T12:00:30+09:00",
+    "前回送信成功日時", "日時未記録",
+  ]);
+  assert.deepStrictEqual(serverStatus.children.map((child) => child.textContent), [
+    "サーバー状態", "正常",
+    "サーバーバージョン", "CodexMobileDashboard/0.1",
+    "稼働秒数", "321秒",
+    "公開領域", "利用可能",
+    "受信領域", "利用不可",
+    "ログ", "利用可能",
+    "保存容量", "利用可能",
+    "公開中Snapshot ID", "snapshot-1",
+    "最終受信日時", "2026-08-30T03:01:30+00:00",
+  ]);
 
   responses.push(response(304, null, null));
   const dashboard = await client.fetchDocument("dashboard");
