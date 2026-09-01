@@ -71,7 +71,15 @@ python -m tools.collector --config "$env:LOCALAPPDATA\CodexMobileDashboard\confi
 
 `backfill-ai`は実行時だけ`backfill`モードを強制するため、INIの`mode = incremental`は変更しない。既定上限3回に達した場合は、`collector.log`の`inference_run_metrics`で`limit_reached`、`successes`、`failures`を確認し、`limit_reached`が0になるまで必要に応じて同じコマンドを再実行する。`failures`がある場合は先に原因を確認する。
 
-現在はこの反復を手動で行う。有限上限と停止条件を備えた`--until-complete`・`--max-runs`はPhase 3.2の最優先実装予定であり、実装完了までは使用できない。通常の定期`collect-once`からbackfillを暗黙起動しない。
+既定では従来どおり1回だけ実行する。`limit_reached=0`まで有限回だけ自動継続する場合は次を使用する。
+
+```powershell
+python -m tools.collector `
+  --config "$env:LOCALAPPDATA\CodexMobileDashboard\config\collector.ini" `
+  backfill-ai --no-send --until-complete --max-runs 100
+```
+
+`--max-runs`は`--until-complete`と同時にだけ指定でき、1～1,000を許可する。省略時は100回である。各反復の`max_calls_per_run`は変更しない。`limit_reached=0`なら終了コード0、推論失敗なら2、最大反復数に達して未完了なら3を返す。`--no-send`では全反復をローカル処理だけにする。送信ありの場合も中間Snapshotは送信せず、補完完了後に通常`incremental`の完全Snapshotを1回だけ送信する。通常の定期`collect-once`からbackfillを暗黙起動しない。
 
 `--no-send`で補完した後は、次を実行して台帳から結果を復元したSnapshotをAndroidサーバーへ送信する。
 

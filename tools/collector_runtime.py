@@ -8,7 +8,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Iterable, Tuple
+from typing import Callable, Dict, Iterable, Tuple
 
 from tools.change_summary_generator import (
     ChangeSummaryCacheEntry,
@@ -47,6 +47,7 @@ from tools.git_change_collector import collect_git_changes
 from tools.https_sender import HttpsSnapshotSender, prepare_snapshot_uploads
 from tools.inference_ledger import InferenceLedgerEntry, append as append_inference_ledger, combined_turn_cache_entry, decision_inference_entries, latest_decision_history, load as load_inference_ledger, next_task_cache_entry, next_task_payload, summary_cache_entries, summary_payload
 from tools.incremental_collector import collect_incremental_records
+from tools.inference_metrics import InferenceRunMetrics
 from tools.inference_metrics import collect_run as collect_inference_run_metrics
 from tools.inference_metrics import record as record_inference_metric
 from tools.json_converter import CollectorMetadata, JsonContext, ProjectPresentation, build_json_snapshot
@@ -96,9 +97,17 @@ class InferenceCallBudget:
         return True
 
 
-def run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | None = None) -> int:
+def run_once(
+    settings: CollectorRuntimeSettings,
+    sender: HttpsSnapshotSender | None = None,
+    *,
+    metrics_callback: Callable[[InferenceRunMetrics], None] | None = None,
+) -> int:
     with collect_inference_run_metrics() as inference_metrics:
-        return _run_once(settings, sender, inference_metrics)
+        completed = _run_once(settings, sender, inference_metrics)
+    if metrics_callback is not None:
+        metrics_callback(inference_metrics)
+    return completed
 
 
 def _run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | None, inference_metrics) -> int:

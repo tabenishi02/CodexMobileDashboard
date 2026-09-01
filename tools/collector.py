@@ -20,6 +20,9 @@ from tools.pending_snapshot_queue import InvalidPendingSnapshotError, PendingSna
 
 LOGGER = logging.getLogger("sender")
 COLLECTOR_LOGGER = logging.getLogger("collector")
+DEFAULT_BACKFILL_MAX_RUNS = 100
+MAX_BACKFILL_MAX_RUNS = 1_000
+BACKFILL_INCOMPLETE_EXIT_CODE = 3
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -34,8 +37,21 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     collect = commands.add_parser("collect-once", help="表示用Snapshotを1回生成")
     backfill = commands.add_parser("backfill-ai", help="過去の未処理turnを上限付きでAI補完")
     backfill.add_argument("--no-send", action="store_true", help="HTTPS送信を行わない")
+    backfill.add_argument(
+        "--until-complete",
+        action="store_true",
+        help="limit_reachedが0になるまで有限回だけ反復する",
+    )
+    backfill.add_argument(
+        "--max-runs",
+        type=_bounded_max_runs,
+        metavar="N",
+        help=f"自動反復の最大回数（既定{DEFAULT_BACKFILL_MAX_RUNS}、最大{MAX_BACKFILL_MAX_RUNS}）",
+    )
     collect.add_argument("--no-send", action="store_true", help="HTTPS送信を行わない")
     arguments = parser.parse_args(argv)
+    if arguments.command == "backfill-ai" and arguments.max_runs is not None and not arguments.until_complete:
+        parser.error("--max-runs requires --until-complete")
 
     try:
         settings = _load_settings(arguments.config)
@@ -45,6 +61,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             runtime_settings = _runtime_settings(arguments.config, settings)
             if arguments.command == "backfill-ai":
                 runtime_settings = replace(runtime_settings, ai_inference_mode="backfill")
+                if arguments.until_complete:
+                    return _run_backfill_until_complete(
+                        runtime_settings,
+                        sender,
+                        arguments.max_runs or DEFAULT_BACKFILL_MAX_RUNS,
+                    )
             count = run_once(runtime_settings, sender)
             print(json.dumps({"processed_workspaces": count}, sort_keys=True))
             return 0
@@ -71,6 +93,84 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(f"manual_command_failed kind={error.kind.value}", file=sys.stderr)
         return 2
 
+
+def _bounded_max_runs(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("max_runs_invalid") from error
+    if not 1 <= parsed <= MAX_BACKFILL_MAX_RUNS:
+        raise argparse.ArgumentTypeError("max_runs_out_of_range")
+    return parsed
+
+
+def _run_backfill_until_complete(
+    runtime_settings: CollectorRuntimeSettings,
+    sender: HttpsSnapshotSender | None,
+    max_runs: int,
+) -> int:
+    processed_workspaces = 0
+    limit_reached = 0
+    for run_number in range(1, max_runs + 1):
+        captured_metrics = []
+        processed_workspaces = run_once(
+            runtime_settings,
+            None,
+            metrics_callback=captured_metrics.append,
+        )
+        if len(captured_metrics) != 1:
+            raise ValueError("inference_metrics_missing")
+        metrics = captured_metrics[0]
+        limit_reached = metrics.counts["limit_reached"]
+        failures = metrics.counts["failure"]
+        if failures:
+            print(
+                json.dumps(
+                    {
+                        "completed": False,
+                        "failures": failures,
+                        "limit_reached": limit_reached,
+                        "processed_workspaces": processed_workspaces,
+                        "runs": run_number,
+                        "stop_reason": "inference_failure",
+                    },
+                    sort_keys=True,
+                )
+            )
+            return 2
+        if limit_reached == 0:
+            if sender is not None:
+                run_once(
+                    replace(runtime_settings, ai_inference_mode="incremental"),
+                    sender,
+                )
+            print(
+                json.dumps(
+                    {
+                        "completed": True,
+                        "failures": 0,
+                        "limit_reached": 0,
+                        "processed_workspaces": processed_workspaces,
+                        "runs": run_number,
+                    },
+                    sort_keys=True,
+                )
+            )
+            return 0
+    print(
+        json.dumps(
+            {
+                "completed": False,
+                "failures": 0,
+                "limit_reached": limit_reached,
+                "processed_workspaces": processed_workspaces,
+                "runs": max_runs,
+                "stop_reason": "max_runs_reached",
+            },
+            sort_keys=True,
+        )
+    )
+    return BACKFILL_INCOMPLETE_EXIT_CODE
 
 def _load_settings(config_path: Path) -> dict:
     parser = configparser.ConfigParser(interpolation=None)
