@@ -275,7 +275,7 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
         if request_url.path.startswith("/data/"):
             self._serve_json()
             return
-        if request_url.path == "/" and not request_url.query:
+        if request_url.path == "/":
             self._serve_index()
             return
         if request_url.path != "/health":

@@ -281,8 +281,8 @@
 - [x] 横長コードのスクロールを調整する（コードブロック内だけで横スクロール）
 - [ ] 実機確認で判明したサーバー・手動collectorの不整合を解消する
   - [ ] workspaceクエリ付きダッシュボードURLの404を解消する
-    - [ ] `GET /?workspace_id=<workspace_id>`でも`client/index.html`を返すようにサーバーのルート判定を修正する
-    - [ ] workspaceクエリ付き`/`が200、未対応パスが404になることをサーバーテストで確認する
+    - [x] `GET /?workspace_id=<workspace_id>`でも`client/index.html`を返すようにサーバーのルート判定を修正する
+    - [x] workspaceクエリ付き`/`が200、未対応パスが404になることをサーバーテストで確認する
     - [ ] 修正版サーバーをAndroidへ配置して再起動し、実機URLから表示できることを確認する
   - [ ] 手動`collect-once`のコンポーネント別ログ出力を設定・文書と一致させる
     - [ ] 手動収集時に`collector.log`・`converter.log`・`sender.log`へ各コンポーネントのログを出力する
