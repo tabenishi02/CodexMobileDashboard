@@ -9,11 +9,41 @@ CAを信頼済みの閲覧用Androidスマートフォンから、Android・Term
 - Androidサーバー端末と閲覧スマートフォンを同じLANへ接続する。
 - Androidサーバーを起動し、最新の`server/`と`client/`が配置済みであることを確認する。
 - 閲覧スマートフォンへサーバー証明書を発行したCAの公開証明書を信頼済み証明書として導入する。CA秘密鍵やサーバー秘密鍵は移動しない。
-- PC collectorから対象workspaceのSnapshotを少なくとも1回commitしておく。
-- 対象の`workspace_id`を控える。現在の実機確認値は`workspace-47cfefa930c1ed4d`だが、実際に確認するworkspaceの値を使用する。
+- PC collectorから確認対象workspaceのSnapshotを少なくとも1回生成し、Androidサーバーへcommitしておく。
 - Androidサーバーの接続先を確認する。現在の確認値は`https://192.0.2.121:8765`である。IPまたはホスト名が変わった場合は、サーバー証明書のSANと一致していることを先に確認する。
 
 実データではHTTPを使用せず、証明書警告を無視して続行しない。Token、秘密鍵、実設定の内容をURL、スクリーンショット、作業記録へ含めない。
+
+## 対象workspace IDと表示名を確定する
+
+1. 作業PCで`collector.ini`の`[storage] output_dir`を確認する。既定値の場合は次のPowerShellで、生成済みSnapshotのworkspace ID・表示プロジェクト名・生成日時を一覧にする。
+
+   ```powershell
+   $dataRoot = "$env:LOCALAPPDATA\CodexMobileDashboard\data"
+   Get-ChildItem -LiteralPath $dataRoot -Directory | ForEach-Object {
+     $dashboardPath = Join-Path $_.FullName "dashboard.json"
+     if (Test-Path -LiteralPath $dashboardPath) {
+       $dashboard = Get-Content -LiteralPath $dashboardPath -Raw | ConvertFrom-Json
+       [pscustomobject]@{
+         WorkspaceId = $dashboard.workspace_id
+         ProjectName = $dashboard.project.name
+         GeneratedAt = $dashboard.generated_at
+       }
+     }
+   } | Sort-Object ProjectName | Format-Table -AutoSize
+   ```
+
+   `output_dir`を変更している場合は、`$dataRoot`をその実ディレクトリへ置き換える。一覧が空の場合は`collect-once`を実行してから再確認する。
+
+2. 確認対象の`ProjectName`を持つ行から`WorkspaceId`を選ぶ。フォルダ名や過去の確認記録からIDを推測しない。
+3. 選んだ`WorkspaceId`、期待する`ProjectName`、次の2つのURLを結果記録へ転記する。
+
+   ```text
+   https://<AndroidサーバーのIPまたはホスト名>:8765/health?workspace_id=<選んだWorkspaceId>
+   https://<AndroidサーバーのIPまたはホスト名>:8765/?workspace_id=<選んだWorkspaceId>
+   ```
+
+同じ作業PCに複数workspaceがある場合も、確認のたびにこの対応表から対象行を選ぶ。workspace IDそのものは秘密情報ではないが、Tokenやローカルパスを確認記録へ含めない。
 
 ## 1. HTTPSと公開Snapshotの事前確認
 
@@ -26,13 +56,8 @@ CAを信頼済みの閲覧用Androidスマートフォンから、Android・Term
    ```
 
 4. 証明書警告が出ず、JSON応答の`status`が`ok`であることを確認する。
-5. `current_snapshot_id`と`last_received_at`が空でないことを確認する。空の場合はPC collectorからSnapshotを送信してから再確認する。
-
-現在の確認値を使う場合の形式は次のとおりである。
-
-```text
-https://192.0.2.121:8765/health?workspace_id=workspace-47cfefa930c1ed4d
-```
+5. 応答の`workspace_id`が、事前に選んで記録した`WorkspaceId`と完全一致することを確認する。
+6. `current_snapshot_id`と`last_received_at`が空でないことを確認する。空の場合はPC collectorからSnapshotを送信してから再確認する。
 
 ## 2. ダッシュボードを開く
 
@@ -46,6 +71,7 @@ https://192.0.2.121:8765/health?workspace_id=workspace-47cfefa930c1ed4d
 3. 次を確認する。
 
    - プロジェクト名とPhaseが表示される。
+   - 表示されたプロジェクト名が、事前に記録した`ProjectName`と完全一致する。
    - Codex状態、現在作業または最新状態が表示される。
    - 最新の変更要約、次タスク、エラー件数、Git状態が表示される。
    - PC側の生成日時と最終更新日時が表示される。
@@ -106,6 +132,7 @@ python -m tools.collector --config "$env:LOCALAPPDATA\CodexMobileDashboard\confi
 
 - 証明書警告なしでHTTPS接続できる。
 - workspace指定URLから初期ダッシュボードを表示できる。
+- URLの`workspace_id`、health応答の`workspace_id`、表示プロジェクト名が事前記録と一致する。
 - 7画面を開き、正常表示・データなし・遅延読込を区別できる。
 - 下部ナビゲーション、折りたたみ、戻る・進むを操作できる。
 - 手動更新、自動更新、アプリ復帰時更新が動作する。
@@ -125,6 +152,11 @@ python -m tools.collector --config "$env:LOCALAPPDATA\CodexMobileDashboard\confi
 ブラウザ名 / バージョン:
 接続先IPまたはホスト名（Token等は書かない）:
 workspace_id:
+期待する表示プロジェクト名:
+health URL:
+ダッシュボードURL:
+health応答のworkspace_id一致: 合格 / 不合格
+画面のプロジェクト名一致: 合格 / 不合格
 HTTPS・証明書警告なし: 合格 / 不合格
 初期ダッシュボード: 合格 / 不合格
 7画面の表示と遅延読込: 合格 / 不合格
@@ -145,6 +177,7 @@ HTTPS・証明書警告なし: 合格 / 不合格
 | 接続できない | 同一LAN、Androidサーバー起動、IP、TCP 8765、Wi-Fiの端末間通信制限を確認する。 |
 | 証明書警告 | CA公開証明書の信頼状態、端末時刻、接続先と証明書SANの一致、有効期限を確認する。警告は無視しない。 |
 | workspace指定を求められる | URLの`?workspace_id=...`と文字列の欠落を確認する。 |
+| 想定外のプロジェクト名が表示される | 作業PCの`dashboard.json`一覧から選んだ`WorkspaceId`と`ProjectName`の組、health応答の`workspace_id`、ダッシュボードURLのクエリを再照合する。 |
 | 公開データなし | workspace指定付き`/health`の`current_snapshot_id`と、PC collectorのcommit成功を確認する。 |
 | 「データを読み込み中」のまま変化しない | `/styles.css`、`/app.js`、`/vendor/`配下のJavaScriptが200で取得できることと、修正版サーバーの配置・再起動を確認する。 |
 | 古い画面が出る | Androidへ`client/`全体が配置済みか確認し、対象サイトのキャッシュを更新して再読込する。CA証明書は削除しない。 |
