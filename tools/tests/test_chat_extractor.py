@@ -68,6 +68,19 @@ class ChatExtractorTests(unittest.TestCase):
         self.assertEqual("collapsed", result.messages[0].display_mode)
         self.assertEqual("expanded", result.messages[1].display_mode)
 
+    def test_long_regular_chat_is_collapsed_but_short_chat_stays_expanded(self) -> None:
+        records = [
+            normalized_record(role="user", text="a" * 999, offset=100),
+            normalized_record(role="user", text="b" * 1_000, offset=200),
+            normalized_record(role="assistant", phase="final_answer", text="c" * 1_000, offset=300),
+        ]
+
+        result = extract_chat_messages(records, "session-1")
+
+        self.assertEqual("expanded", result.messages[0].display_mode)
+        self.assertEqual("collapsed", result.messages[1].display_mode)
+        self.assertEqual("collapsed", result.messages[2].display_mode)
+        self.assertTrue(all(message.message_type == "chat" for message in result.messages))
     def test_developer_instruction_repeats_use_a_reference(self) -> None:
         records = [
             normalized_record(role="developer", text="same", offset=100),

@@ -562,7 +562,7 @@ def _content_blocks(
                 value["language"] = language
             blocks.append(value)
             for marker in re.finditer(
-                r"\[REDACTED:(API_KEY|TOKEN|PASSWORD|PRIVATE_KEY|URL_CREDENTIAL)\]",
+                r"\[REDACTED:(API_KEY|TOKEN|PASSWORD|PRIVATE_KEY|URL_CREDENTIAL|LOCAL_PATH|ACCOUNT)\]",
                 block_text,
             ):
                 redaction_type = marker.group(1).lower()

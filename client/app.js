@@ -35,6 +35,7 @@
     errors: new Map(),
     workspaceId: null,
     autoRefreshTimer: null,
+    chatFilter: "chat",
   };
 
   function createClientError(code) {
@@ -273,20 +274,23 @@
     return TURN_STATUS_LABELS[status] || "状態不明";
   }
 
-  function formatTurn(turn) {
+  function formatTurnMetadata(turn) {
     const value = turn && typeof turn === "object" ? turn : {};
     const completedAt = value.completed_at ? formatTimestamp(value.completed_at) : "未完了";
-    const userPreview = typeof value.user_preview === "string" && value.user_preview ? value.user_preview : "内容を取得できませんでした。";
-    const assistantPreview = typeof value.assistant_preview === "string" && value.assistant_preview
-      ? value.assistant_preview
-      : "応答プレビューはありません。";
     const rolledBack = value.rolled_back === true ? "あり" : "なし";
     return "状態: " + formatTurnStatus(value.status)
       + " / 開始: " + formatTimestamp(value.started_at)
       + " / 完了: " + completedAt
-      + " / ユーザー: " + userPreview
-      + " / Codex: " + assistantPreview
       + " / ロールバック: " + rolledBack;
+  }
+
+  function formatTurnPreviews(turn) {
+    const value = turn && typeof turn === "object" ? turn : {};
+    const userPreview = typeof value.user_preview === "string" && value.user_preview ? value.user_preview : "内容を取得できませんでした。";
+    const assistantPreview = typeof value.assistant_preview === "string" && value.assistant_preview
+      ? value.assistant_preview
+      : "応答プレビューはありません。";
+    return "#### ユーザー\n\n" + userPreview + "\n\n#### Codex\n\n" + assistantPreview;
   }
 
   function renderRecent() {
@@ -320,7 +324,14 @@
     } else {
       for (const turn of turns) {
         const item = document.createElement("li");
-        item.textContent = formatTurn(turn);
+        const metadata = document.createElement("p");
+        metadata.className = "turn-metadata";
+        metadata.textContent = formatTurnMetadata(turn);
+        const previews = document.createElement("div");
+        previews.className = "markdown-body";
+        renderMarkdown(previews, formatTurnPreviews(turn));
+        item.appendChild(metadata);
+        item.appendChild(previews);
         container.appendChild(item);
       }
     }
@@ -377,14 +388,30 @@
   function formatMessage(message) {
     const label = message && ROLE_LABELS[message.role] ? ROLE_LABELS[message.role] : "不明な発言者";
     const createdAt = message && message.created_at ? formatTimestamp(message.created_at) : "日時不明";
-    return label + " / 日時: " + createdAt + ": " + messageText(message);
+    return label + " / 日時: " + createdAt + "\n\n" + messageText(message);
   }
+
+  function messageCategory(message) {
+    const value = message && typeof message === "object" ? message : {};
+    if (value.message_type === "developer_instruction" || value.message_type === "developer_instruction_reference" || value.role === "developer" || value.role === "system") { return "internal"; }
+    if (value.message_type === "tool_summary" || value.role === "tool") { return "tool"; }
+    if (value.role === "assistant" && value.phase === "commentary") { return "commentary"; }
+    return "chat";
+  }
+
+  const COLLAPSED_MESSAGE_LABELS = {
+    chat: "長文メッセージを表示",
+    commentary: "Codexの内部進捗を表示",
+    tool: "ツール実行情報を表示",
+    internal: "内部指示を表示",
+  };
+
   function renderMarkdown(container, text) {
     if (!window.markdownit || !window.DOMPurify || typeof text !== "string") { container.textContent = text || "内容を取得できませんでした。"; return; }
     try {
       const renderer = window.markdownit({ html: false, linkify: true, maxNesting: 20, highlight(code, language) {
         if (window.hljs && language && window.hljs.getLanguage(language)) { return '<pre><code class="hljs language-' + language + '">' + window.hljs.highlight(code, { language }).value + "</code></pre>"; }
-        return '<pre><code>' + renderer.utils.escapeHtml(code) + "</code></pre>";
+        return "<pre><code>" + renderer.utils.escapeHtml(code) + "</code></pre>";
       } });
       renderer.validateLink = (url) => /^https?:\/\//i.test(url);
       container.innerHTML = window.DOMPurify.sanitize(renderer.render(text), { ALLOWED_TAGS: ["p","h1","h2","h3","h4","h5","h6","strong","em","ul","ol","li","blockquote","pre","code","table","thead","tbody","tr","th","td","hr","a"], ALLOWED_ATTR: ["href","title","class","target","rel"] });
@@ -392,27 +419,41 @@
       for (const code of container.querySelectorAll("pre > code")) { const button = document.createElement("button"); button.type = "button"; button.textContent = "コードをコピー"; button.addEventListener("click", async () => { try { if (!navigator.clipboard) { throw new Error("clipboard_unavailable"); } await navigator.clipboard.writeText(code.textContent); button.textContent = "コピーしました"; } catch (_error) { button.textContent = "コピーできませんでした"; } }); code.parentElement.before(button); }
     } catch (_error) { container.textContent = text; }
   }
+
   function renderChat(pages) {
     const stateElement = document.querySelector('[data-state-for="chat"]');
     const content = document.querySelector('[data-content-for="chat"]');
     const container = getElement("chat-messages");
     const previous = getElement("load-previous-messages");
     container.replaceChildren();
-    const messages = pages.flatMap((page) => Array.isArray(page.messages) ? page.messages : []);
+    const allMessages = pages.flatMap((page) => Array.isArray(page.messages) ? page.messages : []);
+    const messages = state.chatFilter === "all"
+      ? allMessages
+      : allMessages.filter((message) => messageCategory(message) === state.chatFilter);
     if (!messages.length) {
-      const item = document.createElement("li"); item.textContent = "データがありません（メッセージ）。"; container.appendChild(item);
+      const item = document.createElement("li");
+      item.textContent = allMessages.length ? "選択した種別のメッセージはありません。" : "データがありません（メッセージ）。";
+      container.appendChild(item);
     } else {
       for (const message of messages) {
         const item = document.createElement("li");
         const text = formatMessage(message);
+        const category = messageCategory(message);
         if (message && message.display_mode === "collapsed") {
           const details = document.createElement("details");
           const summary = document.createElement("summary");
-          summary.textContent = "長文メッセージを表示";
-          const body = document.createElement("pre");
-          body.textContent = text;
+          summary.textContent = COLLAPSED_MESSAGE_LABELS[category];
+          const body = document.createElement(category === "chat" ? "div" : "pre");
+          if (category === "chat") {
+            body.className = "markdown-body";
+            renderMarkdown(body, text);
+          } else {
+            body.textContent = text;
+          }
           details.appendChild(summary); details.appendChild(body); item.appendChild(details);
-        } else { const body = document.createElement("div"); body.className = "markdown-body"; renderMarkdown(body, text); item.appendChild(body); }
+        } else {
+          const body = document.createElement("div"); body.className = "markdown-body"; renderMarkdown(body, text); item.appendChild(body);
+        }
         container.appendChild(item);
       }
     }
@@ -420,7 +461,6 @@
     previous.hidden = !index || !Array.isArray(index.pages) || pages.length >= index.pages.length;
     stateElement.hidden = true; content.hidden = false;
   }
-
   async function loadChat(previous) {
     const stateElement = document.querySelector('[data-state-for="chat"]');
     const content = document.querySelector('[data-content-for="chat"]');
@@ -436,6 +476,15 @@
       renderChat(state.chatPages.pages);
     } catch (_error) { stateElement.textContent = formatLoadFailure("messages", "チャット"); content.hidden = true; }
   }
+  function errorSection(error) {
+    const value = error && typeof error === "object" ? error : {};
+    if (value.rolled_back === true) { return "ロールバック済み"; }
+    if (value.status === "open") { return "未解決"; }
+    if (value.status === "resolved") { return "解決済み"; }
+    if (value.status === "ignored") { return "無視"; }
+    return "区分不明";
+  }
+
   function formatErrorItem(error) {
     const value = error && typeof error === "object" ? error : {};
     const severity = typeof value.severity === "string" && value.severity ? value.severity : "不明";
@@ -445,7 +494,7 @@
     const count = Number.isInteger(value.occurrence_count) ? value.occurrence_count : "—";
     const preview = typeof value.details_preview === "string" && value.details_preview ? " / 詳細: " + value.details_preview : "";
     const details = value.detail_storage === "inline" && typeof value.details === "string" && value.details ? " / 詳細全文: " + value.details : "";
-    return "重要度: " + severity + " / 状態: " + status + " / 発生: " + occurredAt + " / 回数: " + count + " / " + summary + preview + details;
+    return "区分: " + errorSection(value) + " / 重要度: " + severity + " / 状態: " + status + " / 発生: " + occurredAt + " / 回数: " + count + " / " + summary + preview + details;
   }
 
   function renderErrors() {
@@ -454,13 +503,18 @@
     const content = document.querySelector('[data-content-for="errors"]');
     if (!errors) { content.hidden = true; stateElement.hidden = false; stateElement.textContent = formatLoadFailure("errors", "エラー一覧"); return; }
     const entries = Array.isArray(errors.errors) ? errors.errors.slice() : [];
-    entries.sort((left, right) => (left && left.status === "open" ? 0 : 1) - (right && right.status === "open" ? 0 : 1));
+    const counts = errors.counts && typeof errors.counts === "object" ? errors.counts : {};
+    const openCount = Number.isInteger(counts.open) ? counts.open : entries.filter((entry) => entry && entry.status === "open" && entry.rolled_back !== true).length;
+    const criticalCount = Number.isInteger(counts.critical) ? counts.critical : entries.filter((entry) => entry && entry.status === "open" && entry.rolled_back !== true && entry.severity === "critical").length;
+    const rolledBackCount = entries.filter((entry) => entry && entry.rolled_back === true).length;
+    getElement("error-count-summary").textContent = "未解決 " + openCount + "件 / 重大 " + criticalCount + "件 / ロールバック済み " + rolledBackCount + "件 / 全履歴 " + entries.length + "件";
+    const sectionOrder = { "未解決": 0, "ロールバック済み": 1, "解決済み": 2, "無視": 3, "区分不明": 4 };
+    entries.sort((left, right) => sectionOrder[errorSection(left)] - sectionOrder[errorSection(right)]);
     const container = getElement("error-list"); container.replaceChildren();
     if (!entries.length) { const item = document.createElement("li"); item.textContent = "データがありません（エラー）。"; container.appendChild(item); }
     else { for (const error of entries) { const item = document.createElement("li"); item.textContent = formatErrorItem(error); container.appendChild(item); } }
     stateElement.hidden = true; content.hidden = false;
   }
-
   async function loadErrors() {
     const stateElement = document.querySelector('[data-state-for="errors"]'); const content = document.querySelector('[data-content-for="errors"]');
     stateElement.hidden = false; stateElement.textContent = "エラー一覧を読み込んでいます。"; content.hidden = true;
@@ -698,6 +752,14 @@
     if (refreshButton && typeof refreshButton.addEventListener === "function") { refreshButton.addEventListener("click", () => { void initialize(); }); }
     const previousMessagesButton = document.getElementById("load-previous-messages");
     if (previousMessagesButton) { previousMessagesButton.addEventListener("click", () => { void loadChat(true); }); }
+    const chatFilter = document.getElementById("chat-type-filter");
+    if (chatFilter && typeof chatFilter.addEventListener === "function") {
+      chatFilter.addEventListener("change", () => {
+        const allowed = new Set(["chat", "commentary", "tool", "internal", "all"]);
+        state.chatFilter = allowed.has(chatFilter.value) ? chatFilter.value : "chat";
+        if (state.chatPages) { renderChat(state.chatPages.pages); }
+      });
+    }
     void initialize();
   });
 })();

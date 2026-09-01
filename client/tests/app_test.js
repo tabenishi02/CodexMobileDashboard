@@ -23,6 +23,7 @@ function listElement() {
 
 async function run() {
   const listeners = {};
+  const markdownInputs = [];
   const nextActions = listElement();
   const recentTurns = listElement();
   const dashboardState = { hidden: false, textContent: "" };
@@ -38,6 +39,12 @@ async function run() {
   const systemState = { hidden: false, textContent: "" };
   const systemContent = { hidden: true };
   const chatMessages = listElement();
+  const chatFilter = {
+    listener: null,
+    value: "chat",
+    addEventListener(_name, listener) { this.listener = listener; },
+  };
+  const errorCountSummary = { textContent: "" };
   const errorList = listElement();
   const decisionList = listElement();
   const collectorStatus = listElement();
@@ -82,7 +89,9 @@ async function run() {
     ["next-actions", nextActions],
     ["recent-turns", recentTurns],
     ["chat-messages", chatMessages],
+    ["chat-type-filter", chatFilter],
     ["load-previous-messages", { hidden: true, addEventListener() {} }],
+    ["error-count-summary", errorCountSummary],
     ["error-list", errorList],
     ["decision-list", decisionList],
     ["collector-status", collectorStatus],
@@ -175,6 +184,11 @@ async function run() {
       },
     },
     window: {
+      DOMPurify: { sanitize: (html) => html },
+      markdownit: () => ({
+        render(text) { markdownInputs.push(text); return "<p>" + text + "</p>"; },
+        utils: { escapeHtml: (text) => text },
+      }),
       fetch: async (url, options) => {
         requests.push({ options, url });
         return responses.shift();
@@ -252,12 +266,13 @@ async function run() {
   assert.strictEqual(screens[0].hidden, true);
   assert.strictEqual(screens[1].hidden, false);
   assert.strictEqual(screenLinks[1].attributes["aria-current"], "page");
-  assert.match(recentTurns.children[0].textContent, /状態: 作業中/);
-  assert.match(recentTurns.children[0].textContent, /開始: 2026\/08\/30 12:10:00 JST/);
-  assert.match(recentTurns.children[0].textContent, /ユーザー: 最近の更新一覧を実装する/);
-  assert.match(recentTurns.children[1].textContent, /状態: 完了/);
-  assert.match(recentTurns.children[1].textContent, /完了: 2026\/08\/30 12:05:00 JST/);
-  assert.match(recentTurns.children[1].textContent, /ロールバック: あり/);
+  assert.match(recentTurns.children[0].children[0].textContent, /状態: 作業中/);
+  assert.match(recentTurns.children[0].children[0].textContent, /開始: 2026\/08\/30 12:10:00 JST/);
+  assert.match(markdownInputs.find((value) => value.includes("最近の更新一覧を実装する")), /#### ユーザー/);
+  assert.match(recentTurns.children[1].children[0].textContent, /状態: 完了/);
+  assert.match(recentTurns.children[1].children[0].textContent, /完了: 2026\/08\/30 12:05:00 JST/);
+  assert.match(recentTurns.children[1].children[0].textContent, /ロールバック: あり/);
+  assert.match(markdownInputs.find((value) => value.includes("一覧表示を実装しました。")), /#### Codex/);
 
   responses.push(
     response(200, {
@@ -266,9 +281,27 @@ async function run() {
     }, '"messages-v1"'),
     response(200, {
       messages: [{
-        content: { text: "詳細メッセージ" },
+        content: { text: "**通常の長文**" },
         created_at: "2026-08-30T03:02:00+00:00",
+        display_mode: "collapsed",
+        message_type: "chat",
+        role: "user",
+      }, {
+        content: { text: "内部の進捗" },
+        display_mode: "collapsed",
+        message_type: "chat",
+        phase: "commentary",
         role: "assistant",
+      }, {
+        content: { text: "ツール実行結果" },
+        display_mode: "collapsed",
+        message_type: "tool_summary",
+        role: "tool",
+      }, {
+        content: { text: "内部指示" },
+        display_mode: "collapsed",
+        message_type: "developer_instruction",
+        role: "developer",
       }],
     }),
   );
@@ -277,23 +310,58 @@ async function run() {
   await new Promise((resolve) => setImmediate(resolve));
   assert.strictEqual(chatState.hidden, true);
   assert.strictEqual(chatContent.hidden, false);
-  assert.match(chatMessages.children[0].children[0].textContent, /日時: 2026\/08\/30 12:02:00 JST/);
+  assert.strictEqual(chatMessages.children.length, 1);
+  assert.strictEqual(chatMessages.children[0].children[0].children[0].textContent, "長文メッセージを表示");
+  assert.match(markdownInputs.find((value) => value.includes("通常の長文")), /日時: 2026\/08\/30 12:02:00 JST/);
+
+  chatFilter.value = "commentary";
+  chatFilter.listener();
+  assert.strictEqual(chatMessages.children.length, 1);
+  assert.strictEqual(chatMessages.children[0].children[0].children[0].textContent, "Codexの内部進捗を表示");
+  chatFilter.value = "tool";
+  chatFilter.listener();
+  assert.strictEqual(chatMessages.children[0].children[0].children[0].textContent, "ツール実行情報を表示");
+  chatFilter.value = "internal";
+  chatFilter.listener();
+  assert.strictEqual(chatMessages.children[0].children[0].children[0].textContent, "内部指示を表示");
+  chatFilter.value = "all";
+  chatFilter.listener();
+  assert.strictEqual(chatMessages.children.length, 4);
 
   responses.push(response(200, {
+    counts: { critical: 0, open: 1 },
     data_type: "errors",
     errors: [{
       last_occurred_at: "2026-08-30T03:03:00+00:00",
       occurrence_count: 1,
+      rolled_back: false,
       severity: "warning",
       status: "open",
-      summary: "テストエラー",
+      summary: "未解決エラー",
+    }, {
+      last_occurred_at: "2026-08-30T03:02:00+00:00",
+      occurrence_count: 1,
+      rolled_back: true,
+      severity: "error",
+      status: "open",
+      summary: "ロールバック済みエラー",
+    }, {
+      last_occurred_at: "2026-08-30T03:01:00+00:00",
+      occurrence_count: 1,
+      rolled_back: false,
+      severity: "error",
+      status: "resolved",
+      summary: "解決済みエラー",
     }],
   }, '"errors-v1"'));
   client.showScreen("errors");
   await new Promise((resolve) => setImmediate(resolve));
   await new Promise((resolve) => setImmediate(resolve));
+  assert.strictEqual(errorCountSummary.textContent, "未解決 1件 / 重大 0件 / ロールバック済み 1件 / 全履歴 3件");
+  assert.match(errorList.children[0].textContent, /区分: 未解決/);
   assert.match(errorList.children[0].textContent, /発生: 2026\/08\/30 12:03:00 JST/);
-
+  assert.match(errorList.children[1].textContent, /区分: ロールバック済み/);
+  assert.match(errorList.children[2].textContent, /区分: 解決済み/);
   responses.push(response(200, {
     data_type: "decisions",
     decisions: [{

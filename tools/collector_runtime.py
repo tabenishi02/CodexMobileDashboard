@@ -59,6 +59,7 @@ from tools.next_task_extractor import (
 )
 from tools.pending_snapshot_queue import PendingSnapshotQueue
 from tools.session_reader import build_session_index, discover_session_files
+from tools.secret_redactor import redact_normalized_records
 from tools.work_status_extractor import extract_current_work_status
 
 LOGGER = logging.getLogger("collector")
@@ -132,6 +133,7 @@ def _run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | 
             result = collect_incremental_records(entry.session_id, entry.current_file.path, next_state)
             prior = next_history.records_for(entry.session_id)
             records = result.records if result.resume.replay_from_start else _merge_records(prior, result.records)
+            records = redact_normalized_records(records).records
             next_history = next_history.replace(entry.session_id, records)
             next_state = result.next_state
             session_records[entry.session_id] = records

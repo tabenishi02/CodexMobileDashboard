@@ -16,6 +16,7 @@ from tools.next_task_extractor import NextTask, NextTaskCacheEntry, NextTaskIssu
 from tools.inference_ledger import InferenceLedgerEntry, append, latest_decision_history, load, next_task_payload, summary_payload
 from tools.collector_history import CollectorHistory
 from tools.collector_state import CollectorState, PendingInference
+from tools.record_normalizer import NormalizedContentPart, NormalizedRecord
 
 
 class CollectorRuntimeTests(unittest.TestCase):
@@ -868,7 +869,7 @@ class CollectorRuntimeTests(unittest.TestCase):
             root.mkdir()
             settings = SimpleNamespace(state_file=Path(directory) / "state.json", history_file=Path(directory) / "history.json", sessions_dir=Path(directory), archived_sessions_dir=None, scan_archived_sessions=False, allowed_roots=(root,), ai_inference_mode="incremental")
             session = SimpleNamespace(session_id="session-1", current_file=SimpleNamespace(workspace_candidates=tuple(), last_timestamp="", path=Path(directory) / "session.jsonl"))
-            record = SimpleNamespace(turn_id="old-turn")
+            record = _terminal_record("old-turn")
             captured = []
             with patch("tools.collector_runtime.load_collector_state", return_value=CollectorState()), patch("tools.collector_runtime.load_collector_history", return_value=CollectorHistory()), patch("tools.collector_runtime.discover_session_files", return_value=tuple()), patch("tools.collector_runtime.build_session_index", return_value={"session-1": session}), patch("tools.collector_runtime._workspace_root", return_value=root), patch("tools.collector_runtime.collect_incremental_records", return_value=SimpleNamespace(records=(record,), resume=SimpleNamespace(replay_from_start=True), next_state=CollectorState())), patch("tools.collector_runtime._build_workspace_snapshot", side_effect=lambda *args: captured.append(args[6])), patch("tools.collector_runtime.save_collector_history"), patch("tools.collector_runtime.save_collector_state"):
                 self.assertEqual(1, run_once(settings))
@@ -1690,6 +1691,73 @@ class CollectorRuntimeTests(unittest.TestCase):
                 entries[0].result,
             )
 
+    def test_existing_history_is_remasked_before_snapshot_and_persistence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "workspace"
+            root.mkdir()
+            state = CollectorState((SimpleNamespace(session_id="session-1"),), tuple())
+            record = NormalizedRecord(
+                "2026-09-01T00:00:00+00:00",
+                "conversation",
+                "message",
+                "response_item",
+                "message",
+                "message-1",
+                "turn-1",
+                "assistant",
+                "final_answer",
+                (NormalizedContentPart("text", "C:\\Users\\sample\\.ssh\\config", "output_text"),),
+                {},
+                Path(directory) / "session.jsonl",
+                1,
+                0,
+                100,
+            )
+            history = CollectorHistory((("session-1", (record,)),))
+            settings = SimpleNamespace(
+                state_file=Path(directory) / "state.json",
+                history_file=Path(directory) / "history.json",
+                sessions_dir=Path(directory),
+                archived_sessions_dir=None,
+                scan_archived_sessions=False,
+                allowed_roots=(root,),
+                ai_inference_mode="incremental",
+                max_calls_per_run=3,
+            )
+            session = SimpleNamespace(
+                session_id="session-1",
+                current_file=SimpleNamespace(
+                    workspace_candidates=tuple(),
+                    last_timestamp="2026-09-01T00:00:00+00:00",
+                    path=Path(directory) / "session.jsonl",
+                ),
+            )
+            captured = []
+
+            with patch("tools.collector_runtime.load_collector_state", return_value=state), patch(
+                "tools.collector_runtime.load_collector_history", return_value=history
+            ), patch("tools.collector_runtime.discover_session_files", return_value=tuple()), patch(
+                "tools.collector_runtime.build_session_index", return_value={"session-1": session}
+            ), patch("tools.collector_runtime._workspace_root", return_value=root), patch(
+                "tools.collector_runtime.collect_incremental_records",
+                return_value=SimpleNamespace(
+                    records=tuple(),
+                    resume=SimpleNamespace(replay_from_start=False),
+                    next_state=state,
+                ),
+            ), patch(
+                "tools.collector_runtime._build_workspace_snapshot",
+                side_effect=lambda *args: captured.append(args[3]) or tuple(),
+            ), patch("tools.collector_runtime.save_collector_history") as save_history, patch(
+                "tools.collector_runtime.save_collector_state"
+            ):
+                self.assertEqual(1, run_once(settings))
+
+        snapshot_record = captured[0]["session-1"][0]
+        persisted_record = save_history.call_args.args[0].records_for("session-1")[0]
+        self.assertEqual("[REDACTED:LOCAL_PATH]", snapshot_record.content[0].text)
+        self.assertEqual("[REDACTED:LOCAL_PATH]", persisted_record.content[0].text)
+        self.assertEqual("local_path", persisted_record.content[0].redactions[0].type)
     def test_incremental_sequence_excludes_history_carries_limit_and_recovers_interrupted_save(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "workspace"
@@ -1810,11 +1878,22 @@ def _runtime_turn(turn_id):
 
 
 def _terminal_record(turn_id):
-    return SimpleNamespace(
-        category="turn",
-        subtype="turn_status",
-        turn_id=turn_id,
-        attributes={"status": "completed"},
+    return NormalizedRecord(
+        None,
+        "turn",
+        "turn_status",
+        "event_msg",
+        "task_complete",
+        None,
+        turn_id,
+        None,
+        None,
+        tuple(),
+        {"status": "completed"},
+        Path("session.jsonl"),
+        1,
+        0,
+        1,
     )
 
 

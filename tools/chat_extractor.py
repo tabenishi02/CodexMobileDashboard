@@ -13,6 +13,7 @@ from tools.record_normalizer import NormalizedContentPart, NormalizedRecord
 
 
 LOGGER = logging.getLogger("converter")
+LONG_CHAT_COLLAPSE_CHARACTERS = 1_000
 
 _AUTOMATIC_PREFIX_PATTERNS = (
     (
@@ -214,6 +215,7 @@ def _extract_conversation_message(
     if record.role == "user":
         content, removed_contexts = _remove_automatic_prefixes(content)
 
+    content_characters = sum(len(part.text) for part in content)
     if record.role == "developer":
         message_type = "developer_instruction"
         display_mode = "collapsed"
@@ -221,7 +223,9 @@ def _extract_conversation_message(
         message_type = "chat"
         display_mode = (
             "collapsed"
-            if record.role == "assistant" and record.phase == "commentary"
+            if (
+                record.role == "assistant" and record.phase == "commentary"
+            ) or content_characters >= LONG_CHAT_COLLAPSE_CHARACTERS
             else "expanded"
         )
 
@@ -426,6 +430,8 @@ def _redactions_present_in_text(
         ("password", "[REDACTED:PASSWORD]"),
         ("private_key", "[REDACTED:PRIVATE_KEY]"),
         ("url_credential", "[REDACTED:URL_CREDENTIAL]"),
+        ("local_path", "[REDACTED:LOCAL_PATH]"),
+        ("account", "[REDACTED:ACCOUNT]"),
     ):
         for _ in range(text.count(marker)):
             index = next(

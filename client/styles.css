@@ -338,6 +338,30 @@ pre {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+.chat-filter {
+  display: grid;
+  gap: 0.35rem;
+  margin-block-end: 1rem;
+  color: var(--color-text-muted);
+  font-weight: 700;
+}
+
+.chat-filter select {
+  min-height: 2.75rem;
+  max-width: 20rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  padding-inline: 0.75rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.list-summary,
+.turn-metadata {
+  color: var(--color-text-muted);
+}
+
 .message-list details { min-width: 0; }
 .message-list summary { cursor: pointer; font-weight: 700; }
 .message-list details pre { white-space: pre-wrap; overflow-wrap: anywhere; }

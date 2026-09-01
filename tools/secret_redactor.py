@@ -22,9 +22,11 @@ _MARKERS = {
     "password": "[REDACTED:PASSWORD]",
     "private_key": "[REDACTED:PRIVATE_KEY]",
     "url_credential": "[REDACTED:URL_CREDENTIAL]",
+    "local_path": "[REDACTED:LOCAL_PATH]",
+    "account": "[REDACTED:ACCOUNT]",
 }
 _EXISTING_MARKER = re.compile(
-    r"\[REDACTED:(API_KEY|TOKEN|PASSWORD|PRIVATE_KEY|URL_CREDENTIAL)\]"
+    r"\[REDACTED:(API_KEY|TOKEN|PASSWORD|PRIVATE_KEY|URL_CREDENTIAL|LOCAL_PATH|ACCOUNT)\]"
 )
 _PRIVATE_KEY = re.compile(
     r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----.*?"
@@ -57,6 +59,19 @@ _KNOWN_TOKEN = re.compile(
     r"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"
     r")(?![A-Za-z0-9])"
 )
+_WINDOWS_USER_PATH = re.compile(
+    r"(?i)(?<![A-Za-z0-9])(?:[A-Z]:[\\/]+Users[\\/]+)"
+    r"[^\\/\s\"'<>|]+(?:[\\/]+[^\s\"'<>|]*)?"
+)
+_UNIX_HOME_PATH = re.compile(
+    r"(?<![A-Za-z0-9])(?:/(?:home|Users)/[^/\s\"'<>]+|"
+    r"/data/data/com\.termux/files/home)(?:/[^\s\"'<>]*)?"
+)
+_SSH_ACCOUNT = re.compile(
+    r"(?P<account>(?<![A-Za-z0-9._-])[A-Za-z_][A-Za-z0-9._-]*)@"
+    r"(?=(?:(?:\d{1,3}\.){3}\d{1,3}|[A-Za-z0-9_-]+)(?::|\s))"
+)
+
 _SENSITIVE_NAME = (
     r"(?:(?:[A-Za-z][A-Za-z0-9]*_)+)?"
     r"(?:api[_-]?key|access[_-]?key|secret[_-]?key|client[_-]?secret|"
@@ -116,6 +131,9 @@ class _Rule:
 _RULES = (
     _Rule(_PRIVATE_KEY, "pem_private_key", "private_key"),
     _Rule(_URL_CREDENTIAL, "url_userinfo", "url_credential", "credential"),
+    _Rule(_WINDOWS_USER_PATH, "windows_user_profile", "local_path"),
+    _Rule(_UNIX_HOME_PATH, "unix_home_directory", "local_path"),
+    _Rule(_SSH_ACCOUNT, "ssh_account", "account", "account"),
     _Rule(_AUTHORIZATION, "authorization_header", "token", "secret"),
     _Rule(_JSON_ASSIGNMENT, "json_sensitive_field", "token", "secret"),
     _Rule(_ASSIGNMENT_QUOTED, "sensitive_assignment", "token", "secret"),
@@ -143,11 +161,19 @@ def redact_normalized_records(
             text, redactions = redact_text(part.text)
             for redaction in redactions:
                 counts[redaction.type] += 1
+            new_redactions = tuple(
+                redaction
+                for redaction in redactions
+                if not (
+                    redaction.detector == "existing_marker"
+                    and any(item.type == redaction.type for item in part.redactions)
+                )
+            )
             parts.append(
                 replace(
                     part,
                     text=text,
-                    redactions=part.redactions + redactions,
+                    redactions=part.redactions + new_redactions,
                 )
             )
         redacted_records.append(replace(record, content=tuple(parts)))

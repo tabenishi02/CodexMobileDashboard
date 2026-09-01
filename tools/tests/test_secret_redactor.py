@@ -88,15 +88,48 @@ class SecretRedactorTests(unittest.TestCase):
         text, redactions = redact_text(source)
 
         self.assertIn("PATH=C:\\Tools", text)
-        self.assertIn("LOCALAPPDATA=C:\\Users\\sample\\AppData\\Local", text)
+        self.assertIn("LOCALAPPDATA=[REDACTED:LOCAL_PATH]", text)
         self.assertIn("SERVICE_TOKEN=[REDACTED:TOKEN]", text)
         self.assertIn("APP_SECRET=[REDACTED:TOKEN]", text)
         self.assertIn("$env:DB_PASSWORD=[REDACTED:PASSWORD]", text)
         self.assertEqual(
-            ["token", "token", "password"],
+            ["local_path", "token", "token", "password"],
             [value.type for value in redactions],
         )
 
+    def test_redacts_user_home_paths_and_ssh_accounts(self) -> None:
+        source = (
+            "C:\\Users\\sample\\.ssh\\config\n"
+            "/home/sample/.ssh/config\n"
+            "/Users/sample/Library/config\n"
+            "/data/data/com.termux/files/home/.ssh/config\n"
+            "local_account@192.0.2.137: Permission denied\n"
+            "remote_user@surface: Permission denied"
+        )
+
+        text, redactions = redact_text(source)
+
+        self.assertEqual(4, text.count("[REDACTED:LOCAL_PATH]"))
+        self.assertIn("[REDACTED:ACCOUNT]@192.0.2.137", text)
+        self.assertIn("[REDACTED:ACCOUNT]@surface", text)
+        self.assertNotIn("sample", text)
+        self.assertNotIn("local_account", text)
+        self.assertNotIn("remote_user", text)
+        self.assertEqual(4, sum(value.type == "local_path" for value in redactions))
+        self.assertEqual(2, sum(value.type == "account" for value in redactions))
+
+    def test_preserves_workspace_relative_device_paths_email_and_ip(self) -> None:
+        source = (
+            "tools/app.py\n"
+            "/dev/video0\n"
+            "person@example.test\n"
+            "192.0.2.121"
+        )
+
+        text, redactions = redact_text(source)
+
+        self.assertEqual(source, text)
+        self.assertEqual(tuple(), redactions)
     def test_preserves_hash_uuid_email_phone_ip_and_ordinary_long_text(self) -> None:
         values = (
             "a" * 40,
@@ -145,6 +178,13 @@ class SecretRedactorTests(unittest.TestCase):
         self.assertEqual("token", part.redactions[0].type)
         self.assertEqual("sensitive_assignment", part.redactions[0].detector)
 
+    def test_record_redaction_is_idempotent_for_existing_markers(self) -> None:
+        first = redact_normalized_records((record("C:\\Users\\sample\\.ssh\\config"),))
+
+        second = redact_normalized_records(first.records)
+
+        self.assertEqual(first.records[0].content[0].text, second.records[0].content[0].text)
+        self.assertEqual(first.records[0].content[0].redactions, second.records[0].content[0].redactions)
     def test_records_are_replaced_in_memory_and_counts_contain_no_values(self) -> None:
         source = record("api_key=first\ntoken=second")
 

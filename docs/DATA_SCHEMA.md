@@ -231,6 +231,8 @@ turn要素：
 | `content` | object | 必須 | 不可 | 本文または断片参照 |
 | `redactions` | array | 必須 | 不可 | マスク情報。なければ空配列 |
 | `display_mode` | string | 必須 | 不可 | `expanded`または`collapsed` |
+
+通常のユーザー・Codexチャットは本文の合計が1,000文字以上なら`collapsed`、1,000文字未満なら`expanded`とする。Codexの`phase: commentary`、開発者指示、ツール概要は内部情報として本文長にかかわらず`collapsed`とする。クライアントは`message_type`・`role`・`phase`から通常チャット、Codex内部進捗、ツール情報、内部指示へ分類する。
 | `duplicate_of` | string | 必須 | 可 | 開発者指示の重複参照先。通常は`null` |
 | `occurrence_count` | integer | 必須 | 不可 | 初回の開発者指示に同一本文の総出現回数、それ以外は1 |
 | `removed_automatic_contexts` | array[string] | 必須 | 不可 | 除外した自動付加情報の種類。なければ`[]` |
@@ -597,12 +599,16 @@ codex exec --ephemeral --sandbox read-only \
 [REDACTED:PASSWORD]
 [REDACTED:PRIVATE_KEY]
 [REDACTED:URL_CREDENTIAL]
+[REDACTED:LOCAL_PATH]
+[REDACTED:ACCOUNT]
 ```
 
 - 秘密部分全体を固定マーカーへ置換し、先頭・末尾・長さを残さない。
 - 前後の安全な説明文は保持する。
 - JSONの秘密フィールドは値全体を置換する。
 - URLはユーザー名・パスワード部分全体を除去する。
+- Windows・Linux・macOS・Termuxのユーザーホーム以下の絶対パスは、ユーザー名を含むパス全体を`local_path`として除去する。
+- SSH接続表現の`account@host`はアカウント部分を`account`として除去する。通常のメールアドレス、IPアドレス、workspace相対パス、`/dev`配下は対象外とする。
 - `redactions`には種別、検出方法、対象ブロックIDだけを保存し、原文、ハッシュ、長さを保存しない。
 - クライアントはマーカーを「秘密情報を除外しました」と表示する。
 - 運用ログにはマスク件数と種別だけを記録する。
@@ -617,7 +623,7 @@ MVPの検出規則：
 - 未知の長い文字列を長さや文字種だけでは除外しない。GitコミットID、SHA-256、UUID、一般的な識別子を秘密情報として誤検出しないためである。
 - MVPでは氏名、メールアドレス、電話番号、IPアドレスなど一般的な個人情報は自動マスク対象外とする。必要になった場合は、秘密情報規則と分けて検討する。
 
-`redaction_id`はメッセージID、最終ブロックID、種別、検出方法、出現順から決定的に生成する。マスク前の値、そのハッシュ、長さはIDへ使用しない。`type`は`api_key`、`token`、`password`、`private_key`、`url_credential`のいずれかとする。`detector`は`pem_private_key`、`url_userinfo`、`authorization_header`、`json_sensitive_field`、`sensitive_assignment`、`sensitive_command_option`、`known_api_key_format`、`known_token_format`、`existing_marker`のいずれかとする。
+`redaction_id`はメッセージID、最終ブロックID、種別、検出方法、出現順から決定的に生成する。マスク前の値、そのハッシュ、長さはIDへ使用しない。`type`は`api_key`、`token`、`password`、`private_key`、`url_credential`、`local_path`、`account`のいずれかとする。`detector`は`pem_private_key`、`url_userinfo`、`windows_user_profile`、`unix_home_directory`、`ssh_account`、`authorization_header`、`json_sensitive_field`、`sensitive_assignment`、`sensitive_command_option`、`known_api_key_format`、`known_token_format`、`existing_marker`のいずれかとする。
 
 例：
 

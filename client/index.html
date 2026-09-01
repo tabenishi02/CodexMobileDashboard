@@ -91,8 +91,20 @@
           <p>メッセージはページ単位で読み込みます。</p>
         </header>
         <div class="screen-state" data-state-for="chat" aria-live="polite">チャット索引を読み込んでいます。</div>
-        <button id="load-previous-messages" type="button" hidden>以前のメッセージを読み込む</button>
-        <ol id="chat-messages" class="message-list" data-content-for="chat" hidden></ol>
+        <div data-content-for="chat" hidden>
+          <label class="chat-filter" for="chat-type-filter">
+            表示する種別
+            <select id="chat-type-filter">
+              <option value="chat">通常チャット</option>
+              <option value="commentary">Codex内部進捗</option>
+              <option value="tool">ツール情報</option>
+              <option value="internal">内部指示</option>
+              <option value="all">すべて</option>
+            </select>
+          </label>
+          <button id="load-previous-messages" type="button" hidden>以前のメッセージを読み込む</button>
+          <ol id="chat-messages" class="message-list"></ol>
+        </div>
       </section>
 
       <section id="screen-errors" class="screen" data-screen="errors" aria-labelledby="errors-title" hidden>
@@ -101,7 +113,10 @@
           <p>未解決のエラーを優先して表示します。</p>
         </header>
         <div class="screen-state" data-state-for="errors" aria-live="polite">エラー一覧を読み込んでいます。</div>
-        <ol id="error-list" class="card-list" data-content-for="errors" hidden></ol>
+        <div data-content-for="errors" hidden>
+          <p id="error-count-summary" class="list-summary"></p>
+          <ol id="error-list" class="card-list"></ol>
+        </div>
       </section>
 
       <section id="screen-decisions" class="screen" data-screen="decisions" aria-labelledby="decisions-title" hidden>
