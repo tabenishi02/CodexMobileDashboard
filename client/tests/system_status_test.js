@@ -131,6 +131,11 @@ async function run() {
   assert.strictEqual(published.systemState.hidden, true);
   assert.strictEqual(published.systemContent.hidden, false);
 
+  const nextDay = await loadSystem(health("snapshot-next-day", "2026-08-30T15:01:30+00:00"));
+  const nextDayValues = definitionValues(nextDay.serverStatus);
+  assert.strictEqual(nextDayValues["公開中Snapshot ID"], "snapshot-next-day");
+  assert.strictEqual(nextDayValues["最終受信日時"], "2026/08/31 00:01:30 JST");
+
   const unpublished = await loadSystem(health(null, null));
   const unpublishedValues = definitionValues(unpublished.serverStatus);
   assert.strictEqual(unpublishedValues["公開中Snapshot ID"], "公開済みデータなし");
