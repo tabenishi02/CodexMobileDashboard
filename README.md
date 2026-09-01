@@ -185,6 +185,7 @@ CodexMobileDashboard/
 | [`docs/MVP_ACCEPTANCE.md`](docs/MVP_ACCEPTANCE.md) | MVPの受入条件 |
 | [`docs/PHASE3_ACCEPTANCE.md`](docs/PHASE3_ACCEPTANCE.md) | Phase 3の受入確認 |
 | [`docs/PHASE4_ACCEPTANCE.md`](docs/PHASE4_ACCEPTANCE.md) | Phase 4のAndroid実機受入確認 |
+| [`docs/PHASE5_ANDROID_BROWSER_CHECK.md`](docs/PHASE5_ANDROID_BROWSER_CHECK.md) | AndroidブラウザでのPhase 5実機表示確認手順 |
 | [`docs/PHASE5_HANDOFF.md`](docs/PHASE5_HANDOFF.md) | Phase 5開始時の状態、参照資料、未確定事項 |
 | [`docs/PHASE5_SCREEN_DESIGN.md`](docs/PHASE5_SCREEN_DESIGN.md) | Phase 5の画面構成、遷移、データ取得、表示規則 |
 
