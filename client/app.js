@@ -369,7 +369,8 @@
 
   function formatMessage(message) {
     const label = message && ROLE_LABELS[message.role] ? ROLE_LABELS[message.role] : "不明な発言者";
-    return label + ": " + messageText(message);
+    const createdAt = message && message.created_at ? formatTimestamp(message.created_at) : "日時不明";
+    return label + " / 日時: " + createdAt + ": " + messageText(message);
   }
   function renderMarkdown(container, text) {
     if (!window.markdownit || !window.DOMPurify || typeof text !== "string") { container.textContent = text || "内容を取得できませんでした。"; return; }

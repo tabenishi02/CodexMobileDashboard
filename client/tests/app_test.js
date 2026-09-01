@@ -29,8 +29,17 @@ async function run() {
   const dashboardContent = { hidden: true };
   const recentState = { hidden: false, textContent: "" };
   const recentContent = { hidden: true };
+  const chatState = { hidden: false, textContent: "" };
+  const chatContent = { hidden: true };
+  const errorsState = { hidden: false, textContent: "" };
+  const errorsContent = { hidden: true };
+  const decisionsState = { hidden: false, textContent: "" };
+  const decisionsContent = { hidden: true };
   const systemState = { hidden: false, textContent: "" };
   const systemContent = { hidden: true };
+  const chatMessages = listElement();
+  const errorList = listElement();
+  const decisionList = listElement();
   const collectorStatus = listElement();
   const serverStatus = listElement();
   const refreshButton = {
@@ -41,6 +50,9 @@ async function run() {
   const screens = [
     { dataset: { screen: "dashboard" }, hidden: false },
     { dataset: { screen: "recent" }, hidden: true },
+    { dataset: { screen: "chat" }, hidden: true },
+    { dataset: { screen: "errors" }, hidden: true },
+    { dataset: { screen: "decisions" }, hidden: true },
     { dataset: { screen: "system" }, hidden: true },
   ];
   function screenLink(screenLink) {
@@ -53,7 +65,7 @@ async function run() {
       setAttribute(name, value) { this.attributes[name] = value; },
     };
   }
-  const screenLinks = [screenLink("dashboard"), screenLink("recent"), screenLink("system")];
+  const screenLinks = [screenLink("dashboard"), screenLink("recent"), screenLink("chat"), screenLink("errors"), screenLink("decisions"), screenLink("system")];
   const elements = new Map([
     ["missing-workspace", { hidden: true }],
     ["global-status", { textContent: "" }],
@@ -69,6 +81,10 @@ async function run() {
     ["dashboard-generated-at", { textContent: "" }],
     ["next-actions", nextActions],
     ["recent-turns", recentTurns],
+    ["chat-messages", chatMessages],
+    ["load-previous-messages", { hidden: true, addEventListener() {} }],
+    ["error-list", errorList],
+    ["decision-list", decisionList],
     ["collector-status", collectorStatus],
     ["server-status", serverStatus],
   ]);
@@ -115,7 +131,12 @@ async function run() {
     console,
     document: {
       addEventListener: (name, listener) => { listeners[name] = listener; },
-      createElement: () => ({ textContent: "" }),
+      createElement: () => ({
+        children: [],
+        textContent: "",
+        appendChild(child) { this.children.push(child); },
+        querySelectorAll() { return []; },
+      }),
       getElementById: (id) => elements.get(id) || null,
       querySelector: (selector) => {
         if (selector === ".app-shell") {
@@ -133,6 +154,12 @@ async function run() {
         if (selector === '[data-content-for="recent"]') {
           return recentContent;
         }
+        if (selector === '[data-state-for="chat"]') { return chatState; }
+        if (selector === '[data-content-for="chat"]') { return chatContent; }
+        if (selector === '[data-state-for="errors"]') { return errorsState; }
+        if (selector === '[data-content-for="errors"]') { return errorsContent; }
+        if (selector === '[data-state-for="decisions"]') { return decisionsState; }
+        if (selector === '[data-content-for="decisions"]') { return decisionsContent; }
         if (selector === '[data-state-for="system"]') {
           return systemState;
         }
@@ -223,16 +250,67 @@ async function run() {
   assert.strictEqual(screens[1].hidden, false);
   assert.strictEqual(screenLinks[1].attributes["aria-current"], "page");
   assert.match(recentTurns.children[0].textContent, /状態: 作業中/);
+  assert.match(recentTurns.children[0].textContent, /開始: 2026\/08\/30 12:10:00 JST/);
   assert.match(recentTurns.children[0].textContent, /ユーザー: 最近の更新一覧を実装する/);
   assert.match(recentTurns.children[1].textContent, /状態: 完了/);
+  assert.match(recentTurns.children[1].textContent, /完了: 2026\/08\/30 12:05:00 JST/);
   assert.match(recentTurns.children[1].textContent, /ロールバック: あり/);
+
+  responses.push(
+    response(200, {
+      data_type: "messages",
+      pages: [{ path: "messages/pages/page-000001.json" }],
+    }, '"messages-v1"'),
+    response(200, {
+      messages: [{
+        content: { text: "詳細メッセージ" },
+        created_at: "2026-08-30T03:02:00+00:00",
+        role: "assistant",
+      }],
+    }),
+  );
+  client.showScreen("chat");
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.strictEqual(chatState.hidden, true);
+  assert.strictEqual(chatContent.hidden, false);
+  assert.match(chatMessages.children[0].children[0].textContent, /日時: 2026\/08\/30 12:02:00 JST/);
+
+  responses.push(response(200, {
+    data_type: "errors",
+    errors: [{
+      last_occurred_at: "2026-08-30T03:03:00+00:00",
+      occurrence_count: 1,
+      severity: "warning",
+      status: "open",
+      summary: "テストエラー",
+    }],
+  }, '"errors-v1"'));
+  client.showScreen("errors");
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.match(errorList.children[0].textContent, /発生: 2026\/08\/30 12:03:00 JST/);
+
+  responses.push(response(200, {
+    data_type: "decisions",
+    decisions: [{
+      decided_at: "2026-08-30T03:04:00+00:00",
+      description: "表示時だけJSTへ変換する。",
+      status: "adopted",
+      title: "日時表示方針",
+    }],
+  }, '"decisions-v1"'));
+  client.showScreen("decisions");
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.match(decisionList.children[0].textContent, /決定: 2026\/08\/30 12:04:00 JST/);
 
   const requestCountBeforeSystem = requests.length;
   client.showScreen("system");
   assert.strictEqual(requests.length, requestCountBeforeSystem);
   assert.strictEqual(screens[1].hidden, true);
-  assert.strictEqual(screens[2].hidden, false);
-  assert.strictEqual(screenLinks[2].attributes["aria-current"], "page");
+  assert.strictEqual(screens[5].hidden, false);
+  assert.strictEqual(screenLinks[5].attributes["aria-current"], "page");
   assert.strictEqual(systemState.hidden, true);
   assert.strictEqual(systemContent.hidden, false);
   assert.deepStrictEqual(collectorStatus.children.map((child) => child.textContent), [
