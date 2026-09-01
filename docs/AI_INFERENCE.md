@@ -43,7 +43,7 @@ CLIは`--ephemeral`、`--sandbox read-only`、`--ignore-user-config`、`--ignore
 
 成功レコードは`schema_version`、`workspace_id`、`session_id`、`turn_id`、`inference_kind`、`input_sha256`、`generated_at`、payloadを持つ。プロンプト本文、Token、未マスク本文は保存しない。個別の決定事項と`combined_turn`はworkspace・session・turn・入力SHA-256の完全一致を要求する。変更要約はworkspace・session内からturn・入力SHA-256が一致するentryを選ぶ。次タスクはworkspace・sessionの最新候補を取得し、Extractorで入力SHA-256を照合するため、turnは保存されるが検索条件には使用しない。入力SHA-256が変われば再推論する。
 
-台帳の`append`は1 entryごとにファイルを原子的置換し、失敗・不完全payloadは成功キャッシュとして保存または復元しない。個別の決定事項は成功コールバック内、`combined_turn`は統合成功直後、次タスクは単一推論の成功後に保存する。変更要約だけは現在、対象turnをすべて処理して`generate_change_summaries`が返った後に成功entryを順番に保存する。このため複数turnの処理途中で中断すると、それ以前の成功結果が未保存になる可能性があり、turnごとの即時保存はPhase 3.1の残タスクである。
+台帳の`append`は1 entryごとにファイルを原子的置換し、失敗・不完全payloadは成功キャッシュとして保存または復元しない。個別の決定事項は成功コールバック内、`combined_turn`は統合成功直後、次タスクは単一推論の成功後に保存する。変更要約も、CLI生成・検証と完全なcache entry構築が成功した直後に成功コールバックから1件を原子的保存するため、`generate_change_summaries`全体が返る前に中断しても保存済みの成功結果を維持できる。関数返却後の既存一括保存経路との重複整理はPhase 3.1の残タスクである。
 
 変更要約payloadは表題、短文、詳細、highlights、verification、confidence、状態、根拠IDを持つ。個別および新しい`combined_turn`内の決定事項payloadは、CLI proposalに加えて、最終決定のID、状態、内容、理由、`topic_key`、`supersedes`、`superseded_by`、決定時刻、時刻の由来、根拠session・message IDを持つ。次タスクpayloadは本文、状態、origin、confidence、理由と根拠IDを持つ。個別と統合の完全履歴は`generated_at`をUTCへ正規化して比較し、最新のentryを復元する。同時刻の場合は台帳内で後にあるentryを採用する。
 

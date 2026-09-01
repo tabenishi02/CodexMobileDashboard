@@ -4,7 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from tools.change_summary_generator import ChangeSummary, SummaryEvidenceItem
+from tools.change_summary_generator import ChangeSummary, ChangeSummaryCacheEntry, SummaryEvidenceItem
 from tools.chat_extractor import ChatExtractionResult
 from tools.combined_inference import (
     COMBINED_INFERENCE_INPUT_MAX_BYTES,
@@ -1202,6 +1202,75 @@ class CollectorRuntimeTests(unittest.TestCase):
                 )
 
             self.assertEqual(tuple(), load(ledger))
+
+    def test_change_summary_success_is_persisted_before_generator_returns(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "workspace"
+            root.mkdir()
+            ledger = Path(directory) / "ledger.json"
+            settings = SimpleNamespace(
+                inference_ledger_file=ledger,
+                ai_inference_mode="incremental",
+                tasks_path=Path(directory) / "TASKS.md",
+                output_dir=Path(directory) / "output",
+                queue_dir=Path(directory) / "queue",
+            )
+            summary = ChangeSummary("summary-1", "turn-1", "jsonl", "completed", False, "title", "short", "details", tuple(), tuple(), "codex_generated", "high", ("session-1",), ("message-1",))
+            cache_entry = ChangeSummaryCacheEntry(
+                "turn-1", "a" * 64, summary, None, tuple()
+            )
+
+            def interrupt_after_success(*args, **kwargs):
+                kwargs["on_inference_success"](cache_entry)
+                raise RuntimeError("interrupted_after_summary_success")
+
+            with patch(
+                "tools.collector_runtime.extract_chat_messages",
+                return_value=ChatExtractionResult(tuple(), tuple(), tuple()),
+            ), patch(
+                "tools.collector_runtime.extract_current_work_status",
+                return_value=SimpleNamespace(codex_status="idle", turns=tuple()),
+            ), patch(
+                "tools.collector_runtime._try_combined_inference", return_value=None
+            ), patch(
+                "tools.collector_runtime.extract_decisions",
+                return_value=SimpleNamespace(decisions=tuple(), issues=tuple()),
+            ), patch(
+                "tools.collector_runtime.generate_change_summaries",
+                side_effect=interrupt_after_success,
+            ), patch(
+                "tools.collector_runtime.extract_file_references",
+                return_value=SimpleNamespace(references=tuple()),
+            ), patch(
+                "tools.collector_runtime.extract_development_errors",
+                return_value=object(),
+            ), patch(
+                "tools.collector_runtime.collect_git_changes",
+                return_value=_runtime_git(),
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError, "interrupted_after_summary_success"
+                ):
+                    _build_workspace_snapshot(
+                        root,
+                        "workspace-1",
+                        "session-1",
+                        {"session-1": tuple()},
+                        settings,
+                        None,
+                    )
+
+            entries = load(ledger)
+
+        self.assertEqual(1, len(entries))
+        self.assertEqual("change_summary", entries[0].inference_kind)
+        self.assertEqual("session-1", entries[0].session_id)
+        self.assertEqual("turn-1", entries[0].turn_id)
+        self.assertEqual("a" * 64, entries[0].input_sha256)
+        self.assertEqual(
+            {"schema_version": 1, "payload": summary_payload(summary)},
+            entries[0].result,
+        )
 
     def test_incremental_sequence_excludes_history_carries_limit_and_recovers_interrupted_save(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

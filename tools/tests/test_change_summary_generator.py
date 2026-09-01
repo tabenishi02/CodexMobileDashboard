@@ -101,6 +101,29 @@ class StubRunner:
 
 
 class ChangeSummaryGeneratorTests(unittest.TestCase):
+    def test_cli_success_callback_receives_complete_cache_entry_immediately(self) -> None:
+        runner = StubRunner()
+        saved = []
+        messages = (
+            source_message(
+                "assistant", "確認中です。", "msg-final", phase="final_answer"
+            ),
+        )
+
+        result = generate_change_summaries(
+            "session-1",
+            work_status(turn()),
+            messages,
+            runner=runner,
+            on_inference_success=saved.append,
+        )
+
+        self.assertEqual(1, runner.calls)
+        self.assertEqual((result.cache_entries[0],), tuple(saved))
+        self.assertEqual(result.summaries[0], saved[0].summary)
+        self.assertIsNone(saved[0].expires_at)
+        self.assertEqual(tuple(), saved[0].issues)
+
     def test_explicit_final_result_has_priority_over_cli(self) -> None:
         runner = StubRunner()
         messages = (

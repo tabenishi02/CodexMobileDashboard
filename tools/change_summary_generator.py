@@ -199,6 +199,7 @@ def generate_change_summaries(
     now: Optional[datetime] = None,
     allow_inference: bool = True,
     can_infer: Optional[Callable[[], bool]] = None,
+    on_inference_success: Optional[Callable[[ChangeSummaryCacheEntry], None]] = None,
 ) -> ChangeSummaryGenerationResult:
     """Summarize terminal turns using only explicitly masked session evidence."""
 
@@ -289,6 +290,7 @@ def generate_change_summaries(
 
         attempts += 1
         record_inference_metric("change_summary", "execution", prompt.byte_count)
+        successful_inference = None
         try:
             generated = cli_runner.generate(prompt.text)
             validated = _validate_generated_content(
@@ -305,6 +307,7 @@ def generate_change_summaries(
             cache = ChangeSummaryCacheEntry(
                 turn.turn_id, evidence_hash, summary, None, tuple(turn_issues)
             )
+            successful_inference = cache
             record_inference_metric("change_summary", "success", prompt.byte_count)
         except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
             kind = _runner_error_kind(error)
@@ -316,6 +319,8 @@ def generate_change_summaries(
             )
             cache = _failure_cache(turn, evidence_hash, turn_issues, current_time)
             record_inference_metric("change_summary", "failure", prompt.byte_count)
+        if successful_inference is not None and on_inference_success is not None:
+            on_inference_success(successful_inference)
         issues.extend(turn_issues)
         updated_cache.append(cache)
 
