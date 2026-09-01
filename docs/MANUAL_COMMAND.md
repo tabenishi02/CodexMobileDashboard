@@ -55,6 +55,8 @@ HTTPS送信を行わず、ローカルJSON、読取位置、マスク済み履�
 
 `[logging] directory`を設定している場合、手動`collect-once`と`backfill-ai`は`collector.log`、`converter.log`、`sender.log`を初期化する。収集・推論は`collector.log`、表示用JSON変換は`converter.log`、HTTPS送信は`sender.log`で確認する。`--no-send`では送信処理を行わないため、`sender.log`に送信イベントは記録されない。
 
+各ログは成功時の完了イベントと失敗時の安全な分類を記録する。失敗調査ではイベント名、件数、`kind`、HTTPステータス等を確認し、例外本文、Token、チャット本文、ローカルパスをログへ追加しない。
+
 ## 推論モードの運用
 
 通常は`[ai_inference] mode = incremental`のまま`collect-once`を実行する。初回導入時の過去履歴は通常推論しない。CLIを使わずに収集する場合は`mode = off`へ変更する。

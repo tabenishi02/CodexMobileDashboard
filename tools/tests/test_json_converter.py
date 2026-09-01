@@ -1,4 +1,6 @@
 import hashlib
+import logging
+import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
@@ -34,6 +36,7 @@ from tools.json_converter import (
     build_json_snapshot,
     encode_json,
 )
+from tools.logging_setup import configure_component_logging
 from tools.next_task_extractor import NextTask, NextTaskExtractionResult
 from tools.work_status_extractor import CurrentWorkStatus, TurnWorkState
 
@@ -173,7 +176,7 @@ class JsonConverterTests(unittest.TestCase):
             session_id="session-1",
         )
 
-    def build(self, *, messages=None, rolled_back: bool = False):
+    def build(self, *, messages=None, rolled_back: bool = False, content_is_masked: bool = True):
         source_messages = tuple(messages) if messages is not None else self.messages
         work = CurrentWorkStatus(
             codex_status="idle",
@@ -235,8 +238,34 @@ class JsonConverterTests(unittest.TestCase):
                 last_acknowledged_snapshot_id=None,
                 last_send_succeeded_at=None,
             ),
-            content_is_masked=True,
+            content_is_masked=content_is_masked,
         )
+
+    def test_converter_log_records_success_and_safe_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            logger = logging.getLogger("converter")
+            secret = "token=converter-secret C:\\private\\source.jsonl"
+            secret_message = replace(
+                self.messages[1], content=(ChatContentPart("text", secret),)
+            )
+            try:
+                configure_component_logging(Path(directory), components=("converter",))
+                self.build(messages=(self.messages[0], secret_message))
+                with self.assertRaises(UnsafeJsonInputError):
+                    self.build(
+                        messages=(self.messages[0], secret_message),
+                        content_is_masked=False,
+                    )
+            finally:
+                for handler in tuple(logger.handlers):
+                    logger.removeHandler(handler)
+                    handler.close()
+
+            content = (Path(directory) / "converter.log").read_text(encoding="utf-8")
+            self.assertIn("INFO converter 表示用JSONへ変換:", content)
+            self.assertIn("ERROR converter JSON変換を中止: 未マスク入力", content)
+            self.assertNotIn("converter-secret", content)
+            self.assertNotIn("source.jsonl", content)
 
     def test_builds_all_documents_and_summary_page_index(self) -> None:
         snapshot = self.build()

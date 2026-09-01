@@ -97,6 +97,26 @@ class CollectorCommandTests(unittest.TestCase):
                 content = (log_directory / f"{name}.log").read_text(encoding="utf-8")
                 self.assertIn(f"INFO {name} manual_collect_component_ready", content)
 
+    def test_collect_once_logs_safe_failure_without_exception_details(self):
+        with tempfile.TemporaryDirectory() as directory:
+            log_directory = Path(directory) / "logs"
+            config = self.write_config(directory, log_directory=log_directory)
+            secret = "token=collector-secret C:\\private\\session.jsonl"
+            error_output = io.StringIO()
+            try:
+                with patch("tools.collector._runtime_settings", return_value=unittest.mock.Mock()), patch(
+                    "tools.collector.run_once", side_effect=OSError(secret)
+                ), redirect_stderr(error_output):
+                    code = main(["--config", str(config), "collect-once", "--no-send"])
+            finally:
+                self.clear_component_handlers()
+
+            content = (log_directory / "collector.log").read_text(encoding="utf-8")
+            self.assertEqual(2, code)
+            self.assertIn("ERROR collector manual_collection_failed kind=configuration_or_io", content)
+            self.assertNotIn("collector-secret", content)
+            self.assertNotIn("session.jsonl", content)
+
     def test_invalid_configuration_does_not_echo_token_or_path_details(self):
         with tempfile.TemporaryDirectory() as directory:
             config = Path(directory) / "collector.ini"

@@ -1,4 +1,5 @@
 import json
+import logging
 import socket
 import ssl
 import tempfile
@@ -16,6 +17,7 @@ from tools.https_sender import (
     normalize_relative_json_path,
     prepare_snapshot_uploads,
 )
+from tools.logging_setup import configure_component_logging
 
 
 class FakeResponse:
@@ -262,6 +264,49 @@ class HttpsSnapshotSenderTests(unittest.TestCase):
         with self.assertLogs("sender", level="INFO") as captured:
             success_sender.send_snapshot("workspace-1", "snapshot-1", [SnapshotUpload("data.json", b"{}", file_delivery)], commit_delivery_id=commit_delivery)
         self.assertNotIn(token, "\n".join(captured.output))
+
+    def test_sender_log_records_success_and_safe_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            logger = logging.getLogger("sender")
+            token = "sender-secret-token"
+            secret_body = b'{"value":"sender-body-secret"}'
+            file_delivery = new_delivery_id()
+            commit_delivery = new_delivery_id()
+            success_factory = FakeConnectionFactory([
+                FakeConnection(response("stored", file_delivery, "snapshot-1")),
+                FakeConnection(response("committed", commit_delivery, "snapshot-1")),
+            ])
+            failed_factory = FakeConnectionFactory([FakeConnection(FakeResponse(401, b"{}"))])
+            try:
+                configure_component_logging(Path(directory), components=("sender",))
+                HttpsSnapshotSender(
+                    "https://dashboard.example.test", token, Path("C:/private/secret-ca.crt"),
+                    connection_factory=success_factory, ssl_context=object(),
+                ).send_snapshot(
+                    "workspace-1", "snapshot-1",
+                    [SnapshotUpload("data.json", secret_body, file_delivery)],
+                    commit_delivery_id=commit_delivery,
+                )
+                with self.assertRaises(SenderError):
+                    HttpsSnapshotSender(
+                        "https://dashboard.example.test", token, Path("C:/private/secret-ca.crt"),
+                        connection_factory=failed_factory, ssl_context=object(),
+                    ).send_snapshot_with_retry(
+                        "workspace-1", "snapshot-2",
+                        [SnapshotUpload("data.json", secret_body, new_delivery_id())],
+                        commit_delivery_id=new_delivery_id(),
+                    )
+            finally:
+                for handler in tuple(logger.handlers):
+                    logger.removeHandler(handler)
+                    handler.close()
+
+            content = (Path(directory) / "sender.log").read_text(encoding="utf-8")
+            self.assertIn("INFO sender snapshot_committed", content)
+            self.assertIn("WARNING sender snapshot_send_failed", content)
+            self.assertNotIn(token, content)
+            self.assertNotIn("sender-body-secret", content)
+            self.assertNotIn("secret-ca.crt", content)
 
 
 if __name__ == "__main__":

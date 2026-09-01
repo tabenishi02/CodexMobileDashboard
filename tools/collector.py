@@ -19,6 +19,7 @@ from tools.pending_snapshot_queue import InvalidPendingSnapshotError, PendingSna
 
 
 LOGGER = logging.getLogger("sender")
+COLLECTOR_LOGGER = logging.getLogger("collector")
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -55,7 +56,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         sender = _sender(settings)
         return _retry_queued(queue, sender, arguments.all)
     except (OSError, ValueError, configparser.Error, InvalidPendingSnapshotError) as error:
-        print(f"manual_command_failed kind={_safe_error_kind(error)}", file=sys.stderr)
+        error_kind = _safe_error_kind(error)
+        if arguments.command in ("collect-once", "backfill-ai") and COLLECTOR_LOGGER.handlers:
+            COLLECTOR_LOGGER.error("manual_collection_failed kind=%s", error_kind)
+        print(f"manual_command_failed kind={error_kind}", file=sys.stderr)
         return 2
     except SenderError as error:
         LOGGER.error(

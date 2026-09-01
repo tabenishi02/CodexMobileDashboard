@@ -18,6 +18,7 @@ Python標準ライブラリの`logging`と`logging.handlers.TimedRotatingFileHan
 | `server` | `logs/server.access.log`、`logs/server.error.log` | HTTPS受付・静的ファイル配信、保存・公開障害 |
 
 手動`collect-once`と`backfill-ai`は、PC側3コンポーネントのログを同じ実行開始時に初期化する。`--no-send`指定時もログファイルは初期化するが、HTTPS送信イベントは出力しない。
+収集・変換・送信の成功と失敗は各コンポーネントのログだけで確認できるようにし、失敗時も例外本文ではなく安全なエラー分類を記録する。
 
 ## 出力形式
 
