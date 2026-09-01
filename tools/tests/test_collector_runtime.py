@@ -1492,6 +1492,119 @@ class CollectorRuntimeTests(unittest.TestCase):
         self.assertEqual(2, first_budget.calls)
         self.assertEqual(1, restarted_budget.calls)
 
+    def test_change_summary_incremental_pending_and_backfill_share_immediate_save(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "workspace"
+            root.mkdir()
+            ledgers = tuple(
+                Path(directory) / name
+                for name in ("incremental.json", "pending.json", "backfill.json")
+            )
+            summary = ChangeSummary("summary-1", "turn-1", "jsonl", "completed", False, "title", "short", "details", tuple(), tuple(), "codex_generated", "high", ("session-1",), ("message-1",))
+            cache_entry = ChangeSummaryCacheEntry(
+                "turn-1", "a" * 64, summary, None, tuple()
+            )
+            observed_turn_filters = []
+
+            def generate_success(*args, **kwargs):
+                observed_turn_filters.append(kwargs["inference_turn_ids"])
+                kwargs["on_inference_success"](cache_entry)
+                return SimpleNamespace(
+                    summaries=(summary,),
+                    issues=tuple(),
+                    cache_entries=(cache_entry,),
+                )
+
+            work = SimpleNamespace(
+                codex_status="idle", turns=(_runtime_turn("turn-1"),)
+            )
+            pending = (
+                PendingInference(
+                    "workspace-1", "session-1", "turn-1", "change_summary"
+                ),
+            )
+            cases = (
+                (
+                    "incremental",
+                    {"session-1": (_terminal_record("turn-1"),)},
+                    tuple(),
+                ),
+                ("incremental", {"session-1": tuple()}, pending),
+                ("backfill", {"session-1": tuple()}, tuple()),
+            )
+            restored = []
+            with patch(
+                "tools.collector_runtime.extract_chat_messages",
+                return_value=ChatExtractionResult(tuple(), tuple(), tuple()),
+            ), patch(
+                "tools.collector_runtime.extract_current_work_status",
+                return_value=work,
+            ), patch(
+                "tools.collector_runtime._try_combined_inference", return_value=None
+            ), patch(
+                "tools.collector_runtime.extract_decisions",
+                return_value=SimpleNamespace(decisions=tuple(), issues=tuple()),
+            ), patch(
+                "tools.collector_runtime.generate_change_summaries",
+                side_effect=generate_success,
+            ), patch(
+                "tools.collector_runtime.extract_next_task",
+                return_value=SimpleNamespace(
+                    task=None,
+                    issues=tuple(),
+                    cache_entry=None,
+                    inference_attempted=False,
+                ),
+            ), patch(
+                "tools.collector_runtime.extract_file_references",
+                return_value=SimpleNamespace(references=tuple()),
+            ), patch(
+                "tools.collector_runtime.extract_development_errors",
+                return_value=object(),
+            ), patch(
+                "tools.collector_runtime.collect_git_changes",
+                return_value=_runtime_git(),
+            ), patch(
+                "tools.collector_runtime.append_inference_ledger", wraps=append
+            ) as save, patch(
+                "tools.collector_runtime.build_json_snapshot", return_value=object()
+            ), patch("tools.collector_runtime.save_json_snapshot"):
+                for ledger, (mode, records, pending_inferences) in zip(
+                    ledgers, cases
+                ):
+                    settings = SimpleNamespace(
+                        inference_ledger_file=ledger,
+                        ai_inference_mode=mode,
+                        tasks_path=Path(directory) / "TASKS.md",
+                        output_dir=Path(directory) / "output",
+                        queue_dir=Path(directory) / "queue",
+                    )
+                    _build_workspace_snapshot(
+                        root,
+                        "workspace-1",
+                        "session-1",
+                        {"session-1": tuple()},
+                        settings,
+                        None,
+                        inference_records_by_session=records,
+                        pending_inferences=pending_inferences,
+                    )
+                    restored.append(load(ledger))
+
+        self.assertEqual(
+            [{"turn-1"}, {"turn-1"}, None], observed_turn_filters
+        )
+        self.assertEqual(3, save.call_count)
+        self.assertEqual(list(ledgers), [call.args[0] for call in save.call_args_list])
+        for entries in restored:
+            self.assertEqual(1, len(entries))
+            self.assertEqual("change_summary", entries[0].inference_kind)
+            self.assertEqual("a" * 64, entries[0].input_sha256)
+            self.assertEqual(
+                {"schema_version": 1, "payload": summary_payload(summary)},
+                entries[0].result,
+            )
+
     def test_incremental_sequence_excludes_history_carries_limit_and_recovers_interrupted_save(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "workspace"
