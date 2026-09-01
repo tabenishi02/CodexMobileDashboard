@@ -294,6 +294,8 @@ turn要素：
 
 | フィールド | 型 | 必須 | `null` | 定義 |
 |---|---|---|---|---|
+| `counts.open` | integer | 必須 | 不可 | `status: open`かつ`rolled_back: false`の件数 |
+| `counts.critical` | integer | 必須 | 不可 | 未解決件数のうち`severity: critical`の件数 |
 | `errors` | array | 必須 | 不可 | エラー一覧。物理ページは最大100件 |
 | `error_id` | string | 必須 | 不可 | セッション内エラーID |
 | `fingerprint` | string | 必須 | 不可 | 重複判定用SHA-256 |
@@ -317,6 +319,8 @@ turn要素：
 | `resolved_at` | string | 必須 | 可 | 未解決なら`null` |
 | `resolution` | string | 必須 | 可 | 未解決なら`null` |
 | `rolled_back` | boolean | 必須 | 不可 | ロールバック対象ターン由来か |
+
+`dashboard.json`の`errors.open`・`errors.critical`と`errors.json`の`counts`は同じ共通集計を使用する。解決済み、無視、ロールバック対象のエラーは未解決件数へ含めず、重大件数は未解決集合内の`critical`だけを数える。
 
 保存候補は次の3つである。
 

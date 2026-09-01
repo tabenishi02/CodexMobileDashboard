@@ -183,6 +183,7 @@ class JsonConverterTests(unittest.TestCase):
         rolled_back: bool = False,
         content_is_masked: bool = True,
         phase: Optional[str] = "Phase 3",
+        errors=None,
     ):
         source_messages = tuple(messages) if messages is not None else self.messages
         work = CurrentWorkStatus(
@@ -213,7 +214,10 @@ class JsonConverterTests(unittest.TestCase):
             NextTaskExtractionResult(
                 next_value, tuple(), None, False, 0, False
             ),
-            ErrorExtractionResult((development_error(),), tuple()),
+            ErrorExtractionResult(
+                tuple(errors) if errors is not None else (development_error(),),
+                tuple(),
+            ),
             DecisionExtractionResult(
                 (
                     ExtractedDecision(
@@ -471,6 +475,22 @@ class JsonConverterTests(unittest.TestCase):
 
         self.assertEqual("inline", error["detail_storage"])
         self.assertEqual("失敗内容の欠落のない全文", error["details"])
+
+    def test_error_counts_only_include_open_non_rolled_back_errors(self) -> None:
+        base = development_error()
+        errors = (
+            replace(base, error_id="open-critical", severity="critical"),
+            replace(base, error_id="open-warning", severity="warning"),
+            replace(base, error_id="resolved-critical", severity="critical", status="resolved"),
+            replace(base, error_id="rolled-critical", severity="critical", rolled_back=True),
+        )
+
+        snapshot = self.build(errors=errors)
+
+        self.assertEqual(
+            {"open": 2, "critical": 1},
+            snapshot.document("errors.json")["counts"],
+        )
 
     def test_rolled_back_turn_is_not_latest_or_recent(self) -> None:
         snapshot = self.build(rolled_back=True)

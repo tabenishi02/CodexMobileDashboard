@@ -725,6 +725,24 @@ def _preview(message: Optional[ExtractedChatMessage]) -> str:
     return text[:PREVIEW_MAX_CHARACTERS]
 
 
+def _counted_open_errors(
+    errors: Sequence[ExtractedDevelopmentError],
+) -> Tuple[ExtractedDevelopmentError, ...]:
+    return tuple(
+        error for error in errors if error.status == "open" and not error.rolled_back
+    )
+
+
+def _error_counts(
+    errors: Sequence[ExtractedDevelopmentError],
+) -> Mapping[str, int]:
+    open_errors = _counted_open_errors(errors)
+    return {
+        "open": len(open_errors),
+        "critical": sum(error.severity == "critical" for error in open_errors),
+    }
+
+
 def _dashboard_document(
     context: JsonContext,
     project: ProjectPresentation,
@@ -743,11 +761,8 @@ def _dashboard_document(
         if message.role == "assistant" and message.message_type == "chat"
     ]
     effective_summaries = [summary for summary in summaries if not summary.rolled_back]
-    open_errors = [
-        error
-        for error in errors
-        if error.status == "open" and not error.rolled_back
-    ]
+    open_errors = _counted_open_errors(errors)
+    error_counts = _error_counts(errors)
     latest_error = max(
         open_errors,
         key=lambda value: value.last_occurred_at or "",
@@ -778,10 +793,8 @@ def _dashboard_document(
             },
             "next_actions": [_next_task_value(task)] if task is not None else [],
             "errors": {
-                "open": len(open_errors),
-                "critical": sum(
-                    error.severity == "critical" for error in open_errors
-                ),
+                "open": error_counts["open"],
+                "critical": error_counts["critical"],
                 "latest_error_id": (
                     latest_error.error_id if latest_error is not None else None
                 ),
@@ -818,6 +831,7 @@ def _errors_document(
     warnings: Sequence[Mapping[str, object]],
 ) -> Mapping[str, object]:
     result = _common(context, "errors", warnings)
+    result["counts"] = _error_counts(errors)
     result["errors"] = [_error_value(error) for error in errors]
     return result
 

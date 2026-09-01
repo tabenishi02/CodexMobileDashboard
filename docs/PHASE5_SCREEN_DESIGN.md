@@ -75,6 +75,8 @@ collector統合テストでは、異なる`TASKS.md`を持つ複数workspaceを�
 
 `errors.json`から未解決を先に、解決済み・無視を後に表示する。各項目は重要度、状態、要約、発生日時、発生回数を示す。詳細は折りたたみ、`details_preview`、`details`、`detail_chunks`、`source_message_ids`の種別に従って表示する。元メッセージを開く操作はチャット画面へ遷移する。Androidサーバーの内部エラー詳細は表示しない。
 
+未解決件数は`status: open`かつ`rolled_back: false`、重大件数はその未解決集合のうち`severity: critical`とする。ダッシュボードとエラー詳細JSONは同じ共通集計結果を使用する。
+
 ### 決定事項
 
 `decisions.json`の履歴を新しい順に表示する。表題、状態、決定日時、内容、理由、置換前後の関係を示す。根拠メッセージがあればチャットへ遷移する。過去の`superseded`を削除・上書きしない。
