@@ -51,6 +51,14 @@ python -m tools.collector --config "$env:LOCALAPPDATA\CodexMobileDashboard\confi
 
 `--no-send`を付けた実行はローカルSnapshotと推論台帳だけを更新する。確認後、通常の`collect-once`を実行して完全一致結果を台帳から復元し、Androidサーバーへ送信する。すぐ送信する場合は`backfill-ai`から`--no-send`を外す。`backfill`は通常`incremental`のpendingを変更しない。
 
+## 計画中：backfillの上限付き自動継続
+
+現行の`backfill-ai`は1回ごとに共有上限を適用する単発コマンドであり、`limit_reached=0`まで自動反復しない。大量履歴を持つOSS利用環境でも手作業の回数を増やさず、安全な使用量上限を維持するため、`TASKS.md`のPhase 3.2で`--until-complete`と有限の`--max-runs`を最優先実装対象とする。
+
+自動継続は、各反復の`max_calls_per_run`を変更せず、構造化された実行結果で上限到達・成功・失敗・残件・進捗を判定する。`limit_reached > 0`かつ進捗がある間だけ継続し、`limit_reached = 0`で完了する。推論失敗、保存失敗、進捗なし、利用者による中断、または全体の有限上限到達時は停止し、原子的に保存済みの台帳から再開可能にする。暗黙の無制限実行やログ本文の文字列解析は採用しない。
+
+通常の定期`collect-once`は新規完了turnと永続pendingを段階的に処理するが、過去履歴の大量backfillは自動起動しない。backfillは利用量と処理時間を利用者が明示的に承認する独立操作として維持する。送信ありの自動継続では中間Snapshotを反復送信せず、補完完了後の完全Snapshotだけを送る設計とする。
+
 ## 既存キャッシュと台帳
 
 各Runnerはプロセス内のプロンプトSHA-256キャッシュを持つが、collector再起動後は再利用できない。変更要約と次タスクのExtractorにはキャッシュエントリ型があるが、従来はcollectorが永続化していなかった。決定事項Runnerのキャッシュもインスタンス内だけである。
