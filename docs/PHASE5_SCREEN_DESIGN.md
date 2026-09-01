@@ -61,6 +61,8 @@ Phaseはworkspace固有の明示情報だけを使用し、collector側で固定
 
 次タスクのfallbackは対象workspace直下の`TASKS.md`だけを参照する。対象workspaceにファイルがない場合は`dashboard.json`の`next_actions`を空配列とし、画面では「データがありません（次の作業）。」と表示する。他workspaceやcollector起動ディレクトリのタスクは表示しない。
 
+collector統合テストでは、異なる`TASKS.md`を持つ複数workspaceを連続して処理し、プロジェクト名、`project.phase`、fallback次タスク、タスクIDがworkspace間で混入しないことを検証する。
+
 ### 最近の更新
 
 `recent.json`の`current_turn`を先頭に、完了済み`turns`を新しい順に表示する。各項目には状態、開始・完了日時、ユーザーとCodexのプレビュー、ロールバック状態を示す。プレビューを本文として扱わず、詳細操作は該当メッセージを表示できるチャット画面へ遷移する。

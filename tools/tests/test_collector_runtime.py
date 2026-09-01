@@ -19,6 +19,89 @@ from tools.collector_state import CollectorState, PendingInference
 
 
 class CollectorRuntimeTests(unittest.TestCase):
+    def test_multiple_workspaces_keep_phase_and_fallback_tasks_isolated(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            roots = (base / "workspace-a", base / "workspace-b")
+            for root, task in zip(roots, ("Workspace A task", "Workspace B task")):
+                root.mkdir()
+                (root / "TASKS.md").write_text(
+                    "- [ ] " + task + "\n", encoding="utf-8"
+                )
+            settings = SimpleNamespace(
+                inference_ledger_file=base / "ledger.json",
+                ai_inference_mode="off",
+                output_dir=base / "output",
+                queue_dir=base / "queue",
+            )
+            chats = (
+                ChatExtractionResult(
+                    (_runtime_message("message-a", "turn-a", "進捗を確認しました。"),),
+                    tuple(),
+                    tuple(),
+                ),
+                ChatExtractionResult(
+                    (_runtime_message("message-b", "turn-b", "進捗を確認しました。"),),
+                    tuple(),
+                    tuple(),
+                ),
+            )
+            work = (
+                SimpleNamespace(codex_status="idle", turns=(_runtime_turn("turn-a"),)),
+                SimpleNamespace(codex_status="idle", turns=(_runtime_turn("turn-b"),)),
+            )
+            captured = {}
+
+            def capture_snapshot(context, project, _chats, _work, next_task, *_args, **_kwargs):
+                captured[context.workspace_id] = (project, next_task)
+                return object()
+
+            with patch(
+                "tools.collector_runtime.extract_chat_messages", side_effect=chats
+            ), patch(
+                "tools.collector_runtime.extract_current_work_status", side_effect=work
+            ), patch(
+                "tools.collector_runtime.extract_decisions",
+                return_value=SimpleNamespace(decisions=tuple(), issues=tuple()),
+            ), patch(
+                "tools.collector_runtime.generate_change_summaries",
+                return_value=SimpleNamespace(
+                    summaries=tuple(), issues=tuple(), cache_entries=tuple()
+                ),
+            ), patch(
+                "tools.collector_runtime.extract_file_references",
+                return_value=SimpleNamespace(references=tuple()),
+            ), patch(
+                "tools.collector_runtime.extract_development_errors",
+                return_value=object(),
+            ), patch(
+                "tools.collector_runtime.collect_git_changes",
+                return_value=_runtime_git(),
+            ), patch(
+                "tools.collector_runtime.build_json_snapshot",
+                side_effect=capture_snapshot,
+            ), patch("tools.collector_runtime.save_json_snapshot"):
+                for index, root in enumerate(roots):
+                    session_id = "session-" + str(index)
+                    _build_workspace_snapshot(
+                        root,
+                        "workspace-" + str(index),
+                        session_id,
+                        {session_id: tuple()},
+                        settings,
+                        None,
+                    )
+
+        project_a, next_task_a = captured["workspace-0"]
+        project_b, next_task_b = captured["workspace-1"]
+        self.assertIsNone(project_a.phase)
+        self.assertIsNone(project_b.phase)
+        self.assertEqual("workspace-a", project_a.name)
+        self.assertEqual("workspace-b", project_b.name)
+        self.assertEqual("Workspace A task", next_task_a.task.text)
+        self.assertEqual("Workspace B task", next_task_b.task.text)
+        self.assertNotEqual(next_task_a.task.task_id, next_task_b.task.task_id)
+
     def test_collector_skips_ai_for_known_short_non_change_turn(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "workspace"

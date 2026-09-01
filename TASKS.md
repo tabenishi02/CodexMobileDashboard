@@ -297,10 +297,10 @@
     - [x] 初期取得済みの`metadata.json`とworkspace指定付き`/health`からPC collector・Androidサーバー情報を描画する
     - [x] システム情報画面への遷移時と初期データ更新後に読込中表示を終了する
     - [x] 公開中Snapshot ID・最終受信日時・取得失敗を区別して表示するクライアントテストを追加する
-  - [ ] Phaseと次タスクをworkspace固有の情報から生成する
+  - [x] Phaseと次タスクをworkspace固有の情報から生成する
     - [x] 固定値`Phase 3`を廃止し、Phase情報がないプロジェクトの表示仕様を定義する
     - [x] 次タスクfallbackは対象workspace直下の`TASKS.md`だけを参照し、存在しない場合はデータなしにする
-    - [ ] 複数workspace間でPhase・次タスクが混入しないcollector統合テストを追加する
+    - [x] 複数workspace間でPhase・次タスクが混入しないcollector統合テストを追加する
   - [ ] 画面上の日時を日本標準時で表示する
     - [ ] JSON内のUTC ISO 8601値を維持し、ブラウザ表示時だけ`Asia/Tokyo`へ変換する
     - [ ] ヘッダー最終更新、データ生成日時、システム情報、各詳細画面の日時へ共通変換を適用する
