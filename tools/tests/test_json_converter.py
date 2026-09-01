@@ -171,7 +171,7 @@ class JsonConverterTests(unittest.TestCase):
         )
         self.context = JsonContext(
             snapshot_id="snapshot-1",
-            generated_at="2026-08-13T10:05:00+09:00",
+            generated_at="2026-08-13T01:05:00+00:00",
             workspace_id="sample-project",
             session_id="session-1",
         )
@@ -303,6 +303,10 @@ class JsonConverterTests(unittest.TestCase):
         }
         self.assertNotIn("metadata.json", metadata_paths)
         self.assertIn("messages/summaries/summary-page-000001.json", metadata_paths)
+        self.assertEqual(
+            "2026-08-13T01:05:00+00:00",
+            snapshot.document("dashboard.json")["generated_at"],
+        )
 
     def test_allows_missing_project_phase(self) -> None:
         snapshot = self.build(phase=None)

@@ -127,7 +127,7 @@ async function run() {
   const published = await loadSystem(health("snapshot-1", "2026-08-30T03:01:30+00:00"));
   const publishedValues = definitionValues(published.serverStatus);
   assert.strictEqual(publishedValues["公開中Snapshot ID"], "snapshot-1");
-  assert.strictEqual(publishedValues["最終受信日時"], "2026-08-30T03:01:30+00:00");
+  assert.strictEqual(publishedValues["最終受信日時"], "2026/08/30 12:01:30 JST");
   assert.strictEqual(published.systemState.hidden, true);
   assert.strictEqual(published.systemContent.hidden, false);
 

@@ -18,6 +18,16 @@
   };
   const INITIAL_DOCUMENTS = ["dashboard", "metadata", "health"];
   const SCREEN_NAMES = new Set(["dashboard", "recent", "chat", "errors", "decisions", "files", "system", "more"]);
+  const JST_TIMESTAMP_FORMATTER = new Intl.DateTimeFormat("ja-JP", {
+    day: "2-digit",
+    hour: "2-digit",
+    hourCycle: "h23",
+    minute: "2-digit",
+    month: "2-digit",
+    second: "2-digit",
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+  });
   const state = {
     activeScreen: "dashboard",
     cache: new Map(),
@@ -161,7 +171,10 @@
   }
 
   function formatTimestamp(value) {
-    return typeof value === "string" && value ? value : "日時不明";
+    if (typeof value !== "string" || !value) { return "日時不明"; }
+    const timestamp = new Date(value);
+    if (!Number.isFinite(timestamp.getTime())) { return "日時不明"; }
+    return JST_TIMESTAMP_FORMATTER.format(timestamp) + " JST";
   }
 
   function formatOptionalTimestamp(value) {

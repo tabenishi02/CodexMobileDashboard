@@ -97,6 +97,8 @@ PC collectorとAndroidサーバーの状態を分けて表示する。PC側は`m
 
 古さは`metadata.json`の`collector.last_checked_at`、`collector.last_data_change_at`、`collector.last_send_succeeded_at`と、`/health`の`last_received_at`を別々に表示して判断する。閾値や文言は実装タスクで定め、現在時刻や失敗時刻をデータ日時として代用しない。
 
+JSON内のUTCを含むタイムゾーン付きISO 8601値は変更せず、ブラウザの共通日時整形でだけ`Asia/Tokyo`へ変換し、`YYYY/MM/DD HH:mm:ss JST`形式で表示する。JSON文書や`/health`応答をJSTへ書き換えない。
+
 ## 安全性と表示規則
 
 JSON由来文字列は`textContent`相当の方法で表示し、`innerHTML`へ渡さない。外部ライブラリ、外部スクリプト、外部スタイル、ブラウザ保存領域を使用しない。トークン、サーバー内部パス、Traceback、HTTP本文は表示しない。画面で必要な日本語ラベルへの変換は`DATA_SCHEMA.md`の列挙値を使用する。
