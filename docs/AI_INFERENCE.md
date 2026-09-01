@@ -57,9 +57,9 @@ python -m tools.collector --config "$env:LOCALAPPDATA\CodexMobileDashboard\confi
 
 自動継続でも各反復の`max_calls_per_run`を変更せず、runtimeが返す`CollectorRunResult`で`executions`、`successes`、`failures`、`limit_reached`、`pending_remaining`、`progress`を判定する。`progress`はその実行で新たに成功した推論結果数であり、キャッシュヒットとスキップは含めない。CLIは単発時にこの実行結果をJSONで返し、自動継続時は`executions`、`successes`、`failures`、`progress`を全反復分集計し、`limit_reached`と`pending_remaining`は最終反復の値を返す。ログ本文の文字列解析は使用しない。
 
-推論失敗時は終了コード2で停止する。`--no-send`では全反復をローカル処理だけにし、送信ありでは中間Snapshotを送らず、補完完了後に通常`incremental`の完全Snapshotだけを1回送る。
+各反復後、`limit_reached = 0`なら`progress`の値にかかわらず正常終了する。`limit_reached > 0`の場合は`progress > 0`のときだけ次の反復へ進み、`progress = 0`なら`stop_reason = no_progress`、終了コード3で停止する。推論失敗時は終了コード2で停止する。`--no-send`では全反復をローカル処理だけにし、送信ありでは中間Snapshotを送らず、補完完了後に通常`incremental`の完全Snapshotだけを1回送る。
 
-通常の定期`collect-once`は新規完了turnと永続pendingを段階的に処理するが、過去履歴の大量backfillは自動起動しない。進捗なし・保存失敗・利用者中断を含む停止・再開条件の強化はPhase 3.2の後続タスクとして扱う。
+通常の定期`collect-once`は新規完了turnと永続pendingを段階的に処理するが、過去履歴の大量backfillは自動起動しない。保存失敗・利用者中断を含む停止・再開条件の強化はPhase 3.2の後続タスクとして扱う。
 
 
 ## 既存キャッシュと台帳

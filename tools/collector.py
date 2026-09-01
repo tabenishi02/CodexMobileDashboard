@@ -143,6 +143,20 @@ def _run_backfill_until_complete(
                 )
             )
             return 0
+        if result.progress <= 0:
+            print(
+                json.dumps(
+                    _backfill_result(
+                        result,
+                        totals,
+                        run_number,
+                        completed=False,
+                        stop_reason="no_progress",
+                    ),
+                    sort_keys=True,
+                )
+            )
+            return BACKFILL_INCOMPLETE_EXIT_CODE
     print(
         json.dumps(
             _backfill_result(

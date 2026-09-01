@@ -155,6 +155,69 @@ class CollectorCommandTests(unittest.TestCase):
         self.assertEqual(6, result["progress"])
         self.assertEqual(7, result["pending_remaining"])
 
+    def test_backfill_until_complete_stops_when_limit_remains_without_progress(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = self.write_config(directory)
+            runtime = unittest.mock.Mock(ai_inference_mode="incremental")
+            output = io.StringIO()
+            stalled = CollectorRunResult(1, 0, 0, 0, 7, 7, 0)
+
+            with patch("tools.collector._runtime_settings", return_value=runtime), patch(
+                "tools.collector.replace",
+                side_effect=lambda value, **kwargs: unittest.mock.Mock(**kwargs),
+            ), patch(
+                "tools.collector.run_once", return_value=stalled
+            ) as run_mock, redirect_stdout(output):
+                code = main(
+                    [
+                        "--config",
+                        str(config),
+                        "backfill-ai",
+                        "--no-send",
+                        "--until-complete",
+                        "--max-runs",
+                        "5",
+                    ]
+                )
+
+        self.assertEqual(3, code)
+        self.assertEqual(1, run_mock.call_count)
+        result = json.loads(output.getvalue())
+        self.assertFalse(result["completed"])
+        self.assertEqual("no_progress", result["stop_reason"])
+        self.assertEqual(7, result["limit_reached"])
+        self.assertEqual(0, result["progress"])
+
+    def test_backfill_until_complete_accepts_zero_limit_without_progress(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = self.write_config(directory)
+            runtime = unittest.mock.Mock(ai_inference_mode="incremental")
+            output = io.StringIO()
+            complete = CollectorRunResult(1, 0, 0, 0, 0, 0, 0)
+
+            with patch("tools.collector._runtime_settings", return_value=runtime), patch(
+                "tools.collector.replace",
+                side_effect=lambda value, **kwargs: unittest.mock.Mock(**kwargs),
+            ), patch(
+                "tools.collector.run_once", return_value=complete
+            ) as run_mock, redirect_stdout(output):
+                code = main(
+                    [
+                        "--config",
+                        str(config),
+                        "backfill-ai",
+                        "--no-send",
+                        "--until-complete",
+                    ]
+                )
+
+        self.assertEqual(0, code)
+        self.assertEqual(1, run_mock.call_count)
+        result = json.loads(output.getvalue())
+        self.assertTrue(result["completed"])
+        self.assertEqual(0, result["limit_reached"])
+        self.assertEqual(0, result["progress"])
+
     def test_backfill_until_complete_sends_only_final_snapshot(self):
         with tempfile.TemporaryDirectory() as directory:
             config = self.write_config(directory, sender=True)
