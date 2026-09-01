@@ -33,6 +33,11 @@ async function run() {
   const systemContent = { hidden: true };
   const collectorStatus = listElement();
   const serverStatus = listElement();
+  const refreshButton = {
+    disabled: false,
+    listener: null,
+    addEventListener(_name, listener) { this.listener = listener; },
+  };
   const screens = [
     { dataset: { screen: "dashboard" }, hidden: false },
     { dataset: { screen: "recent" }, hidden: true },
@@ -53,7 +58,7 @@ async function run() {
     ["missing-workspace", { hidden: true }],
     ["global-status", { textContent: "" }],
     ["refresh-status", { textContent: "" }],
-    ["refresh-button", { disabled: false }],
+    ["refresh-button", refreshButton],
     ["codex-status", { textContent: "" }],
     ["current-work", { textContent: "" }],
     ["project-name", { textContent: "" }],
@@ -152,10 +157,14 @@ async function run() {
   };
   vm.runInNewContext(fs.readFileSync("client/app.js", "utf8"), context, { filename: "app.js" });
   listeners.DOMContentLoaded();
+  const client = context.window.CodexMobileDashboard;
+  client.showScreen("system");
+  assert.strictEqual(systemState.hidden, false);
+  assert.strictEqual(systemState.textContent, "システム情報を読み込んでいます。");
+  assert.strictEqual(systemContent.hidden, true);
   await new Promise((resolve) => setImmediate(resolve));
   await new Promise((resolve) => setImmediate(resolve));
 
-  const client = context.window.CodexMobileDashboard;
   assert.strictEqual(client.getWorkspaceId(), "workspace-1");
   assert.strictEqual(appShell.dataset.appState, "ready");
   assert.strictEqual(client.getDocument("dashboard").data_type, "dashboard");
@@ -172,6 +181,8 @@ async function run() {
   assert.strictEqual(nextActions.children[1].textContent, "最近の更新一覧を実装する");
   assert.strictEqual(dashboardState.hidden, true);
   assert.strictEqual(dashboardContent.hidden, false);
+  assert.strictEqual(systemState.hidden, true);
+  assert.strictEqual(systemContent.hidden, false);
   assert.deepStrictEqual(requests.map((request) => request.url), [
     "/data/workspace-1/dashboard.json",
     "/data/workspace-1/metadata.json",
@@ -234,6 +245,22 @@ async function run() {
     "公開中Snapshot ID", "snapshot-1",
     "最終受信日時", "2026-08-30T03:01:30+00:00",
   ]);
+
+  systemState.hidden = false;
+  systemState.textContent = "システム情報を読み込んでいます。";
+  systemContent.hidden = true;
+  responses.push(
+    response(304, null, null),
+    response(304, null, null),
+    response(304, null, null),
+  );
+  refreshButton.listener();
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.strictEqual(systemState.hidden, true);
+  assert.strictEqual(systemContent.hidden, false);
+  assert.strictEqual(collectorStatus.children[1].textContent, "正常");
+  assert.strictEqual(serverStatus.children[1].textContent, "正常");
 
   responses.push(response(304, null, null));
   const dashboard = await client.fetchDocument("dashboard");

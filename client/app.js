@@ -19,6 +19,7 @@
   const INITIAL_DOCUMENTS = ["dashboard", "metadata", "health"];
   const SCREEN_NAMES = new Set(["dashboard", "recent", "chat", "errors", "decisions", "files", "system", "more"]);
   const state = {
+    activeScreen: "dashboard",
     cache: new Map(),
     documents: new Map(),
     errors: new Map(),
@@ -475,6 +476,7 @@
   }
   function showScreen(screenName) {
     const activeScreen = SCREEN_NAMES.has(screenName) ? screenName : "dashboard";
+    state.activeScreen = activeScreen;
     for (const screen of document.querySelectorAll("[data-screen]")) {
       screen.hidden = screen.dataset.screen !== activeScreen;
     }
@@ -564,9 +566,13 @@
     if (!metadata || !health) {
       content.hidden = true;
       screenState.hidden = false;
-      screenState.textContent = !metadata
-        ? formatLoadFailure("metadata", "PC収集ツール情報")
-        : formatLoadFailure("health", "Androidサーバー情報");
+      if ((!metadata && !getDocumentError("metadata")) || (!health && !getDocumentError("health"))) {
+        screenState.textContent = "システム情報を読み込んでいます。";
+      } else {
+        screenState.textContent = !metadata
+          ? formatLoadFailure("metadata", "PC収集ツール情報")
+          : formatLoadFailure("health", "Androidサーバー情報");
+      }
       return;
     }
 
@@ -629,6 +635,9 @@
       state.errors.set(documentName, result.reason.code || "request_failed");
     }
     renderDashboard();
+    if (state.activeScreen === "system") {
+      renderSystem();
+    }
 
     appShell.dataset.appState = failures.length ? APP_STATE.DEGRADED : APP_STATE.READY;
     globalStatus.textContent = failures.length
