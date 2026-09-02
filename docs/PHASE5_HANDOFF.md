@@ -104,4 +104,4 @@ PC側collectorは`dashboard.json`、`recent.json`、`messages.json`、`errors.js
 
 実機確認は[`PHASE5_ANDROID_BROWSER_CHECK.md`](PHASE5_ANDROID_BROWSER_CHECK.md)のチェックリストと結果記録テンプレートに従う。
 
-画面実装後、Android実機へ`server/`と`client/`を再配置し、`GET /health`とworkspace指定healthの`200`、collectorからの複数Snapshot commit成功を確認した。CA信頼済み閲覧スマートフォンでの最終表示受入は未完了のため、`TASKS.md`の実機確認項目は完了扱いにしない。
+画面実装後、Android実機へ`server/`と`client/`を再配置し、`GET /health`とworkspace指定healthの`200`、collectorからの複数Snapshot commit成功を確認した。SC-51E（Android 16、Chrome 152.0.7977.64）による表示・操作確認と、そこで判明した表示データ・画面遷移・安全表示の修正を完了したため、`TASKS.md`の「Androidブラウザで表示確認する」は完了とする。正式CA受入・画面幅比較・アクセシビリティは別タスクで判定する。

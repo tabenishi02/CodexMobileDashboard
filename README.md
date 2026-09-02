@@ -3,7 +3,7 @@
 VSCode Codexで進めている開発の状況を、スマートフォンから短時間で確認するためのダッシュボードです。
 
 > [!IMPORTANT]
-> 作業用PCのcollector、Android・Termux向けHTTPSサーバー、スマートフォン向け閲覧画面は実装済みです。閲覧スマートフォンでの最終実機受入と、Codex CLI推論の増分化は未完了です。現在の正確な引継ぎ状態は[`docs/CURRENT_HANDOFF.md`](docs/CURRENT_HANDOFF.md)を参照してください。
+> 作業用PCのcollector、Android・Termux向けHTTPSサーバー、スマートフォン向け閲覧画面、Codex CLI推論の増分化は実装済みです。SC-51EでのAndroidブラウザ表示確認も完了し、正式CA受入・画面幅比較・アクセシビリティは後続タスクとして残しています。現在の正確な引継ぎ状態は[`docs/CURRENT_HANDOFF.md`](docs/CURRENT_HANDOFF.md)を参照してください。
 
 ## 目的
 
