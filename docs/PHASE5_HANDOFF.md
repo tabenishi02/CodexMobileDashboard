@@ -1,8 +1,8 @@
-# Phase 5引継ぎ
+# Phase 5引継ぎ（完了記録）
 
 ## 目的
 
-本書は、Phase 5以降を別チャットで開始する際の正規の引継ぎ資料である。秘密値や実データは記載せず、実装済み範囲、実機環境、参照資料、未確定事項を示す。
+本書はPhase 5開始時の状態と完了結果を残す記録である。Phase 6以降の再開には[`PHASE6_HANDOFF.md`](PHASE6_HANDOFF.md)を使用する。秘密値や実データは記載しない。
 
 ## 完了済み範囲
 
@@ -13,7 +13,7 @@
 - Android端末再起動後のHTTPSサーバーとSSHの自動起動を確認済みである。
 - 閲覧画面は`client/index.html`、`client/styles.css`、`client/app.js`として実装済みである。画面にはダッシュボード、最近の更新、チャット、エラー、決定事項、ファイル、システム情報がある。
 
-> 本書の名称はPhase 5開始時の引継ぎを示す。現在の再開地点と既知問題は[`CURRENT_HANDOFF.md`](CURRENT_HANDOFF.md)を正とする。
+> 本書の環境値と開始条件は当時の記録である。現在の再開地点は[`CURRENT_HANDOFF.md`](CURRENT_HANDOFF.md)、Phase 6の詳細は[`PHASE6_HANDOFF.md`](PHASE6_HANDOFF.md)を正とする。
 
 Phase 4の受入根拠は[`PHASE4_ACCEPTANCE.md`](PHASE4_ACCEPTANCE.md)を正とする。Phase 4完了時点の基準コミットは`12e1f8b`である。
 

@@ -3,7 +3,7 @@
 VSCode Codexで進めている開発の状況を、スマートフォンから短時間で確認するためのダッシュボードです。
 
 > [!IMPORTANT]
-> 作業用PCのcollector、Android・Termux向けHTTPSサーバー、スマートフォン向け閲覧画面、Codex CLI推論の増分化は実装済みです。SC-51EでのAndroidブラウザ表示、CA信頼済みHTTPS正式受入、一般的なAndroidスマートフォン相当の画面幅確認も完了しています。アクセシビリティ確認は利用者判断で対応不要とし、ブラウザ用外部ライブラリはリポジトリへ同梱して継続利用します。現在の正確な引継ぎ状態は[`docs/CURRENT_HANDOFF.md`](docs/CURRENT_HANDOFF.md)を参照してください。
+> Phase 5は完了しました。作業用PCのcollector、Android・Termux向けHTTPSサーバー、スマートフォン向け閲覧画面、Codex CLI推論の増分化は実装済みです。SC-51EでのAndroidブラウザ表示、CA信頼済みHTTPS正式受入、一般的なAndroidスマートフォン相当の画面幅確認も完了しています。アクセシビリティ確認は利用者判断で対応不要とし、ブラウザ用外部ライブラリはリポジトリへ同梱して継続利用します。Phase 6の再開地点は[`docs/CURRENT_HANDOFF.md`](docs/CURRENT_HANDOFF.md)を参照してください。
 
 ## 目的
 
@@ -187,12 +187,13 @@ CodexMobileDashboard/
 | [`docs/PHASE3_ACCEPTANCE.md`](docs/PHASE3_ACCEPTANCE.md) | Phase 3の受入確認 |
 | [`docs/PHASE4_ACCEPTANCE.md`](docs/PHASE4_ACCEPTANCE.md) | Phase 4のAndroid実機受入確認 |
 | [`docs/PHASE5_ANDROID_BROWSER_CHECK.md`](docs/PHASE5_ANDROID_BROWSER_CHECK.md) | AndroidブラウザでのPhase 5実機表示確認手順 |
-| [`docs/PHASE5_HANDOFF.md`](docs/PHASE5_HANDOFF.md) | Phase 5開始時の状態、参照資料、未確定事項 |
+| [`docs/PHASE5_HANDOFF.md`](docs/PHASE5_HANDOFF.md) | Phase 5開始時の記録と完了結果 |
+| [`docs/PHASE6_HANDOFF.md`](docs/PHASE6_HANDOFF.md) | Phase 6開始時の実装状況、残作業、再開手順 |
 | [`docs/PHASE5_SCREEN_DESIGN.md`](docs/PHASE5_SCREEN_DESIGN.md) | Phase 5の画面構成、遷移、データ取得、表示規則 |
 
 ## セットアップ
 
-PC側collectorとAndroidサーバーの設定・運用手順は`docs/`と各コンポーネントのREADMEを参照します。閲覧画面の配置・確認手順はPhase 5の実装とともに追加します。
+PC側collectorとAndroidサーバーの設定・運用手順は`docs/`と各コンポーネントのREADMEを参照します。閲覧画面の配置・実機確認手順は[`docs/PHASE5_ANDROID_BROWSER_CHECK.md`](docs/PHASE5_ANDROID_BROWSER_CHECK.md)、次の作業は[`docs/PHASE6_HANDOFF.md`](docs/PHASE6_HANDOFF.md)を参照してください。
 
 PC側collectorは`python -m tools.collector --config <collector.ini> collect-once`で1回実行できます。
 

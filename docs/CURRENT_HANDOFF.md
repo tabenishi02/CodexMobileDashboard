@@ -1,53 +1,40 @@
 # 現在の引継ぎ状態
 
-## 再開時の最優先事項
+## 再開地点
 
-Codex CLI推論の増分化を継続する。現在の次タスクは「決定事項の保存・復元・入力ハッシュ照合」である。ただし、その前提となる変更要約台帳にも既知不具合があるため、先に修正・テストする。
+Phase 5は完了した。Phase 6以降は別チャットで再開し、LAN内の通常運用を完成させる。詳細な実装状況、残作業、運用上の注意は[`PHASE6_HANDOFF.md`](PHASE6_HANDOFF.md)を正とする。
 
 再開時は次を確認する。
 
 ```powershell
 git status --short
-git log --oneline -15
-python -m unittest tools.tests.test_change_summary_generator tools.tests.test_decision_extractor tools.tests.test_next_task_extractor tools.tests.test_collector_command
-git diff --check
+git log --oneline -10
 ```
 
-## 実装済み範囲
+続けて[`../TASKS.md`](../TASKS.md)のPhase 6、[`PHASE6_HANDOFF.md`](PHASE6_HANDOFF.md)、[`SCHEDULED_EXECUTION.md`](SCHEDULED_EXECUTION.md)を読む。実設定、Token、証明書、ログ、生成データは変更・コミットしない。
 
-- Android・Termux HTTPSサーバー、認証付きSnapshot受信、commit、公開JSON GETを実装済み。
-- `GET /health?workspace_id=<workspace_id>`で最終受信日時と公開中Snapshot IDを取得できる。
-- スマートフォン向け画面、ETag取得、15秒更新、非表示時停止、手動更新、空・通信・不正JSON・古いデータ表示を実装済み。
-- チャットのMarkdownサブセット表示、長文折りたたみ、横長コードの横スクロール、ダークテーマ、固定下部ナビゲーションを実装済み。
-- 推論モード`off`、`incremental`（既定）、`backfill`の設定値を導入済み。`off`は3つのCLI経路を抑止する。
+## Phase 5完了状態
 
-## 実機確認済み事項
+- workspace指定付きHTTPSダッシュボード、静的アセット、7画面、手動・15秒更新、画面復帰時更新を実装済み。
+- SC-51E（Android 16、Chrome 152）で主要表示、更新、画面遷移、安全表示、一般的なスマートフォン幅を確認済み。
+- 2026年9月2日に、CA信頼済み端末によるHTTPS実機受入T01～T12へ合格した。
+- アクセシビリティ確認は利用者判断で対応不要とした。
+- ブラウザ用のmarkdown-it、DOMPurify、highlight.jsはリポジトリへ同梱し、CDNへ依存しない。
 
-- Android側の古い`server/`を更新後、`GET /health`と`GET /health?workspace_id=workspace-47cfefa930c1ed4d`が`200`を返した。
-- PC collectorから複数workspaceのSnapshot commit成功ログを確認した。
-- Androidへ更新する対象は`server/`と`client/`の全内容であり、`client/vendor/`も含めて再帰的に配置する。実設定、Token、TLS鍵、公開・stagingデータは上書きしない。
-- SC-51E（Android 16、Chrome 152.0.7977.64）でworkspace指定HTTPS URL、主要7画面、遅延読込、更新動作、安全表示を確認した。2026年9月2日にCA信頼済みHTTPS正式受入（T01～T12）へ合格し、一般的なAndroidスマートフォン相当の画面幅も確認済みである。アクセシビリティ確認は利用者判断で対応不要とし、ブラウザ用外部ライブラリは同梱方式で継続利用する。
+実機確認の根拠は[`PHASE5_ANDROID_BROWSER_CHECK.md`](PHASE5_ANDROID_BROWSER_CHECK.md)、Phase 5開始時の記録は[`PHASE5_HANDOFF.md`](PHASE5_HANDOFF.md)を参照する。
 
-## PC側の実設定
+## Phase 6の最優先残作業
 
-手動試験用collector設定はリポジトリ外の`%LOCALAPPDATA%\CodexMobileDashboard\config\collector.ini`にある。この環境では送信Tokenを`%LOCALAPPDATA%\CodexMobileDashboard\certificates\sender.token`へ配置する判断をした。
+1. Androidサーバー端末の固定IPまたはDHCP予約を決める。
+2. Termuxの省電力除外とバックグラウンド継続を確認する。
+3. ネットワーク切断後の復旧を確認する。
+4. 通常`collect-once`とpending消化をWindowsタスクスケジューラへ統合し、重複起動を防止する。
+5. PC再起動後の定期収集・送信を確認し、LAN内アクセス手順を完成させる。
 
-一方、リポジトリの一般向け設定例と正規設計文書は`secrets\sender.token`を示している。移行先では実設定を不用意に書き換えず、配置方針を統一するタスクとして扱う。Token本文をGit、文書、ログ、チャットへ記載しない。
+現在の定期タスクは未送信Snapshotの`retry-queued --all`だけを実行し、新規収集は行わない。大量の過去履歴は通常定期収集から暗黙に処理せず、必要時に`backfill-ai --until-complete --max-runs N`を明示実行する。
 
-## Codex CLI推論の現状と既知問題
+## 既知の保留事項
 
-- 変更要約・決定事項・次タスクは別々にCodex CLIを起動し得る。
-- `incremental`は今回の増分収集で追加されたturnだけを推論対象にし、初回導入時の既存履歴は除外する。共有呼び出し上限とbackfill専用コマンドは未実装。
-- 変更要約と決定事項は、入力SHA-256・workspace・session・turnに関連付けたversioned payloadを台帳へ原子的保存する。保存時の`now`引数不一致は修正済みである。
-- 台帳専用テストで、全識別子の保存と原子的置換失敗時の旧台帳保持を確認済み。collector再起動後のランタイム経路でも、変更要約のversioned payload復元と入力SHA-256照合を確認済み。
-- 変更要約・決定事項・次タスクは永続台帳へ保存・復元し、同一実質入力の再推論を防止する。
-- 決定事項は`supersedes`、`superseded_by`、`topic_key`と時系列を保存し、関係を壊さず復元する方針を採用した。
-- 旧形式または不完全payloadは成功キャッシュとして復元せず、安全に再推論候補へ戻す。
-
-推論仕様の詳細は[`AI_INFERENCE.md`](AI_INFERENCE.md)、実装タスクは[`../TASKS.md`](../TASKS.md)のPhase 3.1を参照する。
-
-## collector実行時の観測
-
-Codex CLI未導入時は`codex_not_found`警告が出た。CLI導入後は推論処理が実行され、利用量と処理時間が実用上問題となった。手動中断時のスタックは`generate_change_summaries()`から`subprocess.run()`の待機中だった。1呼び出しのタイムアウトは120秒だが、全体の呼び出し回数上限がないため総時間は長くなり得る。
-
-この問題が解決するまで、実データで`incremental`または`backfill`を安易に実行しない。必要なら`off`を使用する。ただし、外部実設定の変更は利用者が内容を確認して行う。
+- PC送信Tokenの実配置`certificates`と正規設計`secrets`の統一はPhase 8の未完了タスクである。実設定を引継ぎ時に自動変更しない。
+- Androidでサーバー再起動時にSSH切断とTermux終了が観測されたが、原因は未確定である。Phase 6の省電力・バックグラウンド確認で再現条件を切り分ける。
+- Phase 7には、誤ったCA・証明書名不一致、同時更新、長いファイルパスのテストが残っている。
