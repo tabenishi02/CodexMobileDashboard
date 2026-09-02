@@ -449,5 +449,6 @@ PC側は1つの共通INIを使用します。JSONLの`cwd`等から候補を抽�
 - [`../docs/ERROR_HANDLING.md`](../docs/ERROR_HANDLING.md)：エラー処理
 - [`../docs/GIT_TRACKING.md`](../docs/GIT_TRACKING.md)：Git変更追跡
 - [`../docs/LOGGING.md`](../docs/LOGGING.md)：ログ仕様
+- [`../docs/BACKFILL_OPERATION.md`](../docs/BACKFILL_OPERATION.md)：AI backfillの使用量、停止・再開運用
 - [`../docs/UPDATE_POLICY.md`](../docs/UPDATE_POLICY.md)：更新頻度と保存期間
 - [`../server/README.md`](../server/README.md)：Androidサーバー端末側

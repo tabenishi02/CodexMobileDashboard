@@ -65,6 +65,8 @@ python -m tools.collector --config "$env:LOCALAPPDATA\CodexMobileDashboard\confi
 
 `--no-send`ではsenderを生成せず、全反復をローカル処理だけにする。送信ありの場合も各`backfill`反復にはsenderを渡さず、中間Snapshotは送信しない。`limit_reached = 0`で補完が完了した場合だけ、台帳を復元する通常`incremental`を1回実行し、その完全Snapshotを送信する。推論失敗、保存失敗、進捗なし、`max_runs`到達、利用者による中断では最終送信を行わない。
 
+OSS利用者向けの呼び出し数・処理時間の見積もり、停止理由別の対処、台帳を維持した再開手順は[`BACKFILL_OPERATION.md`](BACKFILL_OPERATION.md)を参照する。
+
 通常の定期`collect-once`は新規完了turnと永続pendingを段階的に処理するが、過去履歴の大量backfillは自動起動しない。
 
 

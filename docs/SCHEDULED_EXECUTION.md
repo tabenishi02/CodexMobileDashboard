@@ -56,4 +56,4 @@ collector本体と`collect-once`は実装済みだが、現在登録するタス
 
 Phase 6では通常の`collect-once`をWindowsタスクスケジューラへ統合し、永続pendingを新規完了turnより先に処理して、複数回の定期実行で残件を段階的に消化する。collectorと再送処理の重複起動を防ぎ、失敗・中断時は次回へ持ち越し、PC再起動後も継続できることを要件とする。
 
-大量の過去履歴を対象にする`backfill-ai`は通常定期収集から暗黙に起動しない。Phase 3.2で予定する`backfill-ai --until-complete --max-runs N`を利用者が明示実行し、1回ごとの共有ハード上限、全体の有限上限、失敗・進捗停止時の自動停止を維持する。これにより通常pendingの自動消化と、使用量が大きくなり得る過去補完を分離する。
+大量の過去履歴を対象にする`backfill-ai`は通常定期収集から暗黙に起動しない。実装済みの`backfill-ai --until-complete --max-runs N`を利用者が明示実行し、1回ごとの共有ハード上限、全体の有限上限、失敗・進捗停止時の自動停止を維持する。これにより通常pendingの自動消化と、使用量が大きくなり得る過去補完を分離する。運用上の見積もりと再開方法は[`BACKFILL_OPERATION.md`](BACKFILL_OPERATION.md)を参照する。

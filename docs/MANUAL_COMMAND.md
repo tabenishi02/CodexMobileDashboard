@@ -92,3 +92,5 @@ python -m tools.collector --config "$env:LOCALAPPDATA\CodexMobileDashboard\confi
 ```
 
 補完結果を直ちに送信する場合は、`backfill-ai`実行時の`--no-send`を外す。詳細な空条件、永続キャッシュ、pendingとの関係は[`AI_INFERENCE.md`](AI_INFERENCE.md)を参照する。
+
+OSS環境で大量の過去履歴を補完する場合は、実行前に[`BACKFILL_OPERATION.md`](BACKFILL_OPERATION.md)で使用量・処理時間の上限、停止条件、再開手順を確認する。

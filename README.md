@@ -172,6 +172,7 @@ CodexMobileDashboard/
 | [`docs/DATA_LIMITS.md`](docs/DATA_LIMITS.md) | データ量、分割、送信対象 |
 | [`docs/UPDATE_POLICY.md`](docs/UPDATE_POLICY.md) | 更新頻度、ハートビート、保存期間 |
 | [docs/AI_INFERENCE.md](docs/AI_INFERENCE.md) | Codex CLI推論の現行経路、制限、キャッシュ範囲 |
+| [docs/BACKFILL_OPERATION.md](docs/BACKFILL_OPERATION.md) | OSS利用者向けAI backfillの使用量、処理時間、停止・再開手順 |
 | [docs/CURRENT_HANDOFF.md](docs/CURRENT_HANDOFF.md) | 現在の実装・実機確認・既知問題・再開手順 |
 | [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | 設定ファイルと秘密情報の管理 |
 | [`docs/MANUAL_COMMAND.md`](docs/MANUAL_COMMAND.md) | 未送信Snapshotの手動確認・再送 |
