@@ -140,7 +140,7 @@ python -m tools.collector --config "$env:LOCALAPPDATA\CodexMobileDashboard\confi
 - 秘密情報、ファイル本文、Git diff本文が表示されない。
 - 未解決の表示崩れ、操作不能、`critical`または`error`相当の問題がない。
 
-詳細なアクセシビリティは、`TASKS.md`の後続項目として別に完了判定する。
+詳細なアクセシビリティ確認は、利用者判断により対応不要とする。
 
 ## 実施結果（2026年9月1日～2日）
 

@@ -3,7 +3,7 @@
 VSCode Codexで進めている開発の状況を、スマートフォンから短時間で確認するためのダッシュボードです。
 
 > [!IMPORTANT]
-> 作業用PCのcollector、Android・Termux向けHTTPSサーバー、スマートフォン向け閲覧画面、Codex CLI推論の増分化は実装済みです。SC-51EでのAndroidブラウザ表示、CA信頼済みHTTPS正式受入、一般的なAndroidスマートフォン相当の画面幅確認も完了しています。アクセシビリティは後続タスクとして残しています。現在の正確な引継ぎ状態は[`docs/CURRENT_HANDOFF.md`](docs/CURRENT_HANDOFF.md)を参照してください。
+> 作業用PCのcollector、Android・Termux向けHTTPSサーバー、スマートフォン向け閲覧画面、Codex CLI推論の増分化は実装済みです。SC-51EでのAndroidブラウザ表示、CA信頼済みHTTPS正式受入、一般的なAndroidスマートフォン相当の画面幅確認も完了しています。アクセシビリティ確認は利用者判断で対応不要とし、ブラウザ用外部ライブラリはリポジトリへ同梱して継続利用します。現在の正確な引継ぎ状態は[`docs/CURRENT_HANDOFF.md`](docs/CURRENT_HANDOFF.md)を参照してください。
 
 ## 目的
 
@@ -106,7 +106,7 @@ Codex JSONL内にコードがテキストとして記録されている場合は
 ## 技術方針
 
 - Python 3.10以上で動作する構文を使用する
-- Python標準ライブラリだけで実装する
+- Pythonコンポーネントは標準ライブラリだけで実装する。ブラウザクライアントは`THIRD_PARTY_NOTICES.md`記載の同梱ライブラリを使用する
 - HTML、CSS、JavaScriptを分離する
 - SQLite、FastAPI、WebSocketはMVPで使用しない
 - 通常設定はUTF-8のINIファイルで管理する

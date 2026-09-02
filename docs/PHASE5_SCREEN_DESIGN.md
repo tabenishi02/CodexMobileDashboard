@@ -109,4 +109,4 @@ JSON内のUTCを含むタイムゾーン付きISO 8601値は変更せず、ブ�
 
 ## 安全性と表示規則
 
-JSON由来文字列は`textContent`相当の方法で表示し、`innerHTML`へ渡さない。外部ライブラリ、外部スクリプト、外部スタイル、ブラウザ保存領域を使用しない。トークン、サーバー内部パス、Traceback、HTTP本文は表示しない。画面で必要な日本語ラベルへの変換は`DATA_SCHEMA.md`の列挙値を使用する。
+通常のJSON由来文字列は`textContent`相当の方法で表示する。Markdown対象だけは、HTML入力を無効にした`markdown-it`の出力をDOMPurifyでサニタイズしてから描画し、highlight.jsでコードを強調する。これらの外部ライブラリは`client/vendor/`へ同梱し、CDN、実行時の外部スクリプト・外部スタイル取得、ブラウザ保存領域には依存しない。トークン、サーバー内部パス、Traceback、HTTP本文は表示しない。画面で必要な日本語ラベルへの変換は`DATA_SCHEMA.md`の列挙値を使用する。

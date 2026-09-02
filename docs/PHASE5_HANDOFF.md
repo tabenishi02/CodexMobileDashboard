@@ -104,4 +104,4 @@ PC側collectorは`dashboard.json`、`recent.json`、`messages.json`、`errors.js
 
 実機確認は[`PHASE5_ANDROID_BROWSER_CHECK.md`](PHASE5_ANDROID_BROWSER_CHECK.md)のチェックリストと結果記録テンプレートに従う。
 
-画面実装後、Android実機へ`server/`と`client/`を再配置し、`GET /health`とworkspace指定healthの`200`、collectorからの複数Snapshot commit成功を確認した。SC-51E（Android 16、Chrome 152.0.7977.64）による表示・操作確認と、そこで判明した表示データ・画面遷移・安全表示の修正を完了した。2026年9月2日にはCA信頼済みHTTPS正式受入（T01～T12）へ合格し、一般的なAndroidスマートフォン相当の画面幅も確認済みとした。アクセシビリティは別タスクで判定する。
+画面実装後、Android実機へ`server/`と`client/`を再配置し、`GET /health`とworkspace指定healthの`200`、collectorからの複数Snapshot commit成功を確認した。SC-51E（Android 16、Chrome 152.0.7977.64）による表示・操作確認と、そこで判明した表示データ・画面遷移・安全表示の修正を完了した。2026年9月2日にはCA信頼済みHTTPS正式受入（T01～T12）へ合格し、一般的なAndroidスマートフォン相当の画面幅も確認済みとした。アクセシビリティ確認は利用者判断で対応不要とし、外部ライブラリなしという条件は採用せず、リポジトリ同梱ライブラリを継続利用する。
