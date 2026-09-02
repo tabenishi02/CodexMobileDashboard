@@ -448,23 +448,124 @@ class CollectorCommandTests(unittest.TestCase):
             runtime = unittest.mock.Mock(ai_inference_mode="incremental")
             sender = object()
             calls = []
+            backfill_results = iter(
+                (
+                    CollectorRunResult(1, 3, 3, 0, 2, 2, 3),
+                    CollectorRunResult(1, 2, 2, 0, 0, 0, 2),
+                )
+            )
 
             def run(settings, selected_sender):
                 calls.append((settings.ai_inference_mode, selected_sender))
-                return CollectorRunResult(1, 1, 1, 0, 0, 0, 1)
+                if settings.ai_inference_mode == "backfill":
+                    return next(backfill_results)
+                return CollectorRunResult(1, 0, 0, 0, 0, 0, 0)
 
             with patch("tools.collector._runtime_settings", return_value=runtime), patch(
                 "tools.collector._sender", return_value=sender
             ), patch(
                 "tools.collector.replace",
-                side_effect=lambda value, **kwargs: unittest.mock.Mock(**kwargs),
+                side_effect=lambda value, **kwargs: unittest.mock.Mock(
+                    max_calls_per_run=3, **kwargs
+                ),
             ), patch("tools.collector.run_once", side_effect=run), redirect_stdout(io.StringIO()):
                 code = main(
-                    ["--config", str(config), "backfill-ai", "--until-complete"]
+                    [
+                        "--config",
+                        str(config),
+                        "backfill-ai",
+                        "--until-complete",
+                        "--max-runs",
+                        "5",
+                    ]
                 )
 
         self.assertEqual(0, code)
-        self.assertEqual([("backfill", None), ("incremental", sender)], calls)
+        self.assertEqual(
+            [
+                ("backfill", None),
+                ("backfill", None),
+                ("incremental", sender),
+            ],
+            calls,
+        )
+
+    def test_backfill_no_send_keeps_every_iteration_local(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = self.write_config(directory, sender=True)
+            Path(directory, "sender.token").write_text("secret-token\n", encoding="utf-8")
+            runtime = unittest.mock.Mock(ai_inference_mode="incremental")
+            calls = []
+            results = iter(
+                (
+                    CollectorRunResult(1, 3, 3, 0, 1, 1, 3),
+                    CollectorRunResult(1, 1, 1, 0, 0, 0, 1),
+                )
+            )
+
+            def run(settings, selected_sender):
+                calls.append((settings.ai_inference_mode, selected_sender))
+                return next(results)
+
+            with patch("tools.collector._runtime_settings", return_value=runtime), patch(
+                "tools.collector._sender"
+            ) as sender_factory, patch(
+                "tools.collector.replace",
+                side_effect=lambda value, **kwargs: unittest.mock.Mock(
+                    max_calls_per_run=3, **kwargs
+                ),
+            ), patch("tools.collector.run_once", side_effect=run), redirect_stdout(io.StringIO()):
+                code = main(
+                    [
+                        "--config",
+                        str(config),
+                        "backfill-ai",
+                        "--no-send",
+                        "--until-complete",
+                        "--max-runs",
+                        "5",
+                    ]
+                )
+
+        self.assertEqual(0, code)
+        sender_factory.assert_not_called()
+        self.assertEqual([("backfill", None), ("backfill", None)], calls)
+
+    def test_backfill_incomplete_does_not_send_snapshot(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = self.write_config(directory, sender=True)
+            Path(directory, "sender.token").write_text("secret-token\n", encoding="utf-8")
+            runtime = unittest.mock.Mock(ai_inference_mode="incremental")
+            sender = object()
+            calls = []
+
+            def run(settings, selected_sender):
+                calls.append((settings.ai_inference_mode, selected_sender))
+                return CollectorRunResult(1, 0, 0, 0, 2, 2, 0)
+
+            with patch("tools.collector._runtime_settings", return_value=runtime), patch(
+                "tools.collector._sender", return_value=sender
+            ), patch(
+                "tools.collector.replace",
+                side_effect=lambda value, **kwargs: unittest.mock.Mock(
+                    max_calls_per_run=3, **kwargs
+                ),
+            ), patch("tools.collector.run_once", side_effect=run), redirect_stdout(
+                io.StringIO()
+            ), redirect_stderr(io.StringIO()):
+                code = main(
+                    [
+                        "--config",
+                        str(config),
+                        "backfill-ai",
+                        "--until-complete",
+                        "--max-runs",
+                        "5",
+                    ]
+                )
+
+        self.assertEqual(3, code)
+        self.assertEqual([("backfill", None)], calls)
 
     def test_backfill_max_runs_requires_until_complete_and_valid_range(self):
         with tempfile.TemporaryDirectory() as directory:

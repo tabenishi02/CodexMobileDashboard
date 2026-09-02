@@ -83,7 +83,7 @@ python -m tools.collector `
 
 自動継続の標準出力JSONでは`executions`、`successes`、`failures`、`progress`が全反復の合計、`limit_reached`と`pending_remaining`が最終反復の値になる。`limit_reached=0`なら終了コード0である。推論失敗は`inference_failure`、保存失敗は`save_failure`として終了コード2、`progress=0`は`no_progress`、最大反復数到達は`max_runs_reached`として終了コード3、Ctrl+Cなどの利用者中断は`interrupted`として終了コード130で停止する。停止JSONには例外本文、パス、Token、各種IDを含めない。`limit_reached>0`かつ`progress>0`の場合だけ次の反復へ進む。
 
-停止しても、それ以前に成功した推論結果は1件ずつ原子的に台帳へ保存済みである。同じコマンドを再実行すると保存済みentryは入力SHA-256の完全一致で再利用され、未保存分から処理を再開する。台帳保存失敗時は既存ファイルを保持し、一時ファイルを除去する。`--no-send`では全反復をローカル処理だけにする。送信ありの場合も中間Snapshotは送信せず、補完完了後に通常`incremental`の完全Snapshotを1回だけ送信する。通常の定期`collect-once`からbackfillを暗黙起動しない。
+停止しても、それ以前に成功した推論結果は1件ずつ原子的に台帳へ保存済みである。同じコマンドを再実行すると保存済みentryは入力SHA-256の完全一致で再利用され、未保存分から処理を再開する。台帳保存失敗時は既存ファイルを保持し、一時ファイルを除去する。`--no-send`ではsenderを生成せず、全反復をローカル処理だけにする。送信ありの場合も中間Snapshotは送信しない。`limit_reached = 0`で補完が完了した後にだけ、通常`incremental`で台帳を復元した完全Snapshotを1回送信する。失敗、進捗なし、`max_runs`到達、中断時は送信しない。通常の定期`collect-once`からbackfillを暗黙起動しない。
 
 `--no-send`で補完した後は、次を実行して台帳から結果を復元したSnapshotをAndroidサーバーへ送信する。
 

@@ -61,7 +61,9 @@ python -m tools.collector --config "$env:LOCALAPPDATA\CodexMobileDashboard\confi
 
 各反復後、`limit_reached = 0`なら`progress`の値にかかわらず正常終了する。`limit_reached > 0`の場合は`progress > 0`のときだけ次の反復へ進み、`progress = 0`なら`stop_reason = no_progress`、終了コード3で停止する。`max_runs`到達時は`max_runs_reached`、終了コード3、推論失敗時は`inference_failure`、終了コード2、台帳またはSnapshotの保存失敗時は`save_failure`、終了コード2、利用者中断時は`interrupted`、終了コード130で停止する。例外本文、パス、Token、各種IDは停止結果へ含めない。
 
-推論成功結果はCLI成功直後に1件ずつ原子的に台帳へ保存する。保存置換に失敗した場合は既存台帳を維持し、一時ファイルを除去して個別fallbackへ進まず停止する。中断または後続反復の失敗前に保存済みのentryは削除・巻き戻しを行わない。同じ`backfill-ai --until-complete`を再実行すると完全一致entryをキャッシュとして利用し、未保存分から再開できる。`--no-send`では全反復をローカル処理だけにし、送信ありでは中間Snapshotを送らず、補完完了後に通常`incremental`の完全Snapshotだけを1回送る。
+推論成功結果はCLI成功直後に1件ずつ原子的に台帳へ保存する。保存置換に失敗した場合は既存台帳を維持し、一時ファイルを除去して個別fallbackへ進まず停止する。中断または後続反復の失敗前に保存済みのentryは削除・巻き戻しを行わない。同じ`backfill-ai --until-complete`を再実行すると完全一致entryをキャッシュとして利用し、未保存分から再開できる。
+
+`--no-send`ではsenderを生成せず、全反復をローカル処理だけにする。送信ありの場合も各`backfill`反復にはsenderを渡さず、中間Snapshotは送信しない。`limit_reached = 0`で補完が完了した場合だけ、台帳を復元する通常`incremental`を1回実行し、その完全Snapshotを送信する。推論失敗、保存失敗、進捗なし、`max_runs`到達、利用者による中断では最終送信を行わない。
 
 通常の定期`collect-once`は新規完了turnと永続pendingを段階的に処理するが、過去履歴の大量backfillは自動起動しない。
 
