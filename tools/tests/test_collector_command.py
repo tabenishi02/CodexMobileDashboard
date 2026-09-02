@@ -425,6 +425,139 @@ class CollectorCommandTests(unittest.TestCase):
             self.assertEqual(0, resumed_code)
             self.assertEqual((saved,), load(ledger))
 
+    def test_large_backfill_uses_cache_and_resumes_across_all_stop_conditions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = self.write_config(directory)
+            ledger = Path(directory) / "ledger.json"
+            runtime = unittest.mock.Mock(
+                ai_inference_mode="incremental", max_calls_per_run=3
+            )
+            turns = tuple(f"turn-{index:02d}" for index in range(32))
+            attempts = {turn_id: 0 for turn_id in turns}
+            successes = {turn_id: 0 for turn_id in turns}
+            behavior = {"value": "normal"}
+            failed_turns = []
+
+            def save_turn(turn_id):
+                index = int(turn_id.rsplit("-", 1)[1])
+                append(
+                    ledger,
+                    InferenceLedgerEntry(
+                        "workspace-1",
+                        "session-1",
+                        turn_id,
+                        f"{index:064x}",
+                        {"schema_version": 1, "payload": {}},
+                        f"2026-09-02T00:00:{index:02d}+00:00",
+                        "change_summary",
+                    ),
+                )
+                successes[turn_id] += 1
+
+            for cached_turn in turns[:5]:
+                save_turn(cached_turn)
+
+            def run(_settings, selected_sender):
+                self.assertIsNone(selected_sender)
+                cached = {entry.turn_id for entry in load(ledger)}
+                remaining = [turn_id for turn_id in turns if turn_id not in cached]
+                if not remaining:
+                    return CollectorRunResult(1, 0, 0, 0, 0, 0, 0)
+                if behavior["value"] == "stall":
+                    return CollectorRunResult(
+                        1, 0, 0, 0, len(remaining), len(remaining), 0
+                    )
+                if behavior["value"] == "interrupt":
+                    turn_id = remaining[0]
+                    attempts[turn_id] += 1
+                    save_turn(turn_id)
+                    raise KeyboardInterrupt("secret must not be exposed")
+                if behavior["value"] == "failure":
+                    successful_turn = remaining[0]
+                    failed_turn = remaining[1]
+                    attempts[successful_turn] += 1
+                    attempts[failed_turn] += 1
+                    save_turn(successful_turn)
+                    failed_turns.append(failed_turn)
+                    pending = len(remaining) - 1
+                    return CollectorRunResult(1, 2, 1, 1, pending, pending, 1)
+                batch = remaining[: runtime.max_calls_per_run]
+                for turn_id in batch:
+                    attempts[turn_id] += 1
+                    save_turn(turn_id)
+                pending = len(remaining) - len(batch)
+                return CollectorRunResult(
+                    1,
+                    len(batch),
+                    len(batch),
+                    0,
+                    pending,
+                    pending,
+                    len(batch),
+                )
+
+            def invoke(selected_behavior, max_runs=100):
+                behavior["value"] = selected_behavior
+                output = io.StringIO()
+                with patch(
+                    "tools.collector._runtime_settings", return_value=runtime
+                ), patch(
+                    "tools.collector.replace",
+                    side_effect=lambda value, **kwargs: unittest.mock.Mock(
+                        max_calls_per_run=value.max_calls_per_run, **kwargs
+                    ),
+                ), patch(
+                    "tools.collector.run_once", side_effect=run
+                ), redirect_stdout(output), redirect_stderr(io.StringIO()):
+                    code = main(
+                        [
+                            "--config",
+                            str(config),
+                            "backfill-ai",
+                            "--no-send",
+                            "--until-complete",
+                            "--max-runs",
+                            str(max_runs),
+                        ]
+                    )
+                return code, json.loads(output.getvalue())
+
+            limited_code, limited = invoke("normal", max_runs=2)
+            self.assertEqual(3, limited_code)
+            self.assertEqual("max_runs_reached", limited["stop_reason"])
+            self.assertEqual(21, limited["pending_remaining"])
+
+            failure_code, failure = invoke("failure")
+            self.assertEqual(2, failure_code)
+            self.assertEqual("inference_failure", failure["stop_reason"])
+            self.assertEqual(20, failure["pending_remaining"])
+
+            stalled_code, stalled = invoke("stall")
+            self.assertEqual(3, stalled_code)
+            self.assertEqual("no_progress", stalled["stop_reason"])
+            self.assertEqual(20, stalled["pending_remaining"])
+
+            interrupted_code, interrupted = invoke("interrupt")
+            self.assertEqual(130, interrupted_code)
+            self.assertEqual("interrupted", interrupted["stop_reason"])
+            self.assertEqual(13, len(load(ledger)))
+
+            resumed_code, resumed = invoke("normal")
+            self.assertEqual(0, resumed_code)
+            self.assertTrue(resumed["completed"])
+            self.assertEqual(0, resumed["pending_remaining"])
+            self.assertEqual(set(turns), {entry.turn_id for entry in load(ledger)})
+            self.assertTrue(all(attempts[turn_id] == 0 for turn_id in turns[:5]))
+            self.assertTrue(all(successes[turn_id] == 1 for turn_id in turns))
+            self.assertEqual(2, attempts[failed_turns[0]])
+            self.assertTrue(
+                all(
+                    attempts[turn_id] == 1
+                    for turn_id in turns[5:]
+                    if turn_id != failed_turns[0]
+                )
+            )
+
     def test_single_collection_interrupt_exits_without_traceback(self):
         with tempfile.TemporaryDirectory() as directory:
             config = self.write_config(directory)
