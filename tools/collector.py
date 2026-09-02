@@ -115,6 +115,9 @@ def _run_backfill_until_complete(
     sender: HttpsSnapshotSender | None,
     max_runs: int,
 ) -> int:
+    if type(max_runs) is not int or not 1 <= max_runs <= MAX_BACKFILL_MAX_RUNS:
+        raise ValueError("backfill_max_runs_invalid")
+    per_run_limit = _runtime_call_limit(runtime_settings)
     result = CollectorRunResult(0, 0, 0, 0, 0, 0, 0)
     totals = {"executions": 0, "successes": 0, "failures": 0, "progress": 0}
     for run_number in range(1, max_runs + 1):
@@ -129,6 +132,10 @@ def _run_backfill_until_complete(
                 result, totals, run_number, "interrupted", INTERRUPTED_EXIT_CODE
             )
         _add_run_totals(totals, result)
+        if result.executions > per_run_limit:
+            return _stop_backfill(
+                result, totals, run_number, "hard_limit_exceeded", 2
+            )
         if result.failures:
             return _stop_backfill(
                 result, totals, run_number, "inference_failure", 2
@@ -176,6 +183,11 @@ def _run_backfill_until_complete(
         "max_runs_reached",
         BACKFILL_INCOMPLETE_EXIT_CODE,
     )
+
+
+def _runtime_call_limit(runtime_settings: CollectorRuntimeSettings) -> int:
+    value = getattr(runtime_settings, "max_calls_per_run", 3)
+    return value if type(value) is int else 3
 
 
 def _add_run_totals(totals: dict[str, int], result: CollectorRunResult) -> None:

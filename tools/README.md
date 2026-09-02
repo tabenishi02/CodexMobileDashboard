@@ -99,7 +99,7 @@ tools/
 
 ## 手動実行
 
-`python -m tools.collector --config <collector.ini> collect-once`でJSONL収集・変換・新規Snapshot送信を1回実行できる。`--no-send`ではローカル生成と状態更新だけを行う。単発実行は推論の実行数・成功・失敗・上限到達・残件・進捗を標準出力のJSONで返す。`backfill-ai`は既定で単発実行し、`--until-complete --max-runs N`を明示した場合だけ、上限到達中に成功進捗がある間は有限回反復し、`limit_reached=0`で正常終了する。失敗、進捗停止、上限到達、中断時は保存済みの原子的台帳を維持して停止し、同じコマンドで未保存分から再開できる。`queue-status`で未送信キューの安全な要約を確認でき、`retry-queued`は最古の1件、`retry-queued --all`は成功する限り全件を順に再送する。Windows タスク スケジューラには、再送専用の定期実行を登録できる。詳細は[`../docs/MANUAL_COMMAND.md`](../docs/MANUAL_COMMAND.md)と[`../docs/SCHEDULED_EXECUTION.md`](../docs/SCHEDULED_EXECUTION.md)を参照する。
+`python -m tools.collector --config <collector.ini> collect-once`でJSONL収集・変換・新規Snapshot送信を1回実行できる。`--no-send`ではローカル生成と状態更新だけを行う。単発実行は推論の実行数・成功・失敗・上限到達・残件・進捗を標準出力のJSONで返す。`backfill-ai`は既定で単発実行し、`--until-complete --max-runs N`を明示した場合だけ、各反復の`max_calls_per_run`を維持しながら最大N回まで反復し、`limit_reached=0`で正常終了する。失敗、進捗停止、上限到達、中断時は保存済みの原子的台帳を維持して停止し、同じコマンドで未保存分から再開できる。`queue-status`で未送信キューの安全な要約を確認でき、`retry-queued`は最古の1件、`retry-queued --all`は成功する限り全件を順に再送する。Windows タスク スケジューラには、再送専用の定期実行を登録できる。詳細は[`../docs/MANUAL_COMMAND.md`](../docs/MANUAL_COMMAND.md)と[`../docs/SCHEDULED_EXECUTION.md`](../docs/SCHEDULED_EXECUTION.md)を参照する。
 
 ## 実装済みのJSONL読み取り
 

@@ -79,7 +79,9 @@ python -m tools.collector `
   backfill-ai --no-send --until-complete --max-runs 100
 ```
 
-`--max-runs`は`--until-complete`と同時にだけ指定でき、1～1,000を許可する。省略時は100回である。各反復の`max_calls_per_run`は変更しない。自動継続の標準出力JSONでは`executions`、`successes`、`failures`、`progress`が全反復の合計、`limit_reached`と`pending_remaining`が最終反復の値になる。`limit_reached=0`なら終了コード0である。推論失敗は`inference_failure`、保存失敗は`save_failure`として終了コード2、`progress=0`は`no_progress`、最大反復数到達は`max_runs_reached`として終了コード3、Ctrl+Cなどの利用者中断は`interrupted`として終了コード130で停止する。停止JSONには例外本文、パス、Token、各種IDを含めない。`limit_reached>0`かつ`progress>0`の場合だけ次の反復へ進む。
+`--max-runs`は`--until-complete`と同時にだけ指定でき、1～1,000を許可する。省略時は100回であり、この範囲はCLIとオーケストレータの両方で検証する。各反復は設定済みの`max_calls_per_run`から新しい共有予算を作り、全workspace・統合経路・個別経路で共有する。反復間で枠を持ち越さないため、標準出力JSONの集計`executions`は`max_calls_per_run`を超える場合があるが、各反復のCLI実行数は超えない。runtimeが上限超過を報告した場合は`hard_limit_exceeded`、終了コード2で停止する。
+
+自動継続の標準出力JSONでは`executions`、`successes`、`failures`、`progress`が全反復の合計、`limit_reached`と`pending_remaining`が最終反復の値になる。`limit_reached=0`なら終了コード0である。推論失敗は`inference_failure`、保存失敗は`save_failure`として終了コード2、`progress=0`は`no_progress`、最大反復数到達は`max_runs_reached`として終了コード3、Ctrl+Cなどの利用者中断は`interrupted`として終了コード130で停止する。停止JSONには例外本文、パス、Token、各種IDを含めない。`limit_reached>0`かつ`progress>0`の場合だけ次の反復へ進む。
 
 停止しても、それ以前に成功した推論結果は1件ずつ原子的に台帳へ保存済みである。同じコマンドを再実行すると保存済みentryは入力SHA-256の完全一致で再利用され、未保存分から処理を再開する。台帳保存失敗時は既存ファイルを保持し、一時ファイルを除去する。`--no-send`では全反復をローカル処理だけにする。送信ありの場合も中間Snapshotは送信せず、補完完了後に通常`incremental`の完全Snapshotを1回だけ送信する。通常の定期`collect-once`からbackfillを暗黙起動しない。
 

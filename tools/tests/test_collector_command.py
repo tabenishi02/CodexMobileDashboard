@@ -7,7 +7,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from tools.collector import main
+from tools.collector import _run_backfill_until_complete, main
 from tools.collector_runtime import CollectorRunResult
 from tools.inference_ledger import InferenceLedgerEntry, append, load
 
@@ -155,6 +155,79 @@ class CollectorCommandTests(unittest.TestCase):
         self.assertEqual(6, result["executions"])
         self.assertEqual(6, result["progress"])
         self.assertEqual(7, result["pending_remaining"])
+
+    def test_backfill_resets_shared_call_limit_per_finite_iteration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = self.write_config(directory)
+            runtime = unittest.mock.Mock(
+                ai_inference_mode="incremental", max_calls_per_run=2
+            )
+            output = io.StringIO()
+            results = (
+                CollectorRunResult(1, 2, 2, 0, 2, 2, 2),
+                CollectorRunResult(1, 2, 2, 0, 1, 1, 2),
+                CollectorRunResult(1, 1, 1, 0, 0, 0, 1),
+            )
+
+            with patch("tools.collector._runtime_settings", return_value=runtime), patch(
+                "tools.collector.replace",
+                side_effect=lambda value, **kwargs: unittest.mock.Mock(
+                    max_calls_per_run=value.max_calls_per_run, **kwargs
+                ),
+            ), patch(
+                "tools.collector.run_once", side_effect=results
+            ) as run_mock, redirect_stdout(output):
+                code = main(
+                    [
+                        "--config",
+                        str(config),
+                        "backfill-ai",
+                        "--no-send",
+                        "--until-complete",
+                        "--max-runs",
+                        "3",
+                    ]
+                )
+
+        self.assertEqual(0, code)
+        self.assertEqual(3, run_mock.call_count)
+        result = json.loads(output.getvalue())
+        self.assertEqual(5, result["executions"])
+        self.assertEqual(3, result["runs"])
+        self.assertTrue(result["completed"])
+
+    def test_backfill_stops_if_runtime_reports_per_run_hard_limit_violation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = self.write_config(directory)
+            runtime = unittest.mock.Mock(
+                ai_inference_mode="incremental", max_calls_per_run=2
+            )
+            output = io.StringIO()
+            invalid = CollectorRunResult(1, 3, 3, 0, 1, 1, 3)
+
+            with patch("tools.collector._runtime_settings", return_value=runtime), patch(
+                "tools.collector.replace",
+                side_effect=lambda value, **kwargs: unittest.mock.Mock(
+                    max_calls_per_run=value.max_calls_per_run, **kwargs
+                ),
+            ), patch(
+                "tools.collector.run_once", return_value=invalid
+            ) as run_mock, redirect_stdout(output):
+                code = main(
+                    [
+                        "--config",
+                        str(config),
+                        "backfill-ai",
+                        "--no-send",
+                        "--until-complete",
+                    ]
+                )
+
+        self.assertEqual(2, code)
+        self.assertEqual(1, run_mock.call_count)
+        result = json.loads(output.getvalue())
+        self.assertEqual("hard_limit_exceeded", result["stop_reason"])
+        self.assertEqual(3, result["executions"])
 
     def test_backfill_until_complete_stops_when_limit_remains_without_progress(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -405,6 +478,15 @@ class CollectorCommandTests(unittest.TestCase):
                     with self.assertRaises(SystemExit) as raised:
                         main(["--config", str(config), *arguments])
                     self.assertEqual(2, raised.exception.code)
+
+    def test_backfill_orchestrator_rejects_non_finite_run_bounds(self):
+        runtime = unittest.mock.Mock(max_calls_per_run=3)
+        for max_runs in (0, 1001, True):
+            with self.subTest(max_runs=max_runs), self.assertRaisesRegex(
+                ValueError, "backfill_max_runs_invalid"
+            ):
+                _run_backfill_until_complete(runtime, None, max_runs)
+
     def test_collect_once_configures_all_component_logs(self):
         with tempfile.TemporaryDirectory() as directory:
             log_directory = Path(directory) / "logs"

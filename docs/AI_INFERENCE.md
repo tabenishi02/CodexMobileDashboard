@@ -55,7 +55,9 @@ python -m tools.collector --config "$env:LOCALAPPDATA\CodexMobileDashboard\confi
 
 `backfill-ai`は既定では1回だけ実行し、従来の共有上限を維持する。明示的な`--until-complete`を付けると`limit_reached=0`まで反復し、`--max-runs N`で全体を有限回に制限する。`N`は1～1,000、省略時は100である。最大反復数に達して未完了の場合は終了コード3を返す。
 
-自動継続でも各反復の`max_calls_per_run`を変更せず、runtimeが返す`CollectorRunResult`で`executions`、`successes`、`failures`、`limit_reached`、`pending_remaining`、`progress`を判定する。`progress`はその実行で新たに成功した推論結果数であり、キャッシュヒットとスキップは含めない。CLIは単発時にこの実行結果をJSONで返し、自動継続時は`executions`、`successes`、`failures`、`progress`を全反復分集計し、`limit_reached`と`pending_remaining`は最終反復の値を返す。ログ本文の文字列解析は使用しない。
+自動継続でも各反復の`max_calls_per_run`を変更せず、反復ごとに新しい共有予算を作成する。各予算はその反復内の全workspace・統合経路・個別経路で共有され、次の反復へ未使用枠を持ち越さず、上限も累積しない。オーケストレータはruntimeが返す`executions`が`max_calls_per_run`を超えていないことも検証し、違反時は`hard_limit_exceeded`、終了コード2で停止する。
+
+自動継続全体は`--max-runs`で有限化し、1～1,000、省略時100の範囲外をCLIパーサーとオーケストレータの両方で拒否する。runtimeが返す`CollectorRunResult`で`executions`、`successes`、`failures`、`limit_reached`、`pending_remaining`、`progress`を判定する。`progress`はその実行で新たに成功した推論結果数であり、キャッシュヒットとスキップは含めない。CLIは単発時にこの実行結果をJSONで返し、自動継続時は`executions`、`successes`、`failures`、`progress`を全反復分集計し、`limit_reached`と`pending_remaining`は最終反復の値を返す。したがって集計`executions`は`max_calls_per_run`を超える場合があるが、各反復の値は超えない。ログ本文の文字列解析は使用しない。
 
 各反復後、`limit_reached = 0`なら`progress`の値にかかわらず正常終了する。`limit_reached > 0`の場合は`progress > 0`のときだけ次の反復へ進み、`progress = 0`なら`stop_reason = no_progress`、終了コード3で停止する。`max_runs`到達時は`max_runs_reached`、終了コード3、推論失敗時は`inference_failure`、終了コード2、台帳またはSnapshotの保存失敗時は`save_failure`、終了コード2、利用者中断時は`interrupted`、終了コード130で停止する。例外本文、パス、Token、各種IDは停止結果へ含めない。
 
