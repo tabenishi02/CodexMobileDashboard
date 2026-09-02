@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from tools.collector import main
 from tools.collector_runtime import CollectorRunResult
+from tools.inference_ledger import InferenceLedgerEntry, append, load
 
 
 class CollectorCommandTests(unittest.TestCase):
@@ -217,6 +218,155 @@ class CollectorCommandTests(unittest.TestCase):
         self.assertTrue(result["completed"])
         self.assertEqual(0, result["limit_reached"])
         self.assertEqual(0, result["progress"])
+
+    def test_backfill_until_complete_stops_on_inference_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = self.write_config(directory)
+            runtime = unittest.mock.Mock(ai_inference_mode="incremental")
+            output = io.StringIO()
+            failed = CollectorRunResult(1, 1, 0, 1, 2, 2, 0)
+
+            with patch("tools.collector._runtime_settings", return_value=runtime), patch(
+                "tools.collector.replace",
+                side_effect=lambda value, **kwargs: unittest.mock.Mock(**kwargs),
+            ), patch(
+                "tools.collector.run_once", return_value=failed
+            ) as run_mock, redirect_stdout(output):
+                code = main(
+                    [
+                        "--config",
+                        str(config),
+                        "backfill-ai",
+                        "--no-send",
+                        "--until-complete",
+                    ]
+                )
+
+        self.assertEqual(2, code)
+        self.assertEqual(1, run_mock.call_count)
+        result = json.loads(output.getvalue())
+        self.assertEqual("inference_failure", result["stop_reason"])
+        self.assertEqual(1, result["failures"])
+
+    def test_backfill_until_complete_stops_safely_on_save_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = self.write_config(directory)
+            runtime = unittest.mock.Mock(ai_inference_mode="incremental")
+            output = io.StringIO()
+            error_output = io.StringIO()
+            secret = "C:\\private\\ledger.json token=secret"
+            first = CollectorRunResult(1, 3, 3, 0, 2, 2, 3)
+
+            with patch("tools.collector._runtime_settings", return_value=runtime), patch(
+                "tools.collector.replace",
+                side_effect=lambda value, **kwargs: unittest.mock.Mock(**kwargs),
+            ), patch(
+                "tools.collector.run_once", side_effect=(first, OSError(secret))
+            ) as run_mock, redirect_stdout(output), redirect_stderr(error_output):
+                code = main(
+                    [
+                        "--config",
+                        str(config),
+                        "backfill-ai",
+                        "--no-send",
+                        "--until-complete",
+                    ]
+                )
+
+        self.assertEqual(2, code)
+        self.assertEqual(2, run_mock.call_count)
+        result = json.loads(output.getvalue())
+        self.assertEqual("save_failure", result["stop_reason"])
+        self.assertEqual(3, result["progress"])
+        self.assertEqual("", error_output.getvalue())
+        self.assertNotIn("private", output.getvalue())
+        self.assertNotIn("secret", output.getvalue())
+
+    def test_backfill_interrupt_keeps_ledger_and_next_invocation_can_resume(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = self.write_config(directory)
+            ledger = Path(directory) / "ledger.json"
+            runtime = unittest.mock.Mock(ai_inference_mode="incremental")
+            saved = InferenceLedgerEntry(
+                "workspace-1",
+                "session-1",
+                "turn-1",
+                "a" * 64,
+                {"schema_version": 1, "payload": {}},
+                "2026-09-02T00:00:00+00:00",
+                "change_summary",
+            )
+            calls = 0
+
+            def interrupt_after_saved_progress(_settings, _sender):
+                nonlocal calls
+                calls += 1
+                if calls == 1:
+                    append(ledger, saved)
+                    return CollectorRunResult(1, 1, 1, 0, 1, 1, 1)
+                raise KeyboardInterrupt("token=secret")
+
+            output = io.StringIO()
+            error_output = io.StringIO()
+            with patch("tools.collector._runtime_settings", return_value=runtime), patch(
+                "tools.collector.replace",
+                side_effect=lambda value, **kwargs: unittest.mock.Mock(**kwargs),
+            ), patch(
+                "tools.collector.run_once", side_effect=interrupt_after_saved_progress
+            ), redirect_stdout(output), redirect_stderr(error_output):
+                interrupted_code = main(
+                    [
+                        "--config",
+                        str(config),
+                        "backfill-ai",
+                        "--no-send",
+                        "--until-complete",
+                    ]
+                )
+
+            self.assertEqual(130, interrupted_code)
+            self.assertEqual((saved,), load(ledger))
+            interrupted = json.loads(output.getvalue())
+            self.assertEqual("interrupted", interrupted["stop_reason"])
+            self.assertNotIn("secret", output.getvalue())
+            self.assertEqual("", error_output.getvalue())
+
+            resumed_output = io.StringIO()
+            complete = CollectorRunResult(1, 0, 0, 0, 0, 0, 0)
+            with patch("tools.collector._runtime_settings", return_value=runtime), patch(
+                "tools.collector.replace",
+                side_effect=lambda value, **kwargs: unittest.mock.Mock(**kwargs),
+            ), patch(
+                "tools.collector.run_once", return_value=complete
+            ), redirect_stdout(resumed_output):
+                resumed_code = main(
+                    [
+                        "--config",
+                        str(config),
+                        "backfill-ai",
+                        "--no-send",
+                        "--until-complete",
+                    ]
+                )
+
+            self.assertEqual(0, resumed_code)
+            self.assertEqual((saved,), load(ledger))
+
+    def test_single_collection_interrupt_exits_without_traceback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = self.write_config(directory)
+            error_output = io.StringIO()
+            with patch(
+                "tools.collector._runtime_settings", return_value=unittest.mock.Mock()
+            ), patch(
+                "tools.collector.run_once", side_effect=KeyboardInterrupt("secret")
+            ), redirect_stderr(error_output):
+                code = main(
+                    ["--config", str(config), "collect-once", "--no-send"]
+                )
+
+        self.assertEqual(130, code)
+        self.assertEqual("manual_command_interrupted\n", error_output.getvalue())
 
     def test_backfill_until_complete_sends_only_final_snapshot(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -528,17 +528,14 @@ def _try_combined_inference(
         decisions.decisions,
     )
     if inference_attempted:
-        try:
-            save_combined_turn(
-                settings.inference_ledger_file,
-                workspace_id=workspace_id,
-                session_id=session_id,
-                turn_id=turn_id,
-                input_sha256=input_sha256,
-                conversion=conversion,
-            )
-        except OSError:
-            return None
+        save_combined_turn(
+            settings.inference_ledger_file,
+            workspace_id=workspace_id,
+            session_id=session_id,
+            turn_id=turn_id,
+            input_sha256=input_sha256,
+            conversion=conversion,
+        )
     summary_cache = ChangeSummaryCacheEntry(
         turn_id, input_sha256, conversion.summary, None, tuple()
     )

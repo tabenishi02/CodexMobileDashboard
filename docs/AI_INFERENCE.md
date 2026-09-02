@@ -57,9 +57,11 @@ python -m tools.collector --config "$env:LOCALAPPDATA\CodexMobileDashboard\confi
 
 自動継続でも各反復の`max_calls_per_run`を変更せず、runtimeが返す`CollectorRunResult`で`executions`、`successes`、`failures`、`limit_reached`、`pending_remaining`、`progress`を判定する。`progress`はその実行で新たに成功した推論結果数であり、キャッシュヒットとスキップは含めない。CLIは単発時にこの実行結果をJSONで返し、自動継続時は`executions`、`successes`、`failures`、`progress`を全反復分集計し、`limit_reached`と`pending_remaining`は最終反復の値を返す。ログ本文の文字列解析は使用しない。
 
-各反復後、`limit_reached = 0`なら`progress`の値にかかわらず正常終了する。`limit_reached > 0`の場合は`progress > 0`のときだけ次の反復へ進み、`progress = 0`なら`stop_reason = no_progress`、終了コード3で停止する。推論失敗時は終了コード2で停止する。`--no-send`では全反復をローカル処理だけにし、送信ありでは中間Snapshotを送らず、補完完了後に通常`incremental`の完全Snapshotだけを1回送る。
+各反復後、`limit_reached = 0`なら`progress`の値にかかわらず正常終了する。`limit_reached > 0`の場合は`progress > 0`のときだけ次の反復へ進み、`progress = 0`なら`stop_reason = no_progress`、終了コード3で停止する。`max_runs`到達時は`max_runs_reached`、終了コード3、推論失敗時は`inference_failure`、終了コード2、台帳またはSnapshotの保存失敗時は`save_failure`、終了コード2、利用者中断時は`interrupted`、終了コード130で停止する。例外本文、パス、Token、各種IDは停止結果へ含めない。
 
-通常の定期`collect-once`は新規完了turnと永続pendingを段階的に処理するが、過去履歴の大量backfillは自動起動しない。保存失敗・利用者中断を含む停止・再開条件の強化はPhase 3.2の後続タスクとして扱う。
+推論成功結果はCLI成功直後に1件ずつ原子的に台帳へ保存する。保存置換に失敗した場合は既存台帳を維持し、一時ファイルを除去して個別fallbackへ進まず停止する。中断または後続反復の失敗前に保存済みのentryは削除・巻き戻しを行わない。同じ`backfill-ai --until-complete`を再実行すると完全一致entryをキャッシュとして利用し、未保存分から再開できる。`--no-send`では全反復をローカル処理だけにし、送信ありでは中間Snapshotを送らず、補完完了後に通常`incremental`の完全Snapshotだけを1回送る。
+
+通常の定期`collect-once`は新規完了turnと永続pendingを段階的に処理するが、過去履歴の大量backfillは自動起動しない。
 
 
 ## 既存キャッシュと台帳

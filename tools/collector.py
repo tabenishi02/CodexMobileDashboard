@@ -23,6 +23,7 @@ COLLECTOR_LOGGER = logging.getLogger("collector")
 DEFAULT_BACKFILL_MAX_RUNS = 100
 MAX_BACKFILL_MAX_RUNS = 1_000
 BACKFILL_INCOMPLETE_EXIT_CODE = 3
+INTERRUPTED_EXIT_CODE = 130
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -92,6 +93,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         )
         print(f"manual_command_failed kind={error.kind.value}", file=sys.stderr)
         return 2
+    except KeyboardInterrupt:
+        if arguments.command in ("collect-once", "backfill-ai") and COLLECTOR_LOGGER.handlers:
+            COLLECTOR_LOGGER.info("manual_collection_interrupted")
+        print("manual_command_interrupted", file=sys.stderr)
+        return INTERRUPTED_EXIT_CODE
 
 
 def _bounded_max_runs(value: str) -> int:
@@ -112,28 +118,40 @@ def _run_backfill_until_complete(
     result = CollectorRunResult(0, 0, 0, 0, 0, 0, 0)
     totals = {"executions": 0, "successes": 0, "failures": 0, "progress": 0}
     for run_number in range(1, max_runs + 1):
-        result = run_once(runtime_settings, None)
+        try:
+            result = run_once(runtime_settings, None)
+        except OSError:
+            return _stop_backfill(
+                result, totals, run_number, "save_failure", 2
+            )
+        except KeyboardInterrupt:
+            return _stop_backfill(
+                result, totals, run_number, "interrupted", INTERRUPTED_EXIT_CODE
+            )
         _add_run_totals(totals, result)
         if result.failures:
-            print(
-                json.dumps(
-                    _backfill_result(
+            return _stop_backfill(
+                result, totals, run_number, "inference_failure", 2
+            )
+        if result.limit_reached == 0:
+            if sender is not None:
+                try:
+                    run_once(
+                        replace(runtime_settings, ai_inference_mode="incremental"),
+                        sender,
+                    )
+                except OSError:
+                    return _stop_backfill(
+                        result, totals, run_number, "save_failure", 2
+                    )
+                except KeyboardInterrupt:
+                    return _stop_backfill(
                         result,
                         totals,
                         run_number,
-                        completed=False,
-                        stop_reason="inference_failure",
-                    ),
-                    sort_keys=True,
-                )
-            )
-            return 2
-        if result.limit_reached == 0:
-            if sender is not None:
-                run_once(
-                    replace(runtime_settings, ai_inference_mode="incremental"),
-                    sender,
-                )
+                        "interrupted",
+                        INTERRUPTED_EXIT_CODE,
+                    )
             print(
                 json.dumps(
                     _backfill_result(
@@ -144,32 +162,20 @@ def _run_backfill_until_complete(
             )
             return 0
         if result.progress <= 0:
-            print(
-                json.dumps(
-                    _backfill_result(
-                        result,
-                        totals,
-                        run_number,
-                        completed=False,
-                        stop_reason="no_progress",
-                    ),
-                    sort_keys=True,
-                )
-            )
-            return BACKFILL_INCOMPLETE_EXIT_CODE
-    print(
-        json.dumps(
-            _backfill_result(
+            return _stop_backfill(
                 result,
                 totals,
-                max_runs,
-                completed=False,
-                stop_reason="max_runs_reached",
-            ),
-            sort_keys=True,
-        )
+                run_number,
+                "no_progress",
+                BACKFILL_INCOMPLETE_EXIT_CODE,
+            )
+    return _stop_backfill(
+        result,
+        totals,
+        max_runs,
+        "max_runs_reached",
+        BACKFILL_INCOMPLETE_EXIT_CODE,
     )
-    return BACKFILL_INCOMPLETE_EXIT_CODE
 
 
 def _add_run_totals(totals: dict[str, int], result: CollectorRunResult) -> None:
@@ -191,6 +197,28 @@ def _backfill_result(
         "runs": runs,
         **values,
     }
+
+
+def _stop_backfill(
+    result: CollectorRunResult,
+    totals: dict[str, int],
+    runs: int,
+    stop_reason: str,
+    exit_code: int,
+) -> int:
+    print(
+        json.dumps(
+            _backfill_result(
+                result,
+                totals,
+                runs,
+                completed=False,
+                stop_reason=stop_reason,
+            ),
+            sort_keys=True,
+        )
+    )
+    return exit_code
 
 
 def _load_settings(config_path: Path) -> dict:

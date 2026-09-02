@@ -501,6 +501,66 @@ class CollectorRuntimeTests(unittest.TestCase):
         self.assertEqual(2, summaries.call_count)
         self.assertEqual(2, next_task.call_count)
 
+    def test_combined_ledger_save_failure_stops_before_individual_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "workspace"
+            root.mkdir()
+            settings = SimpleNamespace(
+                inference_ledger_file=Path(directory) / "ledger.json",
+                ai_inference_mode="incremental",
+                tasks_path=Path(directory) / "TASKS.md",
+                output_dir=Path(directory) / "output",
+                queue_dir=Path(directory) / "queue",
+            )
+            message = _runtime_message("message-1", "turn-1", "Implemented change.")
+            chat = ChatExtractionResult((message,), tuple(), tuple())
+            work = SimpleNamespace(
+                codex_status="idle", turns=(_runtime_turn("turn-1"),)
+            )
+            combined_runner = Mock()
+            combined_runner.infer.return_value = _combined_result()
+            decisions = Mock()
+            summaries = Mock()
+            next_task = Mock()
+
+            with patch(
+                "tools.collector_runtime.extract_chat_messages", return_value=chat
+            ), patch(
+                "tools.collector_runtime.extract_current_work_status", return_value=work
+            ), patch(
+                "tools.collector_runtime.CombinedTurnCliRunner",
+                return_value=combined_runner,
+            ), patch(
+                "tools.collector_runtime.save_combined_turn",
+                side_effect=OSError("ledger replace failed"),
+            ), patch(
+                "tools.collector_runtime.extract_file_references",
+                return_value=SimpleNamespace(references=tuple()),
+            ), patch(
+                "tools.collector_runtime.collect_git_changes",
+                return_value=_runtime_git(),
+            ), patch(
+                "tools.collector_runtime.extract_decisions", decisions
+            ), patch(
+                "tools.collector_runtime.generate_change_summaries", summaries
+            ), patch(
+                "tools.collector_runtime.extract_next_task", next_task
+            ):
+                with self.assertRaisesRegex(OSError, "ledger replace failed"):
+                    _build_workspace_snapshot(
+                        root,
+                        "workspace-1",
+                        "session-1",
+                        {"session-1": tuple()},
+                        settings,
+                        None,
+                        {"session-1": (_terminal_record("turn-1"),)},
+                    )
+
+            decisions.assert_not_called()
+            summaries.assert_not_called()
+            next_task.assert_not_called()
+
     def test_pending_routes_precede_new_turn_and_only_successes_are_removed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "workspace"
