@@ -26,7 +26,7 @@ git diff --check
 - Android側の古い`server/`を更新後、`GET /health`と`GET /health?workspace_id=workspace-47cfefa930c1ed4d`が`200`を返した。
 - PC collectorから複数workspaceのSnapshot commit成功ログを確認した。
 - Androidへ更新する対象は`server/`と`client/`の全内容であり、`client/vendor/`も含めて再帰的に配置する。実設定、Token、TLS鍵、公開・stagingデータは上書きしない。
-- SC-51E（Android 16、Chrome 152.0.7977.64）でworkspace指定HTTPS URL、主要7画面、遅延読込、更新動作、安全表示を確認し、Androidブラウザ表示確認を完了した。正式CA受入・画面幅比較・アクセシビリティは別タスクとして残す。
+- SC-51E（Android 16、Chrome 152.0.7977.64）でworkspace指定HTTPS URL、主要7画面、遅延読込、更新動作、安全表示を確認した。2026年9月2日にCA信頼済みHTTPS正式受入（T01～T12）へ合格し、一般的なAndroidスマートフォン相当の画面幅も確認済みである。アクセシビリティは別タスクとして残す。
 
 ## PC側の実設定
 
