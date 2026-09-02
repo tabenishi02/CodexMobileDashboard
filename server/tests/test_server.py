@@ -187,6 +187,7 @@ class ServerTests(unittest.TestCase):
             (root / "styles.css").write_bytes(b"body {}")
             (root / "app.js").write_bytes(b"void 0;")
             (vendor / "library.js").write_bytes(b"void 0;")
+            (vendor / "theme.css").write_bytes(b".code { background: #0d1117; }")
             server = create_server("127.0.0.1", 0, str(root))
             thread = threading.Thread(target=server.serve_forever)
             thread.start()
@@ -195,6 +196,11 @@ class ServerTests(unittest.TestCase):
                     ("/styles.css", "text/css; charset=utf-8", b"body {}"),
                     ("/app.js", "text/javascript; charset=utf-8", b"void 0;"),
                     ("/vendor/library.js", "text/javascript; charset=utf-8", b"void 0;"),
+                    (
+                        "/vendor/theme.css",
+                        "text/css; charset=utf-8",
+                        b".code { background: #0d1117; }",
+                    ),
                 ):
                     connection = http.client.HTTPConnection("127.0.0.1", server.server_port)
                     connection.request("GET", path)
