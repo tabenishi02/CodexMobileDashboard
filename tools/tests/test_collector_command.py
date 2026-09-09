@@ -38,6 +38,30 @@ class CollectorCommandTests(unittest.TestCase):
         path.write_text(text, encoding="utf-8")
         return path
 
+    def test_collect_once_incremental_overrides_backfill_without_changing_config(self):
+        from dataclasses import dataclass
+
+        @dataclass
+        class Runtime:
+            ai_inference_mode: str = "backfill"
+            max_calls_per_run: int = 3
+
+        with tempfile.TemporaryDirectory() as directory:
+            config = self.write_config(directory)
+            original = config.read_bytes()
+            runtime = Runtime()
+            result = CollectorRunResult(0, 0, 0, 0, 0, 0, 0)
+            with patch("tools.collector._runtime_settings", return_value=runtime), patch(
+                "tools.collector.run_once", return_value=result
+            ) as run, redirect_stdout(io.StringIO()):
+                code = main(["--config", str(config), "collect-once", "--incremental", "--no-send"])
+            self.assertEqual(0, code)
+            run.assert_called_once()
+            self.assertEqual("incremental", run.call_args.args[0].ai_inference_mode)
+            self.assertEqual(3, run.call_args.args[0].max_calls_per_run)
+            self.assertEqual("backfill", runtime.ai_inference_mode)
+            self.assertEqual(original, config.read_bytes())
+
     def test_queue_status_outputs_safe_json_without_sender_configuration(self):
         with tempfile.TemporaryDirectory() as directory:
             config = self.write_config(directory)

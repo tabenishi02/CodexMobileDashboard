@@ -79,7 +79,7 @@ git log --oneline -10
 
 ## 定期実行とAI補完の境界
 
-現在のWindows定期タスクは`retry-queued --all`による未送信Snapshot再送だけであり、Codex JSONLの新規収集や新しいSnapshot生成は行わない。通常`collect-once`の定期実行統合はPhase 6の未実装項目である。
+通常収集の登録・解除・runnerを追加し、`collect-once --incremental`を既定1分間隔で起動する実装と、再送runnerとの共通ロックを用意した。関連テスト52件と登録プレビューは成功した。2026年9月9日の確認では本PCに該当定期タスクは未登録であり、自動承認レビューが継続送信の明示承認を要求したため実登録・定期実行確認は承認待ちである。実施方法は[`SCHEDULED_EXECUTION.md`](SCHEDULED_EXECUTION.md)を参照する。既存の再送専用スクリプトは`retry-queued --all`を実行する。
 
 通常定期収集では新規完了turnと永続pendingを段階的に処理する一方、大量の過去履歴を対象にするbackfillを暗黙起動してはならない。過去補完が必要な場合だけ、利用者が次のように有限上限を指定して実行する。
 

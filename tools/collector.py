@@ -49,6 +49,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         metavar="N",
         help=f"自動反復の最大回数（既定{DEFAULT_BACKFILL_MAX_RUNS}、最大{MAX_BACKFILL_MAX_RUNS}）",
     )
+    collect.add_argument("--incremental", action="store_true", help="通常の増分推論モードを使用する")
     collect.add_argument("--no-send", action="store_true", help="HTTPS送信を行わない")
     arguments = parser.parse_args(argv)
     if arguments.command == "backfill-ai" and arguments.max_runs is not None and not arguments.until_complete:
@@ -60,6 +61,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             _configure_logging(settings)
             sender = None if arguments.no_send else _sender(settings)
             runtime_settings = _runtime_settings(arguments.config, settings)
+            if arguments.command == "collect-once" and arguments.incremental:
+                runtime_settings = replace(runtime_settings, ai_inference_mode="incremental")
             if arguments.command == "backfill-ai":
                 runtime_settings = replace(runtime_settings, ai_inference_mode="backfill")
                 if arguments.until_complete:

@@ -31,7 +31,7 @@ git log --oneline -10
 4. 通常`collect-once`とpending消化をWindowsタスクスケジューラへ統合し、重複起動を防止する。
 5. PC再起動後の定期収集・送信を確認し、LAN内アクセス手順を完成させる。
 
-現在の定期タスクは未送信Snapshotの`retry-queued --all`だけを実行し、新規収集は行わない。大量の過去履歴は通常定期収集から暗黙に処理せず、必要時に`backfill-ai --until-complete --max-runs N`を明示実行する。
+通常収集の`install_collector_task.ps1`と`run_collector.ps1`を追加し、`collect-once --incremental`の定期起動と再送runnerとの共通ロックを実装した。関連テスト52件と登録プレビューは成功した。2026年9月9日の確認では本PCに該当定期タスクは未登録。自動承認レビューが継続送信の明示承認を要求したため、実登録・定期実行確認は承認待ちである。既存の再送専用スクリプトは`retry-queued --all`を実行する。大量の過去履歴は通常定期収集から暗黙に処理せず、必要時に`backfill-ai --until-complete --max-runs N`を明示実行する。
 
 ## 既知の保留事項
 
