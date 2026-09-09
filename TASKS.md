@@ -393,20 +393,22 @@
 
 ## Phase 8：運用・保守
 
+2026-09-10の既存成果照合：完了9件、未完了5件。判定根拠は`docs/PHASE8_TASK_AUDIT.md`を参照。
+
 - [ ] 初回セットアップ手順を作成する
-- [ ] 作業PC側の起動手順を作成する
-- [ ] Androidサーバー端末側の起動手順を作成する
-- [ ] 通常運用手順を作成する
-- [ ] 障害切り分け手順を作成する
+- [x] 作業PC側の起動手順を作成する（既存文書で対応済み：docs/MANUAL_COMMAND.md、docs/SCHEDULED_EXECUTION.md）
+- [x] Androidサーバー端末側の起動手順を作成する（既存文書で対応済み：docs/TERMUX_SETUP.md）
+- [x] 通常運用手順を作成する（既存文書で対応済み：docs/LAN_ACCESS.md、docs/SCHEDULED_EXECUTION.md）
+- [x] 障害切り分け手順を作成する（既存文書で対応済み：docs/LAN_ACCESS.md、docs/ERROR_HANDLING.md）
 - [ ] バックアップ方法を決める
 - [ ] 古いJSONの削除方法を決める
-- [ ] 古いログの削除方法を決める
-- [ ] ディスク容量不足への対応を決める
-- [ ] 認証トークン更新手順を作成する
+- [x] 古いログの削除方法を決める（既存文書で対応済み：docs/LOGGING.md：日次ローテーション・7世代保持）
+- [x] ディスク容量不足への対応を決める（既存文書で対応済み：docs/DATA_LIMITS.md、docs/UPDATE_POLICY.md：保存停止・既存データ維持・容量確保後再送）
+- [x] 認証トークン更新手順を作成する（既存文書で対応済み：docs/CONFIGURATION.md：新旧Tokenの認証確認まで規定）
 - [ ] PC送信Tokenの実配置（`certificates`）と正規設計（`secrets`）をどちらへ統一するか決め、実設定・設定例・文書を整合させる
-- [ ] データ形式変更時の互換性ルールを決める
+- [x] データ形式変更時の互換性ルールを決める（既存文書で対応済み：docs/DATA_SCHEMA.md：スキーマ互換性）
 - [ ] 変更内容を`CHANGELOG.md`へ記録する
-- [ ] バージョン番号の付け方を決める
+- [x] バージョン番号の付け方を決める（既存文書で対応済み：CHANGELOG.md：Semantic Versioning、初回リリース前はUnreleased）
 
 ## Phase 9：外部アクセス
 
