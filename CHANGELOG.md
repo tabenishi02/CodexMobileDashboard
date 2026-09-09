@@ -8,6 +8,8 @@
 
 ### Added
 
+- 定期collectorの状態確認スクリプト、PC再起動後の復旧手順、専用Windowsタスクの登録・起動・解除を検証する統合テストを追加した。
+
 - 定期collectorで未送信キュー再送と収集を共通ロック下で直列実行し、Snapshotを送信前に保存して失敗・中断後も同じDelivery IDで再送するよう変更した。
 
 - 通常増分収集で既存pendingを持つworkspaceを優先し、別workspaceの新規turnが先に共有推論枠を消費しないよう修正した。

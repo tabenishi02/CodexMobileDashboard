@@ -10,8 +10,7 @@
 cd C:\path\to\CodexMobileDashboard
 .\scripts\install_collector_task.ps1 -Preview
 .\scripts\install_collector_task.ps1
-Get-ScheduledTask -TaskName 'CodexMobileDashboard-Collector'
-Get-ScheduledTaskInfo -TaskName 'CodexMobileDashboard-Collector'
+.\scripts\get_collector_task_status.ps1 | Format-List
 ```
 
 既定の設定ファイルは`%LOCALAPPDATA%\CodexMobileDashboard\config\collector.ini`。`-ConfigPath`、`-TaskName`、`-IntervalMinutes`（1～60）で変更できる。同名タスクの登録は更新になる。登録時のPython絶対パスとリポジトリの作業ディレクトリを記録し、非表示のPowerShellで起動する。初回は登録の約1分後で、以降は指定間隔で繰り返す。
@@ -55,6 +54,43 @@ Enable-ScheduledTask -TaskName 'CodexMobileDashboard-Collector'
 2026年9月10日：collectorのrunner内で`retry-queued --all`→`collect-once --incremental`を同じロック下で実行するよう変更した。Snapshotは送信開始前にキューへ原子的保存し、commit成功後だけ削除する。送信途中の中断やcommit応答喪失でも同じ本文・Delivery IDを保持し、次回再送する。保存に失敗した場合は通信を開始しない。通常収集タスクだけでもキュー再送を行うため、再送専用タスクの追加登録は必須ではない。
 
 関連77テストが成功（関連76件成功後、保存失敗テストを追加してキュー9件を再検証）。共通ロック中のcollector・再送のスキップ、再送失敗時の収集抑止と次回復帰、送信中断後のキュー再読込・同一Delivery ID再送、commit成功後だけ削除することを確認した。障害試験は一時データと代替senderで実施し、実機ネットワーク切断は行っていない。
+
+## PC再起動後の復旧手順
+
+1. 再起動前に`get_collector_task_status.ps1`で登録済み・有効であることを確認し、直近の実行日時とAndroid側の公開Snapshotを記録する。未送信キュー・collector状態・推論台帳は削除しない。
+2. 利用者がPCを再起動し、登録時と同じWindowsユーザーでログオンする。ログオン前には動作しない。AndroidサーバーへのLAN接続も復帰させる。
+3. 登録間隔と収集所要時間を待ち、次を実行する。
+
+```powershell
+cd C:\path\to\CodexMobileDashboard
+.\scripts\get_collector_task_status.ps1 | Format-List
+```
+
+4. `Registered=True`、`Enabled=True`、`LastRunTime`がログオン後に更新され、完了時の`LastTaskResult=0`と次回予定があることを確認する。`Running`中は自然終了を待つ。`StartWhenAvailable=True`により実行機会を逃したタスクも実行可能になってから処理される。
+5. `collector.log`の集計、`sender.log`の`snapshot_committed`、Android側の公開Snapshot・最終受信日時の更新を確認する。未送信があった場合は先頭で再送され、成功後に収集へ進む。推論pendingの残件はログで確認する。
+
+| 状態 | 確認・復旧操作 |
+| --- | --- |
+| `Registered=False` | 実設定とPythonの存在を確認し、登録スクリプトを実行する。 |
+| `Enabled=False` | 意図的な停止でなければ`Enable-ScheduledTask`で再開する。 |
+| `Running`が長い | ログの進捗と推論・通信待ちを確認する。重複して手動起動しない。 |
+| 完了時の結果が非0 | ログのエラー分類からLAN・CA・認証・保存容量を確認する。原因を解消し次回実行を待つ。 |
+| Python・リポジトリの配置変更 | 設定の場所を確認して同名タスクを再登録し、実行パスを更新する。 |
+| 結果0でも画面が更新されない | スキップと実収集をログで区別し、対象workspaceと公開Snapshotを確認する。 |
+
+`get_collector_task_status.ps1 -TaskName <名前>`で別名タスクも確認できる。設定本文、Token、実行引数は表示しない。解除は既存の`uninstall_collector_task.ps1`で行い、キューや台帳は保持する。
+
+## タスク管理の統合テスト
+
+```powershell
+$env:CODEX_DASHBOARD_TASK_TEST = '1'
+python -m unittest tools.tests.test_scheduled_task_lifecycle
+Remove-Item Env:CODEX_DASHBOARD_TASK_TEST
+```
+
+専用の一時タスクを実際のWindowsタスクスケジューラへ登録し、プレビューの非変更、対話ログオン・実行機会回復・重複起動抑止の設定、起動成功、状態取得、解除を確認する。テストrunnerは一時マーカーを作成するだけで、収集・推論・通信を行わない。テスト終了時に専用タスクを解除する。本番タスクは変更しない。
+
+2026年9月10日、上記の実機統合テスト1件が成功。PC自体の再起動は実施しておらず、`TASKS.md`の「作業PC再起動後の定期送信を確認する」は未完了のままとする。
 
 ## 再送専用タスクの登録
 

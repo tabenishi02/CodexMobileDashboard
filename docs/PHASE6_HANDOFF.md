@@ -113,3 +113,5 @@ node client/tests/system_status_test.js
 node client/tests/styles_test.js
 git diff --check
 ```
+
+2026年9月10日：定期実行の登録・解除・状態確認・PC再起動後の復旧手順を整備し、専用一時タスクによる実登録・起動・状態取得・解除の統合テストが成功した。状態確認は`scripts/get_collector_task_status.ps1`を使用する。定期実行統合の親タスクは完了。実際のPC再起動後の送信確認とLAN内アクセス手順の完成は残作業である。
