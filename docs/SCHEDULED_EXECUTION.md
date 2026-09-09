@@ -16,9 +16,10 @@ Get-ScheduledTaskInfo -TaskName 'CodexMobileDashboard-Collector'
 
 既定の設定ファイルは`%LOCALAPPDATA%\CodexMobileDashboard\config\collector.ini`。`-ConfigPath`、`-TaskName`、`-IntervalMinutes`（1～60）で変更できる。同名タスクの登録は更新になる。登録時のPython絶対パスとリポジトリの作業ディレクトリを記録し、非表示のPowerShellで起動する。初回は登録の約1分後で、以降は指定間隔で繰り返す。
 
-実行内容は次のとおり。
+実行内容は次の順序で、共通ロックを保持したまま実行する。再送が失敗した回は新規収集を行わず、その終了コードで終了する。
 
 ```text
+python -m tools.collector --config <collector.ini> retry-queued --all
 python -m tools.collector --config <collector.ini> collect-once --incremental
 ```
 
@@ -26,7 +27,7 @@ python -m tools.collector --config <collector.ini> collect-once --incremental
 
 収集と定期再送のrunnerは同じWindowsセッション内の名前付きmutexを共有する。実行中の重複起動は処理せず正常終了し、前の実行が異常終了してmutexが放棄された場合は次回実行が取得する。直接`python -m tools.collector`を起動する手動操作はこのロックの対象外なので、定期タスクと同時に実行しない。タスクは実行時間による強制終了を無効化し、収集コマンドの終了コードを返す。
 
-確認は`LastRunTime`、`NextRunTime`、`LastTaskResult`と、設定先の`collector.log`・`converter.log`・`sender.log`を組み合わせる。`LastTaskResult = 0`だけではロックによるスキップと区別できないため、収集ログの`inference_run_metrics`と送信ログの`snapshot_committed`も確認する。失敗時はログを確認し、保持されたpending・未送信キューを次回収集・別の再送処理で扱う。この収集タスク自体は`retry-queued`を起動しない。
+確認は`LastRunTime`、`NextRunTime`、`LastTaskResult`と、設定先の`collector.log`・`converter.log`・`sender.log`を組み合わせる。`LastTaskResult = 0`だけではロックによるスキップと区別できないため、収集ログの`inference_run_metrics`と送信ログの`snapshot_committed`も確認する。失敗時はログを確認する。未送信キューは次回の定期収集の先頭で再送し、再送成功後に新規収集へ進む。これにより保持済みの古いSnapshotを先に送信する。推論pendingは既存の永続状態から再処理する。
 
 一時停止・再開・解除は次のとおり。
 
@@ -50,6 +51,10 @@ Enable-ScheduledTask -TaskName 'CodexMobileDashboard-Collector'
 2026年9月10日：通常増分収集では、実行開始時点でpendingを持つworkspaceを、持たないworkspaceより先に処理するよう修正した。同じ優先区分内では既存の探索順を維持する。各workspace内のpending優先処理と、実行全体の共有推論上限は維持する。
 
 回帰テストでは実データ・CLI・送信を使わず推論処理を代替し、実際の状態ファイルの保存・再読込を通して4回の収集を実行した。既存pending 3件と別workspaceの新規turn 1件、共有枠1回の条件で既存pendingが先に処理され、各回終了時の残件が3→2→1→0となること、重複消化がないことを確認した。関連テスト60件が成功。これは定期起動先の収集処理の回帰検証であり、実機に人工的なpendingを投入した試験ではない。
+
+2026年9月10日：collectorのrunner内で`retry-queued --all`→`collect-once --incremental`を同じロック下で実行するよう変更した。Snapshotは送信開始前にキューへ原子的保存し、commit成功後だけ削除する。送信途中の中断やcommit応答喪失でも同じ本文・Delivery IDを保持し、次回再送する。保存に失敗した場合は通信を開始しない。通常収集タスクだけでもキュー再送を行うため、再送専用タスクの追加登録は必須ではない。
+
+関連77テストが成功（関連76件成功後、保存失敗テストを追加してキュー9件を再検証）。共通ロック中のcollector・再送のスキップ、再送失敗時の収集抑止と次回復帰、送信中断後のキュー再読込・同一Delivery ID再送、commit成功後だけ削除することを確認した。障害試験は一時データと代替senderで実施し、実機ネットワーク切断は行っていない。
 
 ## 再送専用タスクの登録
 

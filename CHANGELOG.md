@@ -8,6 +8,8 @@
 
 ### Added
 
+- 定期collectorで未送信キュー再送と収集を共通ロック下で直列実行し、Snapshotを送信前に保存して失敗・中断後も同じDelivery IDで再送するよう変更した。
+
 - 通常増分収集で既存pendingを持つworkspaceを優先し、別workspaceの新規turnが先に共有推論枠を消費しないよう修正した。
 
 - Windowsで通常の`collect-once --incremental`を定期起動する登録・解除スクリプトと、再送runnerとの共通ロックを追加した。

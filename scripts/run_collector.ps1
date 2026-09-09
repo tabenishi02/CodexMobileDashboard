@@ -23,6 +23,10 @@ try {
 
     Push-Location -LiteralPath $repositoryRoot
     try {
+        & $python.Source -m tools.collector --config $ConfigPath retry-queued --all
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
         & $python.Source -m tools.collector --config $ConfigPath collect-once --incremental
         exit $LASTEXITCODE
     }

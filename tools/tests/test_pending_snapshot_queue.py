@@ -90,6 +90,49 @@ class PendingSnapshotQueueTests(unittest.TestCase):
             self.assertEqual(1, len(pending))
             self.assertEqual(commit_delivery_id, pending[0].commit_delivery_id)
             self.assertEqual("http_401_403", pending[0].last_error_kind)
+    def test_interrupted_delivery_is_persisted_and_replayed_with_same_ids(self):
+        from unittest.mock import Mock
+
+        with tempfile.TemporaryDirectory() as directory:
+            queue = PendingSnapshotQueue(Path(directory))
+            uploads = self.uploads()
+            commit_id = new_delivery_id()
+            sender = Mock()
+
+            def interrupt(*args, **kwargs):
+                self.assertEqual(1, len(queue.pending()))
+                raise KeyboardInterrupt()
+
+            sender.send_snapshot_with_retry.side_effect = interrupt
+            with self.assertRaises(KeyboardInterrupt):
+                queue.send_or_enqueue(sender, "workspace-1", "snapshot-1", uploads, commit_delivery_id=commit_id)
+            restarted = PendingSnapshotQueue(Path(directory))
+            success = SuccessfulSender()
+            self.assertEqual("sent", restarted.send_next(success))
+            self.assertEqual(commit_id, success.calls[0][3])
+            self.assertCountEqual(uploads, success.calls[0][2])
+            self.assertEqual(tuple(), restarted.pending())
+
+    def test_storage_failure_prevents_network_send(self):
+        from unittest.mock import Mock, patch
+
+        with tempfile.TemporaryDirectory() as directory:
+            queue = PendingSnapshotQueue(Path(directory))
+            sender = Mock()
+            with patch.object(queue, "enqueue", side_effect=OSError("disk full")):
+                with self.assertRaises(OSError):
+                    queue.send_or_enqueue(sender, "workspace-1", "snapshot-1", self.uploads(), commit_delivery_id=new_delivery_id())
+            sender.send_snapshot_with_retry.assert_not_called()
+
+    def test_successful_initial_send_removes_persisted_snapshot(self):
+        with tempfile.TemporaryDirectory() as directory:
+            queue = PendingSnapshotQueue(Path(directory))
+            self.assertEqual("sent", queue.send_or_enqueue(
+                SuccessfulSender(), "workspace-1", "snapshot-1", self.uploads(),
+                commit_delivery_id=new_delivery_id(),
+            ))
+            self.assertEqual(tuple(), queue.pending())
+
     def test_detects_tampered_queued_file(self):
         with tempfile.TemporaryDirectory() as directory:
             queue = PendingSnapshotQueue(Path(directory))

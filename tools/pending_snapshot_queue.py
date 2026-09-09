@@ -113,7 +113,8 @@ class PendingSnapshotQueue:
             shutil.rmtree(temporary, ignore_errors=True)
             raise
         queued = self._load_item(target)
-        LOGGER.warning(
+        LOGGER.log(
+            logging.WARNING if error is not None else logging.INFO,
             "snapshot_queued workspace_id=%s snapshot_id=%s sequence=%d files=%d error_kind=%s",
             queued.workspace_id,
             queued.snapshot_id,
@@ -142,25 +143,29 @@ class PendingSnapshotQueue:
         *,
         commit_delivery_id: str,
     ) -> SnapshotRetryResult:
-        """Attempt delivery and durably queue the unchanged snapshot on final failure."""
+        """Persist before sending; acknowledge only after a confirmed commit."""
 
-        stable_uploads = tuple(uploads)
+        queued = self.enqueue(
+            workspace_id, snapshot_id, uploads,
+            commit_delivery_id=commit_delivery_id,
+        )
+        result = self._send_queued(sender, queued)
+        self.acknowledge(queued)
+        return result
+
+    def _send_queued(self, sender, queued):
         try:
             return sender.send_snapshot_with_retry(
-                workspace_id,
-                snapshot_id,
-                stable_uploads,
-                commit_delivery_id=commit_delivery_id,
+                queued.workspace_id, queued.snapshot_id, queued.uploads,
+                commit_delivery_id=queued.commit_delivery_id,
             )
         except SenderError as error:
-            self.enqueue(
-                workspace_id,
-                snapshot_id,
-                stable_uploads,
-                commit_delivery_id=commit_delivery_id,
-                error=error,
-            )
+            manifest_path = queued.item_directory / _MANIFEST_FILE
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["last_error"] = _error_value(error)
+            _write_atomic(manifest_path, _json_bytes(manifest))
             raise
+
     def send_next(self, sender: HttpsSnapshotSender) -> Optional[SnapshotRetryResult]:
         """Commit the oldest queued snapshot and remove it only after acknowledgement."""
 
@@ -168,12 +173,7 @@ class PendingSnapshotQueue:
         if not items:
             return None
         queued = items[0]
-        result = sender.send_snapshot_with_retry(
-            queued.workspace_id,
-            queued.snapshot_id,
-            queued.uploads,
-            commit_delivery_id=queued.commit_delivery_id,
-        )
+        result = self._send_queued(sender, queued)
         self.acknowledge(queued)
         return result
 

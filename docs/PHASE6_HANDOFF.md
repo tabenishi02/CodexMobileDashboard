@@ -32,7 +32,7 @@ git log --oneline -10
 
 - Codex JSONLとGitメタデータから7種類の表示用JSONをSnapshot単位で生成する。
 - `collect-once`は収集・変換後、認証付きHTTPSでSnapshotを送信して明示的にcommitする。
-- 送信失敗時は未送信キューへ保持し、同じDelivery IDで再送する。
+- 送信前にSnapshotを未送信キューへ保持し、commit成功後だけ削除する。失敗・中断時は同じDelivery IDで再送する。
 - 手動収集では`collector.log`、`converter.log`、`sender.log`へ秘密情報を除いた結果を記録する。
 - AI推論は既定`incremental`で新規完了turnと永続pendingを処理し、1回のcollector実行における全CLI呼び出しへ共有上限（既定3回）を適用する。
 - 推論成功結果は入力SHA-256、workspace、session、turnに関連付けた永続台帳へ1件ずつ原子的保存し、再起動後も同一入力を再利用する。
@@ -73,7 +73,7 @@ git log --oneline -10
 3. サーバー再起動時にTermux自体が終了した観測について再現条件を確認する。原因を決めつけず、再起動スクリプト、Androidの省電力制御、Termuxプロセス状態を分けて確認する。
 4. LAN切断・復帰後の復旧は確認済み（2026年9月9日、利用者確認）。添付ログで接続タイムアウト後のSnapshot保持と手動再送・commit成功、キュー解消を確認した。詳細は[`NETWORK.md`](NETWORK.md)を参照する。
 5. Windowsタスクスケジューラから通常`collect-once`を定期起動する項目は完了（2026年9月9日）。新規完了turn・pending処理の関連テストと実際の定期収集・送信を確認した。
-6. `collect-once`と`retry-queued`の重複起動を防ぎ、失敗・中断時のデータを次回へ安全に持ち越す。
+6. 定期runnerの共通ロックと再送→収集の直列実行、送信前保存・中断後再送は実装・関連テスト完了（2026年9月10日）。
 7. PC再起動後の定期収集・送信を確認し、登録・解除・状態確認を文書化する。
 8. 固定後のIP、ポート、証明書確認、workspace指定URLを含むLAN内アクセス手順を完成させる。
 

@@ -14,7 +14,7 @@ class ScheduledCollectorTests(unittest.TestCase):
         self.addCleanup(self.directory.cleanup)
         self.root = Path(__file__).resolve().parents[2]
         self.fake = Path(self.directory.name) / "python.cmd"
-        self.fake.write_text("@echo off\necho invoked %*\nexit /b 7\n", encoding="ascii")
+        self.fake.write_text('@echo off\necho invoked %*\nif "%5"=="retry-queued" exit /b 0\nexit /b 7\n', encoding="ascii")
         self.config = Path(self.directory.name) / "collector config.ini"
         self.env = dict(os.environ, PATH=self.directory.name + os.pathsep + os.environ["PATH"])
 
@@ -34,6 +34,18 @@ class ScheduledCollectorTests(unittest.TestCase):
         self.assertNotIn("backfill-ai", result.stdout)
         again = self.run_script("run_collector.ps1")
         self.assertEqual(7, again.returncode, again.stderr)
+
+    def test_retry_failure_stops_collection_and_next_run_recovers(self):
+        self.fake.write_text("@echo off\necho invoked %*\nexit /b 2\n", encoding="ascii")
+        failed = self.run_script("run_collector.ps1")
+        self.assertEqual(2, failed.returncode, failed.stderr)
+        self.assertIn("retry-queued --all", failed.stdout)
+        self.assertNotIn("collect-once", failed.stdout)
+        self.fake.write_text("@echo off\necho invoked %*\nexit /b 0\n", encoding="ascii")
+        recovered = self.run_script("run_collector.ps1")
+        self.assertEqual(0, recovered.returncode, recovered.stderr)
+        self.assertLess(recovered.stdout.index("retry-queued"), recovered.stdout.index("collect-once"))
+        self.assertEqual(0, self.run_script("run_pending_queue_retry.ps1").returncode)
 
     def test_collector_and_retry_skip_while_shared_mutex_is_held(self):
         kernel = ctypes.WinDLL("kernel32", use_last_error=True)
