@@ -182,6 +182,7 @@ CodexMobileDashboard/
 | [`docs/TERMUX_ENVIRONMENT.md`](docs/TERMUX_ENVIRONMENT.md) | Androidサーバー端末の要件と検証用Android端末での確認結果 |
 | [`docs/TERMUX_SETUP.md`](docs/TERMUX_SETUP.md) | Android実機への配置、起動、停止、自動起動 |
 | [`docs/TLS_CERTIFICATES.md`](docs/TLS_CERTIFICATES.md) | 証明書の正規配置、更新、事故対応 |
+| [`docs/LAN_ACCESS.md`](docs/LAN_ACCESS.md) | LAN内HTTPSアクセス・workspace選択・障害切り分け |
 | [`docs/NETWORK.md`](docs/NETWORK.md) | LAN内通信の確認結果 |
 | [`docs/MVP_ACCEPTANCE.md`](docs/MVP_ACCEPTANCE.md) | MVPの受入条件 |
 | [`docs/PHASE3_ACCEPTANCE.md`](docs/PHASE3_ACCEPTANCE.md) | Phase 3の受入確認 |
