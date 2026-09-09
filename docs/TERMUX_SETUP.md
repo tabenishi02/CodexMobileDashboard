@@ -92,4 +92,4 @@ chmod 700 stop_server.sh restart_server.sh
 
 停止済みの場合は`server_not_running`を表示して正常終了する。再起動は停止処理が成功した後だけ起動する。PIDファイルは`~/.cache/codex-mobile-dashboard/server.pid`にあり、手作業で削除するのは、端末再起動後などにスクリプトが停止済みと確認できない場合だけにする。
 
-2026年9月10日：自動起動サーバー停止時のSSH切断改善を検証するためwake lock取得を追加した。実機での改善確認は未実施。既存の`~/.termux/boot/codex-mobile-dashboard`はインストーラーで上書きされないため、配備時は既存エントリのカスタマイズを確認し、同じ位置へ`termux-wake-lock`を反映する。
+2026年9月10日：自動起動サーバー停止時のSSH切断改善を検証するためwake lock取得を追加した。利用者が実機で問題の解決を確認した。提示ログでは`stop_exit=0`、`server_stopped_confirmed`、`pid_file_removed`により正常停止とPIDファイル削除を確認し、停止前後で同じsshd・SSHセッションのPIDが継続した。10秒後の`ssh_session_alive`と続く`pwd`も成功した。サーバー停止時にwake lockは解放しない。これは導入後の改善確認であり、Termux内部の原因を断定するものではない。既存の`~/.termux/boot/codex-mobile-dashboard`はインストーラーで上書きされないため、配備時は既存エントリのカスタマイズを確認し、同じ位置へ`termux-wake-lock`を反映する。
