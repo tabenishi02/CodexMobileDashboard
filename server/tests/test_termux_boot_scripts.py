@@ -12,6 +12,9 @@ class TermuxBootScriptTests(unittest.TestCase):
         self.assertIn('APP_SERVER_DIRECTORY="${CODEX_MOBILE_DASHBOARD_SERVER_DIR:-$HOME/CodexMobileDashboard/app/server}"', script)
         self.assertIn('exec "$APP_SERVER_DIRECTORY/start_server.sh"', script)
         self.assertNotIn("server.token", script)
+        self.assertIn("set -eu\n\ntermux-wake-lock\n", script)
+        self.assertLess(script.index("termux-wake-lock"), script.index("exec "))
+        self.assertNotIn("termux-wake-unlock", (directory / "stop_server.sh").read_text(encoding="utf-8"))
 
     def test_installer_does_not_overwrite_existing_boot_entry(self) -> None:
         script = (Path(__file__).resolve().parents[1] / "install_termux_boot.sh").read_text(encoding="utf-8")

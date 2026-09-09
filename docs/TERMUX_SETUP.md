@@ -43,7 +43,7 @@ CA秘密鍵はAndroid端末へ置かず、作業用PCのリポジトリ外で保
 - LAN内の固定IPまたはDHCP予約を設定する。
 - 端末の画面ロック・省電力時にも手動起動できることを確認する。
 - 自動起動はサーバー手動起動とHTTPS疎通確認後、Termux:Bootで設定する。
-- `termux-wake-lock`は必要な場合だけ使用し、常用の前に電池消費を確認する。
+- Termux:Boot起動時に`termux-wake-lock`を取得する。サーバー停止後も保持し、`stop_server.sh`からは解放しない。コマンドが失敗した場合は`set -eu`により起動を中止する。
 
 ## 起動前確認
 
@@ -91,3 +91,5 @@ chmod 700 stop_server.sh restart_server.sh
 ```
 
 停止済みの場合は`server_not_running`を表示して正常終了する。再起動は停止処理が成功した後だけ起動する。PIDファイルは`~/.cache/codex-mobile-dashboard/server.pid`にあり、手作業で削除するのは、端末再起動後などにスクリプトが停止済みと確認できない場合だけにする。
+
+2026年9月10日：自動起動サーバー停止時のSSH切断改善を検証するためwake lock取得を追加した。実機での改善確認は未実施。既存の`~/.termux/boot/codex-mobile-dashboard`はインストーラーで上書きされないため、配備時は既存エントリのカスタマイズを確認し、同じ位置へ`termux-wake-lock`を反映する。
