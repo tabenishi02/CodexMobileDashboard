@@ -393,9 +393,9 @@
 
 ## Phase 8：運用・保守
 
-2026-09-10の既存成果照合：完了9件、未完了5件。判定根拠は`docs/PHASE8_TASK_AUDIT.md`を参照。
+2026-09-10の既存成果照合：初回セットアップ手順追加後は完了10件、未完了4件。判定根拠は`docs/PHASE8_TASK_AUDIT.md`を参照。
 
-- [ ] 初回セットアップ手順を作成する
+- [x] 初回セットアップ手順を作成する（`docs/INITIAL_SETUP.md`：PC・TLS・Android・初回送信・閲覧・自動起動）
 - [x] 作業PC側の起動手順を作成する（既存文書で対応済み：docs/MANUAL_COMMAND.md、docs/SCHEDULED_EXECUTION.md）
 - [x] Androidサーバー端末側の起動手順を作成する（既存文書で対応済み：docs/TERMUX_SETUP.md）
 - [x] 通常運用手順を作成する（既存文書で対応済み：docs/LAN_ACCESS.md、docs/SCHEDULED_EXECUTION.md）

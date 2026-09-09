@@ -13,7 +13,7 @@ git log --oneline -10
 
 続けて[`../TASKS.md`](../TASKS.md)のPhase 8、[`PHASE6_HANDOFF.md`](PHASE6_HANDOFF.md)、[`SCHEDULED_EXECUTION.md`](SCHEDULED_EXECUTION.md)を読む。実設定、Token、証明書、ログ、生成データは変更・コミットしない。
 
-Phase 8の既存成果を照合し、14件中9件を完了へ反映した。残る5件と判定根拠は[PHASE8_TASK_AUDIT.md](PHASE8_TASK_AUDIT.md)を参照する。
+Phase 8の既存成果を照合し、初回セットアップ手順も追加し、14件中10件が完了した。残る4件と判定根拠は[PHASE8_TASK_AUDIT.md](PHASE8_TASK_AUDIT.md)を参照する。
 
 ## Phase 5完了状態
 

@@ -194,6 +194,8 @@ CodexMobileDashboard/
 
 ## セットアップ
 
+新規環境は[初回セットアップ手順](docs/INITIAL_SETUP.md)に従い、PC・Android・閲覧端末の準備から初回送信と自動起動まで確認します。
+
 PC側collectorとAndroidサーバーの設定・運用手順は`docs/`と各コンポーネントのREADMEを参照します。閲覧画面の配置・実機確認手順は[`docs/PHASE5_ANDROID_BROWSER_CHECK.md`](docs/PHASE5_ANDROID_BROWSER_CHECK.md)、次の作業は[`docs/PHASE6_HANDOFF.md`](docs/PHASE6_HANDOFF.md)を参照してください。
 
 PC側collectorは`python -m tools.collector --config <collector.ini> collect-once`で1回実行できます。
