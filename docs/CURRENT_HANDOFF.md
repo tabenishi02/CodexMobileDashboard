@@ -2,7 +2,7 @@
 
 ## 再開地点
 
-Phase 6まで完了した。次はPhase 7の未完了テストから再開する。詳細な実装状況、残作業、運用上の注意は[`PHASE6_HANDOFF.md`](PHASE6_HANDOFF.md)を正とする。
+Phase 7まで完了した。次はPhase 8の未完了タスクから再開する。詳細な実装状況、残作業、運用上の注意は[`PHASE6_HANDOFF.md`](PHASE6_HANDOFF.md)を正とする。
 
 再開時は次を確認する。
 
@@ -11,7 +11,7 @@ git status --short
 git log --oneline -10
 ```
 
-続けて[`../TASKS.md`](../TASKS.md)のPhase 6、[`PHASE6_HANDOFF.md`](PHASE6_HANDOFF.md)、[`SCHEDULED_EXECUTION.md`](SCHEDULED_EXECUTION.md)を読む。実設定、Token、証明書、ログ、生成データは変更・コミットしない。
+続けて[`../TASKS.md`](../TASKS.md)のPhase 8、[`PHASE6_HANDOFF.md`](PHASE6_HANDOFF.md)、[`SCHEDULED_EXECUTION.md`](SCHEDULED_EXECUTION.md)を読む。実設定、Token、証明書、ログ、生成データは変更・コミットしない。
 
 ## Phase 5完了状態
 
@@ -37,7 +37,7 @@ git log --oneline -10
 
 - PC送信Tokenの実配置`certificates`と正規設計`secrets`の統一はPhase 8の未完了タスクである。実設定を引継ぎ時に自動変更しない。
 - 自動起動サーバー停止時のSSH切断は、termux-wake-lock導入後に利用者が解決を実機確認した（2026年9月10日）。Termux内部の原因は断定しない。確認結果は[TERMUX_SETUP.md](TERMUX_SETUP.md)を参照する。
-- Phase 7には、誤ったCA・証明書名不一致、同時更新、長いファイルパスのテストが残っている。
+- Phase 7のTLS異常系・同時更新・長いファイルパスのテストは2026年9月10日に完了した。範囲と再実行手順は[PHASE7_TEST_RESULTS.md](PHASE7_TEST_RESULTS.md)を参照する。
 
 2026年9月10日：定期実行の登録・解除・状態確認・PC再起動後の復旧手順を整備し、専用一時タスクによる実登録・起動・状態取得・解除の統合テストが成功した。状態確認は`scripts/get_collector_task_status.ps1`を使用する。定期実行統合の親タスクは完了。PC再起動後の定期送信は利用者の実機確認で完了（2026年9月10日）。LAN内アクセス手順は[LAN_ACCESS.md](LAN_ACCESS.md)に文書化済み。Termuxのwake lock導入後の改善も利用者が実機確認し、`TASKS.md`のPhase 6項目はすべて完了した。
 
@@ -45,4 +45,4 @@ git log --oneline -10
 
 ## Phase 6残タスク照合（2026年9月10日）
 
-従来のPhase 6チェック項目はLANアクセス手順の追加により完了。画面消灯後5分・30分のAndroidサーバーとSSHの接続継続は、利用者の確認済み報告により完了とした。自動起動サーバー停止時のSSH切断もwake lock導入後の実機確認により解決済みとし、Phase 6全体を完了とする。Phase 7のTLS異常系・同時更新・長いパス、Phase 8のToken配置統一は後続Phaseの残作業として維持する。
+従来のPhase 6チェック項目はLANアクセス手順の追加により完了。画面消灯後5分・30分のAndroidサーバーとSSHの接続継続は、利用者の確認済み報告により完了とした。自動起動サーバー停止時のSSH切断もwake lock導入後の実機確認により解決済みとし、Phase 6全体を完了とする。Phase 7の残テストはその後完了した。Phase 8のToken配置統一は未完了タスクとして維持する。

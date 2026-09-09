@@ -47,6 +47,21 @@ class FileReferenceExtractorTests(unittest.TestCase):
             "workspace-1",
         )
 
+    def test_long_workspace_path_preserves_name_and_line_reference(self) -> None:
+        relative = "/".join(["long_directory_segment"] * 14 + ["report.py"])
+        self.assertGreater(len(relative), 260)
+        target = self.workspace / relative
+        target.parent.mkdir(parents=True)
+        target.write_text("pass\n", encoding="utf-8")
+        result = self.extract(chat_message("user", f"`{relative}:123`", "long-path"))
+        self.assertEqual(1, len(result.references))
+        reference = result.references[0]
+        self.assertEqual(relative, reference.path)
+        self.assertEqual("report.py", reference.display_name)
+        self.assertEqual("workspace", reference.scope)
+        self.assertEqual(123, reference.mentions[0].line)
+        self.assertNotIn(str(self.workspace), repr(reference))
+
     def test_workspace_absolute_path_becomes_relative(self) -> None:
         path = self.workspace / "tools" / "app.py"
 

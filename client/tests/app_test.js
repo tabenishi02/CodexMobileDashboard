@@ -36,6 +36,9 @@ async function run() {
   const errorsContent = { hidden: true };
   const decisionsState = { hidden: false, textContent: "" };
   const decisionsContent = { hidden: true };
+  const filesState = { hidden: false, textContent: "" };
+  const filesContent = { hidden: true };
+  const fileList = listElement();
   const systemState = { hidden: false, textContent: "" };
   const systemContent = { hidden: true };
   const chatMessages = listElement();
@@ -94,6 +97,7 @@ async function run() {
     ["error-count-summary", errorCountSummary],
     ["error-list", errorList],
     ["decision-list", decisionList],
+    ["file-list", fileList],
     ["collector-status", collectorStatus],
     ["server-status", serverStatus],
   ]);
@@ -169,6 +173,8 @@ async function run() {
         if (selector === '[data-content-for="errors"]') { return errorsContent; }
         if (selector === '[data-state-for="decisions"]') { return decisionsState; }
         if (selector === '[data-content-for="decisions"]') { return decisionsContent; }
+        if (selector === '[data-state-for="files"]') { return filesState; }
+        if (selector === '[data-content-for="files"]') { return filesContent; }
         if (selector === '[data-state-for="system"]') {
           return systemState;
         }
@@ -427,7 +433,23 @@ async function run() {
   responses.push(response(200, [], '"recent-v1"'));
   await assert.rejects(() => client.fetchDocument("recent"), /json_shape_invalid/);
   assert.strictEqual(client.getDocumentError("recent"), "json_shape_invalid");
-  console.log("app dashboard tests passed");
+  const longPaths = [
+    "src/" + "long_directory/".repeat(30) + "report.py",
+    "資料/".repeat(100) + "検証😀.txt",
+    "nested/".repeat(5) + "a".repeat(240) + ".js",
+    "src/" + "nested/".repeat(45) + "<img src=x onerror=alert(1)>.txt",
+  ];
+  responses.push(response(200, { data_type: "files", files: longPaths.map((path) => ({ path, status: "modified" })) }));
+  await client.loadFiles();
+  assert.strictEqual(filesState.hidden, true);
+  assert.strictEqual(filesContent.hidden, false);
+  assert.strictEqual(fileList.children.length, longPaths.length);
+  longPaths.forEach((path, index) => {
+    assert.ok(path.length > 260);
+    assert.ok(fileList.children[index].textContent.includes("パス: " + path + " / 状態: 変更"));
+    assert.strictEqual(fileList.children[index].children.length, 0);
+  });
+  console.log("app dashboard and long file path tests passed");
 }
 
 run().catch((error) => {

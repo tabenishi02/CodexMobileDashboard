@@ -93,11 +93,14 @@ python -m tools.collector --config <collector.ini> backfill-ai --until-complete 
 
 ## Phase 7以降へ残る確認
 
-Phase 5または既存テストで確認済みの項目は`TASKS.md`へ反映した。次は未確認のまま残す。
+Phase 7の以下のテストは2026年9月10日に完了した。確認範囲と再実行手順は[PHASE7_TEST_RESULTS.md](PHASE7_TEST_RESULTS.md)を参照する。
 
 - 正しいCA、誤ったCA、証明書名不一致の自動テスト
 - Snapshot同時更新のテスト
-- 長いファイルパスの表示テスト
+- 長いファイルパスの抽出・表示テスト
+
+次は未完了のまま残す。
+
 - Phase 8のPC送信Token配置方針（`certificates`と`secrets`）の統一
 
 ## 関連テスト
@@ -116,4 +119,4 @@ git diff --check
 
 ## Phase 6残タスク照合（2026年9月10日）
 
-従来のPhase 6チェック項目はLANアクセス手順の追加により完了。画面消灯後5分・30分のAndroidサーバーとSSHの接続継続は、利用者の確認済み報告により完了とした。自動起動サーバー停止時のSSH切断もwake lock導入後の実機確認により解決済みとし、Phase 6全体を完了とする。Phase 7のTLS異常系・同時更新・長いパス、Phase 8のToken配置統一は後続Phaseの残作業として維持する。
+従来のPhase 6チェック項目はLANアクセス手順の追加により完了。画面消灯後5分・30分のAndroidサーバーとSSHの接続継続は、利用者の確認済み報告により完了とした。自動起動サーバー停止時のSSH切断もwake lock導入後の実機確認により解決済みとし、Phase 6全体を完了とする。Phase 7の残テストはその後完了した。Phase 8のToken配置統一は未完了タスクとして維持する。

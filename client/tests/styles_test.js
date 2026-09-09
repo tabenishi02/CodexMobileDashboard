@@ -18,4 +18,7 @@ assert.match(
 assert.match(darkTheme, /\.hljs\{color:#c9d1d9;background:#0d1117\}/);
 assert.doesNotMatch(darkTheme, /background:#fff(?:[;}])/);
 
-console.log("client dark code theme tests passed");
+assert.match(styles, /body\s*\{[^}]*overflow-wrap:\s*anywhere;/,
+  "Long file paths must inherit wrapping even without whitespace");
+
+console.log("client dark code theme and long path wrapping tests passed");
