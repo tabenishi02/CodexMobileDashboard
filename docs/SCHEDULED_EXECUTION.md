@@ -13,7 +13,7 @@ cd C:\path\to\CodexMobileDashboard
 .\scripts\get_collector_task_status.ps1 | Format-List
 ```
 
-既定の設定ファイルは`%LOCALAPPDATA%\CodexMobileDashboard\config\collector.ini`。`-ConfigPath`、`-TaskName`、`-IntervalMinutes`（1～60）で変更できる。同名タスクの登録は更新になる。登録時のPython絶対パスとリポジトリの作業ディレクトリを記録し、非表示のPowerShellで起動する。初回は登録の約1分後で、以降は指定間隔で繰り返す。
+既定の設定ファイルは`%LOCALAPPDATA%\CodexMobileDashboard\config\collector.ini`。`-ConfigPath`、`-TaskName`、`-IntervalMinutes`（1～60）で変更できる。同名タスクの登録は更新になる。登録時のPython絶対パスとリポジトリの作業ディレクトリを記録し、`pythonw.exe`から`run_collector_hidden.pyw`を起動し、`CREATE_NO_WINDOW`で既存PowerShell runnerを実行する。初回は登録の約1分後で、以降は指定間隔で繰り返す。
 
 実行内容は次の順序で、共通ロックを保持したまま実行する。再送が失敗した回は新規収集を行わず、その終了コードで終了する。
 
@@ -154,3 +154,16 @@ cd C:\path\to\CodexMobileDashboard
 - `LastRunTime`は01:07:06、01:12:06（JST）で、次回予定はそれぞれ01:08:05、01:13:05。再起動後も定期起動が継続している。
 - 両確認時点は`State=Running`、`LastTaskResult=267009`で実行中を示す。これを完了時の終了コード0の証拠とは扱わない。
 - 受信側の動作確認は利用者による閲覧スマートフォンの正常結果に基づく。今回の提示内容には個別Snapshot IDやcommitログは含まれない。
+
+## 定期起動時のターミナル表示抑止
+
+2026年9月10日、タスクの起動元を`pythonw.exe`へ変更した。ランチャーはコンソールを作らず既存PowerShell runnerを起動して終了を待ち、終了コードをタスクスケジューラへ返す。起動自体に失敗した場合は2を返す。標準入出力は非表示用に破棄し、収集・変換・送信の既存ファイルログを使用する。GitとCodex CLIの子プロセスにもWindowsの`CREATE_NO_WINDOW`を適用した。
+
+関連113テスト（既存経路110件、ランチャー2件、一時タスク実登録・起動・解除1件）が成功。本番タスクもpythonwへ更新した。画面表示・フォーカス移動の最終確認は利用者が次の手順で行う。
+
+1. メモ帳など別アプリで入力しながら、定期実行を2～3回待つ。ターミナルが表示されず、入力先が変わらないことを確認する。
+2. `get_collector_task_status.ps1`で起動日時の更新と、完了後の結果0を確認する。Running中の267009は実行中を示す。
+3. 閲覧スマートフォンで公開Snapshot・最終受信日時の更新を確認する。
+4. 通常の作業turnが完了しAI推論が実行された回も同じ確認を行う。推論の有無は`collector.log`の`inference_run_metrics`で確認する。確認のための大量backfillは不要。
+
+起動前のエラーはコンポーネントログが生成されない場合がある。結果2で新しいログがない場合は、登録されたpythonw・PowerShell・runner・設定ファイルの存在を確認する。

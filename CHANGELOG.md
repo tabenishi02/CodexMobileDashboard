@@ -8,6 +8,8 @@
 
 ### Added
 
+- 定期collectorをpythonwからコンソールなしで起動し、Git・Codex CLIの子プロセスも非表示で実行するよう変更した。
+
 - 定期collectorの状態確認スクリプト、PC再起動後の復旧手順、専用Windowsタスクの登録・起動・解除を検証する統合テストを追加した。
 
 - 定期collectorで未送信キュー再送と収集を共通ロック下で直列実行し、Snapshotを送信前に保存して失敗・中断後も同じDelivery IDで再送するよう変更した。

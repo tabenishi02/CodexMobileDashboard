@@ -437,6 +437,7 @@ class CombinedTurnCliRunner:
                 input=prompt,
                 text=True,
                 encoding="utf-8",
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 capture_output=True,
                 timeout=self._timeout_seconds,
                 check=False,

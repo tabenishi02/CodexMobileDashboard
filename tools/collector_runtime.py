@@ -632,7 +632,7 @@ def _workspace_root(candidates: Iterable[str], allowed_roots: Tuple[Path, ...]) 
         path = Path(candidate).resolve(strict=False)
         if not any(_within(path, root) and path != root for root in allowed_roots):
             continue
-        completed = subprocess.run(["git", "-C", str(path), "rev-parse", "--show-toplevel"], capture_output=True, text=True, encoding="utf-8", errors="replace", check=False, shell=False, timeout=10)
+        completed = subprocess.run(["git", "-C", str(path), "rev-parse", "--show-toplevel"], creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), capture_output=True, text=True, encoding="utf-8", errors="replace", check=False, shell=False, timeout=10)
         if completed.returncode == 0:
             root = Path(completed.stdout.strip()).resolve(strict=False)
             if any(_within(root, allowed) and root != allowed for allowed in allowed_roots):

@@ -18,7 +18,7 @@ class ScheduledTaskLifecycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="dashboard task ") as directory:
             scripts = Path(directory) / "scripts"
             scripts.mkdir()
-            for script in ("install_collector_task.ps1", "uninstall_collector_task.ps1", "get_collector_task_status.ps1"):
+            for script in ("install_collector_task.ps1", "uninstall_collector_task.ps1", "get_collector_task_status.ps1", "run_collector_hidden.pyw"):
                 shutil.copyfile(root / "scripts" / script, scripts / script)
             marker = Path(directory) / "ran.txt"
             (scripts / "run_collector.ps1").write_text(
@@ -48,6 +48,8 @@ class ScheduledTaskLifecycleTests(unittest.TestCase):
                 invoke("install_collector_task.ps1", args + " -Preview")
                 self.assertFalse(status()["Registered"])
                 invoke("install_collector_task.ps1", args)
+                action = ps("(Get-ScheduledTask -TaskName '" + name + "').Actions.Execute")
+                self.assertTrue(action.strip().lower().endswith("pythonw.exe"))
                 registered = status()
                 self.assertTrue(registered["Enabled"])
                 self.assertEqual("PT1M", registered["Interval"])

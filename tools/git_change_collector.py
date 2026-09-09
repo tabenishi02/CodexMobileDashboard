@@ -76,6 +76,7 @@ class GitCommandRunner:
         completed = subprocess.run(
             list(command),
             cwd=str(cwd) if cwd is not None else None,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             capture_output=True,
             check=False,
             shell=False,
