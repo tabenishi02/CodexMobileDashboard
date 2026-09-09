@@ -561,6 +561,74 @@ class CollectorRuntimeTests(unittest.TestCase):
             summaries.assert_not_called()
             next_task.assert_not_called()
 
+    def test_pending_workspaces_precede_new_turns_and_drain_across_runs(self) -> None:
+        from tools.collector_runtime import _workspace_id
+        from tools.collector_state import SessionReadCursor, load_collector_state, save_collector_state
+        from tools.record_deduplicator import RecordDeduplicationState
+
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            roots = {name: base / name for name in ("new", "old")}
+            for root in roots.values():
+                root.mkdir()
+            settings = SimpleNamespace(
+                state_file=base / "state.json", history_file=base / "history.json",
+                sessions_dir=base, archived_sessions_dir=None,
+                scan_archived_sessions=False, allowed_roots=tuple(roots.values()),
+                ai_inference_mode="incremental", max_calls_per_run=1,
+            )
+            sessions = {
+                name: SimpleNamespace(
+                    session_id=name,
+                    current_file=SimpleNamespace(
+                        workspace_candidates=(root,), last_timestamp="2026-09-09",
+                        path=base / (name + ".jsonl"),
+                    ),
+                ) for name, root in roots.items()
+            }
+            cursors = tuple(SessionReadCursor(name, 0, 0, "0" * 64, RecordDeduplicationState()) for name in roots)
+            initial = tuple(PendingInference(_workspace_id(roots["old"]), "old", "old-" + str(i), "decision") for i in range(3))
+            save_collector_state(CollectorState(cursors, initial), settings.state_file)
+            processed = []
+            build_order = []
+            run_number = [0]
+
+            def collect(session_id, path, state):
+                records = (_terminal_record("new-turn"),) if session_id == "new" and run_number[0] == 0 else tuple()
+                return SimpleNamespace(records=records, resume=SimpleNamespace(replay_from_start=False), next_state=state)
+
+            def build(root, workspace_id, session_id, records, settings, sender, new_records, can_infer, pending):
+                build_order.append((run_number[0], session_id))
+                candidates = set(pending)
+                candidates.update(PendingInference(workspace_id, session_id, record.turn_id, "decision") for record in new_records[session_id])
+                remaining = []
+                for item in sorted(candidates, key=lambda item: item.turn_id):
+                    if can_infer():
+                        processed.append(item.turn_id)
+                    else:
+                        remaining.append(item)
+                return tuple(remaining)
+
+            remaining_counts = []
+            with patch("tools.collector_runtime.discover_session_files", return_value=tuple()), patch(
+                "tools.collector_runtime.build_session_index", return_value=sessions
+            ), patch("tools.collector_runtime._workspace_root", side_effect=lambda candidates, allowed: candidates[0]), patch(
+                "tools.collector_runtime.collect_incremental_records", side_effect=collect
+            ), patch("tools.collector_runtime._build_workspace_snapshot", side_effect=build):
+                for number in range(4):
+                    run_number[0] = number
+                    before = len(processed)
+                    result = run_once(settings)
+                    self.assertEqual(2, result.processed_workspaces)
+                    self.assertEqual(1, len(processed) - before)
+                    stored = load_collector_state(settings.state_file)
+                    self.assertEqual(len(stored.pending_inferences), result.pending_remaining)
+                    remaining_counts.append(result.pending_remaining)
+            self.assertEqual((0, "old"), build_order[0])
+            self.assertEqual("old-0", processed[0])
+            self.assertEqual([3, 2, 1, 0], remaining_counts)
+            self.assertCountEqual(["old-0", "old-1", "old-2", "new-turn"], processed)
+
     def test_pending_routes_precede_new_turn_and_only_successes_are_removed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "workspace"
@@ -770,6 +838,7 @@ class CollectorRuntimeTests(unittest.TestCase):
                 archived_sessions_dir=None,
                 scan_archived_sessions=False,
                 allowed_roots=tuple(),
+                ai_inference_mode="incremental",
                 max_calls_per_run=3,
             )
             saved = []

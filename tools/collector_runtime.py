@@ -168,7 +168,13 @@ def _run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | 
         getattr(settings, "max_calls_per_run", 3)
     )
     completed = 0
-    for root, entries in workspaces.items():
+    ordered_workspaces = list(workspaces.items())
+    if settings.ai_inference_mode == "incremental":
+        pending_workspace_ids = {item.workspace_id for item in initial_pending}
+        ordered_workspaces.sort(
+            key=lambda item: _workspace_id(item[0]) not in pending_workspace_ids
+        )
+    for root, entries in ordered_workspaces:
         workspace_id = _workspace_id(root)
         session_records = {}
         inference_records = {}

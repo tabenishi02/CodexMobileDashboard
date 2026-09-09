@@ -8,6 +8,8 @@
 
 ### Added
 
+- 通常増分収集で既存pendingを持つworkspaceを優先し、別workspaceの新規turnが先に共有推論枠を消費しないよう修正した。
+
 - Windowsで通常の`collect-once --incremental`を定期起動する登録・解除スクリプトと、再送runnerとの共通ロックを追加した。
 
 - 横長コードをコードブロック内だけで横スクロールするモバイル表示を追加した。
