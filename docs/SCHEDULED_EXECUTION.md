@@ -37,7 +37,7 @@ Enable-ScheduledTask -TaskName 'CodexMobileDashboard-Collector'
 .\scripts\uninstall_collector_task.ps1
 ```
 
-無効化・解除は実行中の収集の終了を保証しない。状態が`Running`なら自然終了を待ってから手動操作する。PC再起動後は同じWindowsユーザーでログオンし、上記の状態・ログ・Android側の公開Snapshot更新を確認する。再起動後の実機確認は別タスクとして残る。
+無効化・解除は実行中の収集の終了を保証しない。状態が`Running`なら自然終了を待ってから手動操作する。PC再起動後は同じWindowsユーザーでログオンし、上記の状態・ログ・Android側の公開Snapshot更新を確認する。再起動後の実機確認結果は下記を参照する。
 
 2026年9月9日：利用者の継続収集・送信に対する明示承認後、`CodexMobileDashboard-Collector`を登録した。タスクはログオン中1分間隔（`PT1M`）で有効。関連テスト52件は実装時に成功済み。以下を実機で確認した（JST）。
 
@@ -90,7 +90,7 @@ Remove-Item Env:CODEX_DASHBOARD_TASK_TEST
 
 専用の一時タスクを実際のWindowsタスクスケジューラへ登録し、プレビューの非変更、対話ログオン・実行機会回復・重複起動抑止の設定、起動成功、状態取得、解除を確認する。テストrunnerは一時マーカーを作成するだけで、収集・推論・通信を行わない。テスト終了時に専用タスクを解除する。本番タスクは変更しない。
 
-2026年9月10日、上記の実機統合テスト1件が成功。PC自体の再起動は実施しておらず、`TASKS.md`の「作業PC再起動後の定期送信を確認する」は未完了のままとする。
+2026年9月10日、上記の実機統合テスト1件が成功。PC再起動後の実機確認は、その後の利用者確認により以下のとおり完了した。
 
 ## 再送専用タスクの登録
 
@@ -145,3 +145,12 @@ cd C:\path\to\CodexMobileDashboard
 大量の過去履歴を対象にする`backfill-ai`は通常定期収集から暗黙に起動しない。実装済みの`backfill-ai --until-complete --max-runs N`を利用者が明示実行し、1回ごとの共有ハード上限、全体の有限上限、失敗・進捗停止時の自動停止を維持する。これにより通常pendingの自動消化と、使用量が大きくなり得る過去補完を分離する。運用上の見積もりと再開方法は[`BACKFILL_OPERATION.md`](BACKFILL_OPERATION.md)を参照する。
 
 2026年9月10日：通常収集とbackfillの分離を確認し、関連52テストが成功した。設定が`backfill`でも定期runnerの`--incremental`がこの実行だけ増分モードに固定する。上限到達・pending残存時も通常収集は1回で終了し、継続補完処理を呼ばない。`collect-once`へ`--until-complete`または`--max-runs`を渡すと引数エラーで処理開始前に終了する。過去履歴の連続補完は利用者が`backfill-ai --until-complete --max-runs N`を指定した場合だけ行う。
+
+## PC再起動後の実機確認結果（2026年9月10日）
+
+利用者から、PC再起動後の正常動作と閲覧スマートフォン側の正常動作を確認したとの報告を受け、定期送信の復旧確認を合格とした。
+
+- 提示された2回の状態確認で`Registered=True`、`Enabled=True`、`Interval=PT1M`、`MissedRuns=0`。
+- `LastRunTime`は01:07:06、01:12:06（JST）で、次回予定はそれぞれ01:08:05、01:13:05。再起動後も定期起動が継続している。
+- 両確認時点は`State=Running`、`LastTaskResult=267009`で実行中を示す。これを完了時の終了コード0の証拠とは扱わない。
+- 受信側の動作確認は利用者による閲覧スマートフォンの正常結果に基づく。今回の提示内容には個別Snapshot IDやcommitログは含まれない。
