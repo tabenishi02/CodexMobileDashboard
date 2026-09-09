@@ -31,7 +31,7 @@ git log --oneline -10
 4. 通常`collect-once`の定期起動は登録・実行確認済み。workspace横断のpending優先処理と複数回消化の回帰検証も完了（2026年9月10日、関連60件成功）。共通ロック内の再送→収集と送信前のキュー保存を追加し、失敗・中断時の次回再送も関連テストで確認済み。
 5. PC再起動後の定期収集・送信を確認し、LAN内アクセス手順を完成させる。
 
-通常収集の`install_collector_task.ps1`と`run_collector.ps1`を追加し、`collect-once --incremental`の定期起動と再送runnerとの共通ロックを実装した。関連テスト52件と登録プレビューは成功した。2026年9月9日、利用者の明示承認後に通常収集タスクを登録した。1分間隔で2回の定期起動とHTTPS送信を確認し、2回目は終了コード0。タスクは有効である。実機のpending残件は0で、pending優先処理は関連テストで確認済み。既存の再送専用スクリプトは`retry-queued --all`を実行する。大量の過去履歴は通常定期収集から暗黙に処理せず、必要時に`backfill-ai --until-complete --max-runs N`を明示実行する。
+通常収集の`install_collector_task.ps1`と`run_collector.ps1`を追加し、`collect-once --incremental`の定期起動と再送runnerとの共通ロックを実装した。関連テスト52件と登録プレビューは成功した。2026年9月9日、利用者の明示承認後に通常収集タスクを登録した。1分間隔で2回の定期起動とHTTPS送信を確認し、2回目は終了コード0。タスクは有効である。実機のpending残件は0で、pending優先処理は関連テストで確認済み。既存の再送専用スクリプトは`retry-queued --all`を実行する。大量の過去履歴は通常定期収集から暗黙に処理せず、必要時に`backfill-ai --until-complete --max-runs N`を明示実行する。 この分離は2026年9月10日に関連52テストで確認済み。
 
 ## 既知の保留事項
 

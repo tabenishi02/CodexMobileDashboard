@@ -48,19 +48,33 @@ class CollectorCommandTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             config = self.write_config(directory)
+            with config.open("a", encoding="utf-8") as stream:
+                stream.write("\n[ai_inference]\nmode = backfill\nmax_calls_per_run = 3\n")
             original = config.read_bytes()
             runtime = Runtime()
-            result = CollectorRunResult(0, 0, 0, 0, 0, 0, 0)
+            result = CollectorRunResult(1, 3, 3, 0, 4, 12, 3)
             with patch("tools.collector._runtime_settings", return_value=runtime), patch(
                 "tools.collector.run_once", return_value=result
-            ) as run, redirect_stdout(io.StringIO()):
+            ) as run, patch("tools.collector._run_backfill_until_complete") as backfill, redirect_stdout(io.StringIO()):
                 code = main(["--config", str(config), "collect-once", "--incremental", "--no-send"])
             self.assertEqual(0, code)
             run.assert_called_once()
+            backfill.assert_not_called()
             self.assertEqual("incremental", run.call_args.args[0].ai_inference_mode)
             self.assertEqual(3, run.call_args.args[0].max_calls_per_run)
             self.assertEqual("backfill", runtime.ai_inference_mode)
             self.assertEqual(original, config.read_bytes())
+
+    def test_collect_once_rejects_backfill_continuation_options(self):
+        for options in (["--until-complete"], ["--max-runs", "2"]):
+            with self.subTest(options=options), patch("tools.collector.run_once") as run, patch(
+                "tools.collector._run_backfill_until_complete"
+            ) as backfill, redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as stopped:
+                    main(["--config", "unused.ini", "collect-once", "--incremental", *options])
+                self.assertEqual(2, stopped.exception.code)
+                run.assert_not_called()
+                backfill.assert_not_called()
 
     def test_queue_status_outputs_safe_json_without_sender_configuration(self):
         with tempfile.TemporaryDirectory() as directory:

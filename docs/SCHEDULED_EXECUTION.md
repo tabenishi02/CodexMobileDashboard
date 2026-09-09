@@ -107,3 +107,5 @@ cd C:\path\to\CodexMobileDashboard
 通常`collect-once --incremental`の定期起動スクリプトは実装済み。実タスクの登録と定期実行結果の確認は上記のとおり完了した。ターン完了時の即時起動と、作業中30秒・停止中60秒の切替スケジュールは未実装で、今回は固定の分間隔で起動する。
 
 大量の過去履歴を対象にする`backfill-ai`は通常定期収集から暗黙に起動しない。実装済みの`backfill-ai --until-complete --max-runs N`を利用者が明示実行し、1回ごとの共有ハード上限、全体の有限上限、失敗・進捗停止時の自動停止を維持する。これにより通常pendingの自動消化と、使用量が大きくなり得る過去補完を分離する。運用上の見積もりと再開方法は[`BACKFILL_OPERATION.md`](BACKFILL_OPERATION.md)を参照する。
+
+2026年9月10日：通常収集とbackfillの分離を確認し、関連52テストが成功した。設定が`backfill`でも定期runnerの`--incremental`がこの実行だけ増分モードに固定する。上限到達・pending残存時も通常収集は1回で終了し、継続補完処理を呼ばない。`collect-once`へ`--until-complete`または`--max-runs`を渡すと引数エラーで処理開始前に終了する。過去履歴の連続補完は利用者が`backfill-ai --until-complete --max-runs N`を指定した場合だけ行う。
