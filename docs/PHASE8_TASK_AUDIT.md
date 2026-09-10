@@ -33,3 +33,5 @@
 ## バックアップPhase A追記
 
 [バックアップ設計](BACKUP_DESIGN.md)で方式決定は完了。上の4件は初回セットアップ追加時点の記録であり、バックアップ実行機能は新規の親タスクとPhase B～Fへ分割した。fullは後続。ZIP作成・復元・定期登録はまだ実行できず、機能全体は未完了。
+
+Phase B：PC単体の対象選択・ZIP・verify・mutex統合と一時復元テストを完了。手順は[BACKUP_PC.md](BACKUP_PC.md)。上記の「ZIP作成は未実装」はPhase A時点の記録であり、現在はAndroidと両端統合以降が未実装。

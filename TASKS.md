@@ -403,7 +403,7 @@
 - [x] バックアップ方法を決める（`docs/BACKUP_DESIGN.md`：Phase A仕様確定。実行機能は以下で追跡）
 - [ ] PC・Androidのrecoveryバックアップ機能を実装する
   - [x] Phase A：対象・除外・Manifest・障害復帰・復元仕様を確定する
-  - [ ] Phase B：PC対象選択・ZIP検証・collector mutex統合を実装する
+  - [x] Phase B：PC対象選択・ZIP検証・collector mutex統合を実装する（`docs/BACKUP_PC.md`、一時復元・Windows mutex競合検証済み）
   - [ ] Phase C：Android独立worker・停止再開・current Snapshot保存を実装する
   - [ ] Phase D：SSH制御・共通ID・両端結果統合を実装する
   - [ ] Phase E：週次タスク・非表示起動・手動実行を実装する

@@ -13,7 +13,7 @@ git log --oneline -10
 
 続けて[`../TASKS.md`](../TASKS.md)のPhase 8、[`PHASE6_HANDOFF.md`](PHASE6_HANDOFF.md)、[`SCHEDULED_EXECUTION.md`](SCHEDULED_EXECUTION.md)を読む。実設定、Token、証明書、ログ、生成データは変更・コミットしない。
 
-Phase 8の既存成果を照合し、初回セットアップ手順を追加した。その後バックアップPhase A仕様を[BACKUP_DESIGN.md](BACKUP_DESIGN.md)へ確定した。実行機能B～Fは未実装で、全体完了ではない。残作業と判定根拠は[PHASE8_TASK_AUDIT.md](PHASE8_TASK_AUDIT.md)を参照する。
+Phase 8の既存成果を照合し、初回セットアップ手順を追加した。その後バックアップPhase A仕様を[BACKUP_DESIGN.md](BACKUP_DESIGN.md)へ確定した。Phase BのPC単体ZIP・検証・mutex統合は実装済み（[BACKUP_PC.md](BACKUP_PC.md)）。C～Fは未実装で、全体完了ではない。残作業と判定根拠は[PHASE8_TASK_AUDIT.md](PHASE8_TASK_AUDIT.md)を参照する。
 
 ## Phase 5完了状態
 

@@ -8,6 +8,8 @@
 
 ### Added
 
+- PC単体のrecoveryバックアップを追加した。collector mutexによる排他、設定に基づく対象選択、Manifest・SHA-256検証後のZIP公開、一時復元テストに対応する。Android・両端統合は後続実装。
+
 - 定期collectorをpythonwからコンソールなしで起動し、Git・Codex CLIの子プロセスも非表示で実行するよう変更した。
 
 - 定期collectorの状態確認スクリプト、PC再起動後の復旧手順、専用Windowsタスクの登録・起動・解除を検証する統合テストを追加した。

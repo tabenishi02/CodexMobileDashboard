@@ -192,6 +192,8 @@ CodexMobileDashboard/
 | [`docs/PHASE6_HANDOFF.md`](docs/PHASE6_HANDOFF.md) | Phase 6開始時の実装状況、残作業、再開手順 |
 | [`docs/PHASE5_SCREEN_DESIGN.md`](docs/PHASE5_SCREEN_DESIGN.md) | Phase 5の画面構成、遷移、データ取得、表示規則 |
 
+PC単体の復旧用ZIP作成は[PCバックアップ手順](docs/BACKUP_PC.md)を参照してください（Android・両端統合は後続実装）。
+
 ## セットアップ
 
 新規環境は[初回セットアップ手順](docs/INITIAL_SETUP.md)に従い、PC・Android・閲覧端末の準備から初回送信と自動起動まで確認します。
