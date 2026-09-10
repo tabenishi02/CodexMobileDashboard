@@ -393,14 +393,22 @@
 
 ## Phase 8：運用・保守
 
-2026-09-10の既存成果照合：初回セットアップ手順追加後は完了10件、未完了4件。判定根拠は`docs/PHASE8_TASK_AUDIT.md`を参照。
+2026-09-10の既存成果照合後、初回セットアップとバックアップ方式の仕様を確定した。バックアップ実行機能はPhase A～Fで分割追跡する。判定根拠は`docs/PHASE8_TASK_AUDIT.md`を参照。
 
 - [x] 初回セットアップ手順を作成する（`docs/INITIAL_SETUP.md`：PC・TLS・Android・初回送信・閲覧・自動起動）
 - [x] 作業PC側の起動手順を作成する（既存文書で対応済み：docs/MANUAL_COMMAND.md、docs/SCHEDULED_EXECUTION.md）
 - [x] Androidサーバー端末側の起動手順を作成する（既存文書で対応済み：docs/TERMUX_SETUP.md）
 - [x] 通常運用手順を作成する（既存文書で対応済み：docs/LAN_ACCESS.md、docs/SCHEDULED_EXECUTION.md）
 - [x] 障害切り分け手順を作成する（既存文書で対応済み：docs/LAN_ACCESS.md、docs/ERROR_HANDLING.md）
-- [ ] バックアップ方法を決める
+- [x] バックアップ方法を決める（`docs/BACKUP_DESIGN.md`：Phase A仕様確定。実行機能は以下で追跡）
+- [ ] PC・Androidのrecoveryバックアップ機能を実装する
+  - [x] Phase A：対象・除外・Manifest・障害復帰・復元仕様を確定する
+  - [ ] Phase B：PC対象選択・ZIP検証・collector mutex統合を実装する
+  - [ ] Phase C：Android独立worker・停止再開・current Snapshot保存を実装する
+  - [ ] Phase D：SSH制御・共通ID・両端結果統合を実装する
+  - [ ] Phase E：週次タスク・非表示起動・手動実行を実装する
+  - [ ] Phase F：一時ディレクトリで復元検証し、運用手順・CHANGELOGを更新する
+- [ ] fullバックアップモードを追加する（recovery完了後の明示操作専用）
 - [ ] 古いJSONの削除方法を決める
 - [x] 古いログの削除方法を決める（既存文書で対応済み：docs/LOGGING.md：日次ローテーション・7世代保持）
 - [x] ディスク容量不足への対応を決める（既存文書で対応済み：docs/DATA_LIMITS.md、docs/UPDATE_POLICY.md：保存停止・既存データ維持・容量確保後再送）
