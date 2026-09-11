@@ -37,3 +37,5 @@
 Phase B：PC単体の対象選択・ZIP・verify・mutex統合と一時復元テストを完了。手順は[BACKUP_PC.md](BACKUP_PC.md)。上記の「ZIP作成は未実装」はPhase A時点の記録であり、現在はAndroidと両端統合以降が未実装。
 
 Phase C：Android独立worker・current Snapshot ZIP・停止再開を実装した。[手順と実機受入項目](BACKUP_ANDROID.md)を参照。両端統合と実Termux受入は未完了。
+
+Phase D：[SSH・共通ID・両端結果統合](BACKUP_PAIR.md)を実装。週次登録と統合復元・実機受入はE/Fで継続する。

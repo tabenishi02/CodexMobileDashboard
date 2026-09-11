@@ -267,7 +267,7 @@ def launch(request):
 def main(argv=None):
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest='command', required=True)
-    start = sub.add_parser('start')
+    start = sub.add_parser('start', aliases=['preflight'])
     start.add_argument('--backup-id', required=True)
     start.add_argument('--config', type=Path, required=True)
     start.add_argument('--output', type=Path, required=True)
@@ -316,7 +316,17 @@ def main(argv=None):
             request = dict(backup_id=args.backup_id, config=str(args.config.resolve()), output=str(args.output.resolve()),
                            ca=str(args.ca.resolve()), health_url=args.health_url, reserve=args.reserve,
                            boot=str(Path.home() / '.termux/boot'))
-            value = launch(request)
+            if args.command == 'preflight':
+                output = Path(request['output'])
+                output.mkdir(parents=True, exist_ok=True, mode=0o700)
+                if (output / args.backup_id).exists():
+                    raise BackupError('backup_id_exists')
+                plan = select_android(Path(request['config']), output, Path(request['boot']))
+                capacity(plan, output, request['reserve'])
+                ServerControl(request['config'], request['health_url'], request['ca']).running()
+                value = dict(backup_id=args.backup_id, state='ready')
+            else:
+                value = launch(request)
         print(json.dumps(value))
         return 0
     except Exception as error:
