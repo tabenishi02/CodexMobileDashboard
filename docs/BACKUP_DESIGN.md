@@ -1,6 +1,6 @@
 # バックアップ設計（Phase A）
 
-状態：Phase A仕様確定、Phase BのPC単体バックアップを実装済み。手順は[BACKUP_PC.md](BACKUP_PC.md)。Android・両端統合・週次登録・本番復元は未完了。段階実装C～Fと受入検証はTASKS.mdで追跡する。
+状態：Phase A仕様確定、Phase BのPC単体バックアップを実装済み。手順は[BACKUP_PC.md](BACKUP_PC.md)。Phase CのAndroid workerも実装済み（[BACKUP_ANDROID.md](BACKUP_ANDROID.md)）。両端統合・週次登録・本番復元は未完了。段階実装D～Fと受入検証はTASKS.mdで追跡する。
 
 ## 方針
 

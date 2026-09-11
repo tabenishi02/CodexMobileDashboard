@@ -174,7 +174,7 @@ def digest(path):
     return result.hexdigest()
 
 
-def verify_zip(path):
+def verify_zip(path, expected_side="PC"):
     try:
         with zipfile.ZipFile(path) as archive:
             names = archive.namelist()
@@ -187,13 +187,25 @@ def verify_zip(path):
                 if stat.S_ISLNK(info.external_attr >> 16):
                     raise BackupError('zip_path_invalid')
             manifest = json.loads(archive.read('manifest.json'))
-            if manifest['schema_version'] != 1 or not ID_PATTERN.fullmatch(manifest['backup_id']) or manifest['side'] != 'PC' or manifest['mode'] != 'recovery':
+            if manifest['schema_version'] != 1 or not ID_PATTERN.fullmatch(manifest['backup_id']) or manifest['side'] != expected_side or manifest['mode'] != 'recovery':
                 raise BackupError('manifest_invalid')
             listed = [f['path'] for f in manifest['files']]
             if len(listed) != len(set(listed)) or set(names) != set(listed) | {'manifest.json'}:
                 raise BackupError('manifest_invalid')
-            mandatory = {'backup_config', 'collector_config', 'token', 'ca'}
-            labels = {t['label'] for t in manifest['targets'] if t['present']}
+            if expected_side not in ('PC', 'Android'):
+                raise BackupError('manifest_invalid')
+            mandatory = ({'backup_config', 'collector_config', 'token', 'ca'} if expected_side == 'PC'
+                         else {'server_config', 'token', 'certificate', 'private_key'})
+            if expected_side == 'Android':
+                for workspace in manifest['workspaces']:
+                    wid, sid = workspace['workspace_id'], workspace['snapshot_id']
+                    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', wid) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', sid):
+                        raise BackupError('manifest_invalid')
+                    mandatory.update({f'current_{wid}', f'snapshot_{wid}'})
+                    current = json.loads(archive.read(f'payload/current_{wid}/current.json'))
+                    if current['snapshot_id'] != sid:
+                        raise BackupError('manifest_invalid')
+            labels = {t['label'] for t in manifest['targets'] if t['present'] and t['files']}
             if not mandatory <= labels:
                 raise BackupError('required_source_missing')
             target_files = [n for t in manifest['targets'] for n in t['files']]

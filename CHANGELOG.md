@@ -8,6 +8,8 @@
 
 ### Added
 
+- Phase CのAndroid独立バックアップworkerを追加。現在公開中Snapshotの検証付きZIP、正常停止・失敗時再起動、同一IDの重複抑止と状態照会に対応した。実Termux受入と両端統合は後続。
+
 - PC単体のrecoveryバックアップを追加した。collector mutexによる排他、設定に基づく対象選択、Manifest・SHA-256検証後のZIP公開、一時復元テストに対応する。Android・両端統合は後続実装。
 
 - 定期collectorをpythonwからコンソールなしで起動し、Git・Codex CLIの子プロセスも非表示で実行するよう変更した。
