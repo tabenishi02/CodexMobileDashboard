@@ -413,7 +413,7 @@
 - [ ] AndroidのSnapshot蓄積による容量不足を解消し、バックアップ実機受入を再開する（2026-09-14：data約86GB、staging約45GB、public約41GB、空き約0.9GB。バックアップはcapacity_insufficientで事前終了）
   - [x] PCの定期送信を一時停止し、実行中のcollector・再送・バックアップ処理が終了したことを確認する（2026-09-14：CollectorタスクをDisabled／Enabled=Falseに変更。PC関連プロセス0件、collector mutex取得可能、バックアップ定期タスク未登録を確認。容量整理完了まで無効状態を維持）
   - [x] 各workspaceのcurrent.jsonと参照先Snapshotを確認し、整理対象から除外する（2026-09-14：利用者のTermux実行結果で全8workspaceのcurrent.jsonと参照先Snapshotの存在を確認、PROTECT計16件・ERRORなし。各current.jsonと参照先Snapshot配下全体を保護対象とする。実際の候補抽出・削除処理は次項以降で実施し、直前にcurrentを再読込して保護対象を再検証する）
-  - [ ] 古いpublic Snapshotと公開完了を確認できるstagingについて、削除候補・件数・容量をdry-runで表示し、現在参照中・受信途中・再送に必要なデータが含まれないことを確認する
+  - [ ] 古いpublic Snapshotと公開完了を確認できるstagingについて、削除候補・件数・容量をdry-runで表示し、現在参照中・受信途中・再送に必要なデータが含まれないことを確認する（dry-runツール・保護判定テスト実装済み：docs/SNAPSHOT_CLEANUP.md。SSH鍵認証不可のため実機候補一覧の確認は未完了）
   - [ ] 確認済みの候補を、サーバーの更新処理と競合しない状態で整理し、必要な空き容量と現在の表示データの維持を確認する
   - [ ] 空き容量確保後、新しいBackup IDでAndroid単体バックアップを再実行し、ZIP検証・サーバー復旧を確認する
   - [ ] PCの定期送信を再開し、未送信キューの再送・HTTPS受信・スマホ表示が復旧することを確認する
