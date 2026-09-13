@@ -4,6 +4,39 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import sys
+import threading
+import time
+
+
+class Progress:
+    """Keep progress on stderr so stdout remains valid JSON."""
+    def __init__(self, interval=5):
+        self.interval = interval
+        self.stage = "starting"
+        self.started = time.monotonic()
+        self.stop = threading.Event()
+
+    def update(self, stage):
+        self.stage = stage
+
+    def emit(self):
+        print(f"[running {time.monotonic() - self.started:.0f}s] {self.stage}", file=sys.stderr, flush=True)
+
+    def run(self):
+        while not self.stop.wait(self.interval):
+            self.emit()
+
+    def __enter__(self):
+        self.emit()
+        self.thread = threading.Thread(target=self.run, daemon=True)
+        self.thread.start()
+        return self
+
+    def __exit__(self, *args):
+        self.stop.set()
+        self.thread.join()
+
 
 
 def identifier(value):
@@ -40,7 +73,7 @@ def _digest(stream):
     return h.hexdigest()
 
 
-def inspect(data, queue):
+def inspect(data, queue, progress=lambda stage: None):
     if queue['pending_snapshots'] != len(queue['items']):
         raise ValueError('queue_count_mismatch')
     pending = {(identifier(x['workspace_id']), identifier(x['snapshot_id'])) for x in queue['items']}
@@ -48,8 +81,10 @@ def inspect(data, queue):
     for path in (data, public, staging, staging / '.commits'):
         if path.is_symlink() or not path.is_dir():
             raise ValueError('unsafe_root')
+    progress('reading commit receipts')
     committed = set()
-    for receipt in (staging / '.commits').iterdir():
+    for count, receipt in enumerate((staging / '.commits').iterdir(), 1):
+        progress(f'reading commit receipts: {count}')
         if receipt.is_symlink() or not receipt.is_file():
             raise ValueError('invalid_receipt')
         item = json.loads(receipt.read_text())
@@ -59,6 +94,7 @@ def inspect(data, queue):
     report = dict(dry_run=True, candidates=[], protected=[], deferred=[], logical_bytes=0)
     currents = {}
     for workspace in sorted(public.iterdir()):
+        progress(f'checking current: {workspace.name}')
         wid = identifier(workspace.name)
         if workspace.is_symlink() or not workspace.is_dir():
             raise ValueError('unsafe_workspace')
@@ -78,6 +114,7 @@ def inspect(data, queue):
             if not base.exists():
                 continue
             for snapshot in sorted(base.iterdir()):
+                progress(f'checking {area}/{wid}/{snapshot.name}; candidates={len(report["candidates"])}')
                 key = (wid, snapshot.name)
                 row = dict(area=area, workspace=wid, snapshot_id=snapshot.name, path=str(snapshot))
                 if snapshot.name == sid or key in pending:
@@ -106,6 +143,7 @@ def inspect(data, queue):
     for entry in staging.iterdir():
         if entry.name not in {p.parent.name for p in currents}:
             report['deferred'].append(dict(path=str(entry), reason='receipt_or_unknown_workspace'))
+    progress('rechecking current pointers')
     if any(path.read_bytes() != raw for path, raw in currents.items()):
         raise ValueError('current_changed')
     report['candidate_count'] = len(report['candidates'])
@@ -120,11 +158,15 @@ def main():
                         help='Confirm all senders, server and backup workers are stopped')
     args = parser.parse_args()
     try:
-        report = inspect(args.data, json.loads(args.queue_status.read_text(encoding='utf-8-sig')))
+        with Progress() as progress:
+            progress.update('reading queue status')
+            report = inspect(args.data, json.loads(args.queue_status.read_text(encoding='utf-8-sig')), progress.update)
     except (OSError, ValueError, KeyError, TypeError) as error:
+        print(f'[failed] {type(error).__name__}: {error}', file=sys.stderr, flush=True)
         print(json.dumps(dict(dry_run=True, error=type(error).__name__, candidates=[])))
         return 1
     print(json.dumps(report, ensure_ascii=False, indent=2))
+    print(f'[completed] candidates={report["candidate_count"]} logical_bytes={report["logical_bytes"]}', file=sys.stderr, flush=True)
     return 0
 
 

@@ -2,7 +2,10 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from tools.snapshot_cleanup_inventory import inspect
+import io
+from contextlib import redirect_stderr, redirect_stdout
+from unittest.mock import patch
+from tools.snapshot_cleanup_inventory import inspect, main, Progress
 
 
 class InventoryTests(unittest.TestCase):
@@ -29,6 +32,24 @@ class InventoryTests(unittest.TestCase):
                          {('public', 'old'), ('staging', 'old')})
         self.assertEqual(result['logical_bytes'], 4)
         self.assertEqual(before, {str(p): p.read_bytes() for p in self.root.rglob('*') if p.is_file()})
+
+    def test_cli_progress_keeps_json_clean(self):
+        queue = self.root / 'queue.json'
+        queue.write_text(json.dumps(self.queue))
+        out, err = io.StringIO(), io.StringIO()
+        with patch('sys.argv', ['inventory', '--data', str(self.root), '--queue-status', str(queue), '--writers-stopped']), redirect_stdout(out), redirect_stderr(err):
+            self.assertEqual(main(), 0)
+        self.assertEqual(json.loads(out.getvalue())['candidate_count'], 2)
+        self.assertIn('[running', err.getvalue())
+        self.assertIn('[completed]', err.getvalue())
+
+    def test_heartbeat_shows_stage(self):
+        err = io.StringIO()
+        with redirect_stderr(err):
+            progress = Progress()
+            progress.update('checking public/w/old')
+            progress.emit()
+        self.assertIn('checking public/w/old', err.getvalue())
 
     def test_missing_current_fails(self):
         (self.root / 'public/w/current.json').write_text('{"snapshot_id":"missing"}')
