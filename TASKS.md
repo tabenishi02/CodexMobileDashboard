@@ -411,7 +411,7 @@
   - [ ] 実機受入：Termux SSH切断・両端復旧・実HTTPS再送・週次本番登録を確認する
 - [ ] fullバックアップモードを追加する（recovery完了後の明示操作専用）
 - [ ] AndroidのSnapshot蓄積による容量不足を解消し、バックアップ実機受入を再開する（2026-09-14：data約86GB、staging約45GB、public約41GB、空き約0.9GB。バックアップはcapacity_insufficientで事前終了）
-  - [ ] PCの定期送信を一時停止し、実行中のcollector・再送・バックアップ処理が終了したことを確認する
+  - [x] PCの定期送信を一時停止し、実行中のcollector・再送・バックアップ処理が終了したことを確認する（2026-09-14：CollectorタスクをDisabled／Enabled=Falseに変更。PC関連プロセス0件、collector mutex取得可能、バックアップ定期タスク未登録を確認。容量整理完了まで無効状態を維持）
   - [ ] 各workspaceのcurrent.jsonと参照先Snapshotを確認し、整理対象から除外する
   - [ ] 古いpublic Snapshotと公開完了を確認できるstagingについて、削除候補・件数・容量をdry-runで表示し、現在参照中・受信途中・再送に必要なデータが含まれないことを確認する
   - [ ] 確認済みの候補を、サーバーの更新処理と競合しない状態で整理し、必要な空き容量と現在の表示データの維持を確認する
