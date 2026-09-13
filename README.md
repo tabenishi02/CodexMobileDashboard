@@ -196,6 +196,8 @@ PC単体の復旧用ZIP作成は[PCバックアップ手順](docs/BACKUP_PC.md)�
 
 週次登録・非表示実行は[バックアップ定期実行](docs/BACKUP_SCHEDULE.md)を参照してください。
 
+検証付き一時展開とPC・Android復旧は[バックアップ復元手順](docs/BACKUP_RESTORE.md)を参照してください。
+
 ## セットアップ
 
 新規環境は[初回セットアップ手順](docs/INITIAL_SETUP.md)に従い、PC・Android・閲覧端末の準備から初回送信と自動起動まで確認します。

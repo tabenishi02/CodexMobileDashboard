@@ -54,7 +54,7 @@ Get-FileHash -Algorithm SHA256 -LiteralPath '<正式ZIPの絶対パス>'
 
 自動テストでは検証したZIPを新しい一時ディレクトリへ展開し、collector state、推論台帳、キューの既存ローダーで再読込して元データとの一致を確認する。Manifestのtargetsに元パスと論理パス、filesにサイズ・hash・modeがある。
 
-本番パスへの自動復元コマンドはまだ追加していない。Phase Fで[設計書](BACKUP_DESIGN.md)の停止・パスマッピング・片側復元の整合確認を含む手順を整備する。ZIPをそのまま実パスへ展開しない。PID/lockは復元しない。
+本番パスへの自動復元コマンドはまだ追加していない。[復元手順](BACKUP_RESTORE.md)で停止・パスマッピング・片側復元の整合確認を行う。ZIPをそのまま実パスへ展開しない。PID/lockは復元しない。
 
 ## 検証
 

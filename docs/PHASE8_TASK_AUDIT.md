@@ -41,3 +41,5 @@ Phase C：Android独立worker・current Snapshot ZIP・停止再開を実装し�
 Phase D：[SSH・共通ID・両端結果統合](BACKUP_PAIR.md)を実装。週次登録と統合復元・実機受入はE/Fで継続する。
 
 Phase E：[週次・非表示起動・手動実行](BACKUP_SCHEDULE.md)を実装し、一時タスクで検証。本番登録と復元受入は未実施。
+
+Phase F：[一時復元・運用手順](BACKUP_RESTORE.md)を追加し、PCのみ・Androidのみ・同一ID両端の復元を自動検証した。本番登録と実機受入は別の未完了項目として維持する。

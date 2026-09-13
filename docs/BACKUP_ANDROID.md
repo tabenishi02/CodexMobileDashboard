@@ -64,7 +64,7 @@ SIGKILL、Termux全体の終了、電源断ではfinallyは実行できない。
 python -m server.backup_worker verify "$HOME/CodexMobileDashboard/backups/CodexMobileDashboard-Android-20260911T010000Z-a31f82c4.zip"
 ```
 
-result.jsonのZIP SHA-256とも照合する。ZIP内Manifestのtargetsとfilesに元パス・論理パス・POSIX modeを保存する。一時ディレクトリへ展開し、current.jsonが示すSnapshotと内容を照合する。本番へは同じコミットと設定パスを用意し、停止中に手動で対応付けて復元する。鍵は600、bootスクリプトは記録した実行権に戻す。PID/lockを復元しない。統合復元手順はPhase Fの対象。
+result.jsonのZIP SHA-256とも照合する。ZIP内Manifestのtargetsとfilesに元パス・論理パス・POSIX modeを保存する。一時ディレクトリへ展開し、current.jsonが示すSnapshotと内容を照合する。本番へは同じコミットと設定パスを用意し、停止中に手動で対応付けて復元する。鍵は600、bootスクリプトは記録した実行権に戻す。PID/lockを復元しない。統合復元は[復元手順](BACKUP_RESTORE.md)を参照。
 
 Windows自動テストではcurrentのみの往復復元、容量・保存・停止・再開失敗、重複起動、独立起動の引数を検証する。実Termuxのflock・シグナル・SSH切断は次の手動受入で確認する。
 

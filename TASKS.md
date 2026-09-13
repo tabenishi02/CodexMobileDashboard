@@ -404,10 +404,11 @@
 - [ ] PC・Androidのrecoveryバックアップ機能を実装する
   - [x] Phase A：対象・除外・Manifest・障害復帰・復元仕様を確定する
   - [x] Phase B：PC対象選択・ZIP検証・collector mutex統合を実装する（`docs/BACKUP_PC.md`、一時復元・Windows mutex競合検証済み）
-  - [x] Phase C：Android独立worker・停止再開・current Snapshot保存を実装する（`docs/BACKUP_ANDROID.md`、実TermuxのSSH切断受入はPhase Fで確認）
+  - [x] Phase C：Android独立worker・停止再開・current Snapshot保存を実装する（`docs/BACKUP_ANDROID.md`、実TermuxのSSH切断は実機受入で確認）
   - [x] Phase D：SSH制御・共通ID・両端結果統合を実装する（`docs/BACKUP_PAIR.md`、通信断・片側失敗・復旧失敗検証済み）
   - [x] Phase E：週次タスク・非表示起動・手動実行を実装する（`docs/BACKUP_SCHEDULE.md`、専用一時タスクの登録・起動・解除検証済み）
-  - [ ] Phase F：一時ディレクトリで復元検証し、運用手順・CHANGELOGを更新する
+  - [x] Phase F：一時ディレクトリで復元検証し、運用手順・CHANGELOGを更新する（`docs/BACKUP_RESTORE.md`、PC・Android・両端の一時復元を検証）
+  - [ ] 実機受入：Termux SSH切断・両端復旧・実HTTPS再送・週次本番登録を確認する
 - [ ] fullバックアップモードを追加する（recovery完了後の明示操作専用）
 - [ ] 古いJSONの削除方法を決める
 - [x] 古いログの削除方法を決める（既存文書で対応済み：docs/LOGGING.md：日次ローテーション・7世代保持）
