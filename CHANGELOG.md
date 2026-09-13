@@ -8,6 +8,8 @@
 
 ### Added
 
+- Phase Eの週次バックアップタスク登録・状態確認・解除とpythonw非表示ランチャーを追加。手動CLIと同じ両端処理を実行し、collectorタスクは変更しない。
+
 - Phase DのSSHバックアップ統合を追加。collector mutex保持下で共通IDによる両端ZIP作成・終了照会・保存成功と復旧成功の個別判定を行う。起動応答喪失時は重複起動せず状態照会する。
 
 - Phase CのAndroid独立バックアップworkerを追加。現在公開中Snapshotの検証付きZIP、正常停止・失敗時再起動、同一IDの重複抑止と状態照会に対応した。実Termux受入と両端統合は後続。

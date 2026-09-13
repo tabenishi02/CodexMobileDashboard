@@ -39,3 +39,5 @@ Phase B：PC単体の対象選択・ZIP・verify・mutex統合と一時復元テ
 Phase C：Android独立worker・current Snapshot ZIP・停止再開を実装した。[手順と実機受入項目](BACKUP_ANDROID.md)を参照。両端統合と実Termux受入は未完了。
 
 Phase D：[SSH・共通ID・両端結果統合](BACKUP_PAIR.md)を実装。週次登録と統合復元・実機受入はE/Fで継続する。
+
+Phase E：[週次・非表示起動・手動実行](BACKUP_SCHEDULE.md)を実装し、一時タスクで検証。本番登録と復元受入は未実施。

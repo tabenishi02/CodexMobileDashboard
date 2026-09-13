@@ -13,7 +13,7 @@ git log --oneline -10
 
 続けて[`../TASKS.md`](../TASKS.md)のPhase 8、[`PHASE6_HANDOFF.md`](PHASE6_HANDOFF.md)、[`SCHEDULED_EXECUTION.md`](SCHEDULED_EXECUTION.md)を読む。実設定、Token、証明書、ログ、生成データは変更・コミットしない。
 
-Phase 8の既存成果を照合し、初回セットアップ手順を追加した。その後バックアップPhase A仕様を[BACKUP_DESIGN.md](BACKUP_DESIGN.md)へ確定した。Phase BのPC単体ZIP・検証・mutex統合は実装済み（[BACKUP_PC.md](BACKUP_PC.md)）。Phase CのAndroid workerも実装済み（[BACKUP_ANDROID.md](BACKUP_ANDROID.md)）。実機受入は未実施、Phase Dの[両端統合](BACKUP_PAIR.md)も実装済み。E/Fと本番受入は未完了で、全体完了ではない。残作業と判定根拠は[PHASE8_TASK_AUDIT.md](PHASE8_TASK_AUDIT.md)を参照する。
+Phase 8の既存成果を照合し、初回セットアップ手順を追加した。その後バックアップPhase A仕様を[BACKUP_DESIGN.md](BACKUP_DESIGN.md)へ確定した。Phase BのPC単体ZIP・検証・mutex統合は実装済み（[BACKUP_PC.md](BACKUP_PC.md)）。Phase CのAndroid workerも実装済み（[BACKUP_ANDROID.md](BACKUP_ANDROID.md)）。実機受入は未実施、Phase Dの[両端統合](BACKUP_PAIR.md)も実装済み。Phase Eの[週次・非表示実行](BACKUP_SCHEDULE.md)も実装済み。本番登録、Fと本番受入は未完了で、全体完了ではない。残作業と判定根拠は[PHASE8_TASK_AUDIT.md](PHASE8_TASK_AUDIT.md)を参照する。
 
 ## Phase 5完了状態
 

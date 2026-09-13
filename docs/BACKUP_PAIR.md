@@ -1,6 +1,6 @@
 # PC・Androidバックアップ統合（Phase D）
 
-PCがcollector mutexを保持し、SSHでAndroid workerを起動・照会する。PC/AndroidのZIPはそれぞれの端末へ保存し、転送・暗号化・自動削除は行わない。週次タスク登録はPhase Eで追加する。
+PCがcollector mutexを保持し、SSHでAndroid workerを起動・照会する。PC/AndroidのZIPはそれぞれの端末へ保存し、転送・暗号化・自動削除は行わない。週次タスク登録は[BACKUP_SCHEDULE.md](BACKUP_SCHEDULE.md)を参照する。
 
 ## 準備
 
