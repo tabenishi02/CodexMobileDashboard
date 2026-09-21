@@ -3,10 +3,11 @@ from contextlib import redirect_stdout
 import io
 import json
 import os
+import ssl
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 import zipfile
 
 from server import backup_worker as worker
@@ -63,6 +64,32 @@ class WorkerTests(unittest.TestCase):
         self.control.resume.assert_called_once()
         self.assertNotIn('DO-NOT-LOG', (self.job/'events.jsonl').read_text())
         self.assertFalse(list(self.output.glob('*.partial')))
+
+    def test_health_context_disables_python_314_strict_x509_only(self):
+        context = Mock(verify_flags=ssl.VERIFY_X509_STRICT | ssl.VERIFY_X509_TRUSTED_FIRST)
+        with patch.object(worker.ssl, 'create_default_context', return_value=context) as create:
+            self.assertIs(context, worker.health_context(self.root/'ca.crt'))
+        create.assert_called_once_with(cafile=str(self.root/'ca.crt'))
+        self.assertFalse(context.verify_flags & ssl.VERIFY_X509_STRICT)
+        self.assertTrue(context.verify_flags & ssl.VERIFY_X509_TRUSTED_FIRST)
+
+    def test_restore_server_signals_resets_worker_ignored_signals(self):
+        with (patch.object(worker.signal, 'SIGHUP', 1, create=True),
+              patch.object(worker.signal, 'signal') as set_signal):
+            worker.restore_server_signals()
+        set_signal.assert_has_calls([
+            call(worker.signal.SIGTERM, worker.signal.SIG_DFL),
+            call(1, worker.signal.SIG_DFL),
+        ])
+
+    def test_deployment_without_git_records_code_fingerprint(self):
+        with patch.object(worker.subprocess, 'check_output', side_effect=FileNotFoundError()):
+            result = self.run_worker()
+        self.assertEqual('success', result['android_result'])
+        manifest = verify_zip(self.output/result['zip_name'], expected_side='Android')
+        self.assertIsNone(manifest['git_commit'])
+        self.assertTrue(manifest['git_dirty'])
+        self.assertRegex(manifest['source_fingerprint'], r'^[0-9a-f]{64}$')
 
     def test_dotted_snapshot_id_matches_existing_server_contract(self):
         old = self.public/'workspace-1/snapshots/current'

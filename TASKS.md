@@ -415,7 +415,7 @@
   - [x] 各workspaceのcurrent.jsonと参照先Snapshotを確認し、整理対象から除外する（2026-09-14：利用者のTermux実行結果で全8workspaceのcurrent.jsonと参照先Snapshotの存在を確認、PROTECT計16件・ERRORなし。各current.jsonと参照先Snapshot配下全体を保護対象とする。実際の候補抽出・削除処理は次項以降で実施し、直前にcurrentを再読込して保護対象を再検証する）
   - [x] 古いpublic Snapshotと公開完了を確認できるstagingについて、削除候補・件数・容量をdry-runで表示し、現在参照中・受信途中・再送に必要なデータが含まれないことを確認する（2026-09-14：利用者提供の実機dry-run JSONを検証。public・staging各37,011件、合計74,022ディレクトリ・81,684,824,738論理bytes。8workspaceのcurrentとPC未送信1件の候補混入なし、受付記録2ディレクトリは保留。パス・対になる候補・集計の整合確認済み。削除は未実施、削除直前の再検証は次項で実施）
   - [x] 確認済みの候補を、サーバーの更新処理と競合しない状態で整理し、必要な空き容量と現在の表示データの維持を確認する（2026-09-22：PC送信・Androidサーバー・backup worker停止下で再検証し、確認済み74,022ディレクトリ・81,684,824,738論理bytesを整理。current 8件と未送信1件を保護し、空き容量795MBから79GB、使用率100%から28%へ回復。独立再起動後に全8workspaceのHTTPS health・current IDと実データJSONを確認）
-  - [ ] 空き容量確保後、新しいBackup IDでAndroid単体バックアップを再実行し、ZIP検証・サーバー復旧を確認する
+  - [x] 空き容量確保後、新しいBackup IDでAndroid単体バックアップを再実行し、ZIP検証・サーバー復旧を確認する（2026-09-22：Backup ID `20260921T233848Z-06d4112c`。Android結果・再起動結果ともsuccess、errorsなし。ZIP SHA-256 `ddada84d8bd4541ebcdb705f28ab905dfa0b7a7e0218e68a59ad8edc6f45f924`がresultと一致し、Manifest 8workspace・93ファイル、partial 0件。復旧後PID管理と全8workspaceのCA検証付きHTTPS health・current ID・metadata.jsonを確認）
   - [ ] PCの定期送信を再開し、未送信キューの再送・HTTPS受信・スマホ表示が復旧することを確認する
 - [ ] 古いJSONの削除方法を決める
   - [ ] public Snapshotの保存世代数・保持期間と、公開済み／未完了stagingの保持・削除条件を決める（current参照先は常に保護する）

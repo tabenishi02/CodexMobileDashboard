@@ -5,10 +5,12 @@ Android側のrecovery ZIP作成とサーバー停止・再開を実装した。P
 ## 実行条件
 
 - PCと同じコミットのリポジトリをAndroidの`~/CodexMobileDashboard/app`へ配置し、リポジトリルートから`python -m server.backup_worker`を使う。`tools/`も必要。
+- `.git`を含まない配布環境ではManifestの`git_commit`を`null`、`git_dirty`を`true`とし、バックアップ・停止復旧に関係する主要コード5ファイルの`source_fingerprint`を記録する。
 - collectorと再送を停止・待機済みで、バックアップ中に送信が発生しないこと。Phase Dまでは定期タスクを手動で一時停止するか、PC側のcollector mutexを保持する管理操作が必要。直接CLIのcollect/backfill/retryも実行しない。
 - `--collector-paused`は上記条件の確認を表す。AndroidからWindows mutexを検証・取得するものではない。
 - `start_server.sh`経由で起動したPIDを管理対象とする。別手段で起動してPIDがないサーバーでは使わない。手動でのサーバー起動操作も重ねない。
 - 設定・秘密ファイル・current Snapshotが読めること。health検証用に同じCA公開証明書をAndroidへ配置する。CA秘密鍵は転送しない。
+- Python 3.14の既定strict X.509検証で既存証明書のAuthority Key Identifier欠落が拒否されるため、workerのhealth確認はstrictフラグだけを解除する。CA署名・証明書名・期限の検証は維持する。
 
 ## 手動起動と状態照会
 
@@ -41,7 +43,7 @@ python -m server.backup_worker status \
 
 保存対象は実server.ini、設定が指すToken/証明書/秘密鍵、`~/.termux/boot`の通常ファイル、各workspaceのcurrent.jsonとその参照Snapshotだけ。古いSnapshot、staging、receipt、ログ、PID、lockを保存しない。保存先が必要なSnapshotと重なる場合は安全のため拒否する。
 
-元々起動中なら、停止・保存の失敗やSIGTERM/SIGHUPでもfinallyで起動を試みる。元々停止なら起動しない。再起動は既存start_server.shを独立セッションで起動し、CA検証ありのHTTPS healthとPID管理対象の稼働を確認する。wake lockは解放しない。
+元々起動中なら、停止・保存の失敗やSIGTERM/SIGHUPでもfinallyで起動を試みる。元々停止なら起動しない。再起動は既存start_server.shを独立セッションで起動し、CA検証ありのHTTPS healthとPID管理対象の稼働を確認する。wake lockは解放しない。workerが復旧中に無視するSIGTERM/SIGHUPは子プロセス起動直前に既定値へ戻し、復旧したserver.pyが次回の正常停止を受け付ける状態を維持する。
 
 SSH切断から独立するためstart_new_session、DEVNULL、pass_fdsによるflock引継ぎを使用する。ロックファイルは`~/.cache/codex-mobile-dashboard/backup.lock`。プロセス終了でOSロックが解放されるため、lockファイルを手動削除しない。
 
@@ -74,6 +76,6 @@ Windows自動テストではcurrentのみの往復復元、容量・保存・停
 4. 別のIDで容量不足、保存先書込不可、元々server停止のケースを確認する。正常ZIPを変更・削除しない。
 5. 検証・一時復元後にPC送信を再開し、次回の送信・画面更新を確認する。
 
-本実装時点ではTermux実機への配備・SSH切断受入は未実施。
+2026-09-22：Termux実機でAndroid単体recoveryバックアップを実行し、ZIP検証、resultとのSHA-256一致、8workspaceの保存、partial不在、サーバー再起動、全workspaceのCA検証付きHTTPS health・current ID・公開metadata.jsonを確認した。両端バックアップ、実HTTPS再送、週次本番登録は別の実機受入項目で追跡する。
 
 2026-09-11：Android worker・PCバックアップ・既存起動停止の関連40テスト成功。文書リンクとgit diff --checkも成功。実機状態には変更を加えていない。

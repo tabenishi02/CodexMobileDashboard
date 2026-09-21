@@ -1,5 +1,6 @@
 """Detached Termux recovery worker. Run as python -m server.backup_worker."""
 import argparse
+import hashlib
 from datetime import datetime, timezone
 import json
 import os
@@ -100,17 +101,36 @@ def capacity(plan, output, reserve):
         raise BackupError('capacity_insufficient')
 
 
+def source_metadata(root):
+    def git(*args):
+        return subprocess.check_output(
+            ['git', '-C', str(root), *args], stderr=subprocess.DEVNULL
+        ).decode().strip()
+
+    fingerprint = hashlib.sha256()
+    for relative in (
+        'server/backup_worker.py', 'server/server.py', 'server/start_server.sh',
+        'server/stop_server.sh', 'tools/backup.py',
+    ):
+        path = root / relative
+        fingerprint.update(relative.encode('utf-8') + b'\0')
+        fingerprint.update(digest(path).encode('ascii') + b'\n')
+    try:
+        return git('rev-parse', 'HEAD'), bool(git('status', '--porcelain')), fingerprint.hexdigest()
+    except (OSError, subprocess.CalledProcessError):
+        return None, True, fingerprint.hexdigest()
+
+
 def write_zip(plan, output, backup_id):
     final = output / f'CodexMobileDashboard-Android-{backup_id}.zip'
     partial = Path(str(final) + '.partial')
     if final.exists() or partial.exists():
         raise BackupError('backup_id_exists')
     root = Path(__file__).resolve().parent.parent
-    def git(*args):
-        return subprocess.check_output(['git', '-C', str(root), *args], stderr=subprocess.DEVNULL).decode().strip()
+    git_commit, git_dirty, source_fingerprint = source_metadata(root)
     manifest = dict(schema_version=1, backup_id=backup_id, side='Android', mode='recovery',
-                    created_at=datetime.now(timezone.utc).isoformat(), git_commit=git('rev-parse', 'HEAD'),
-                    git_dirty=bool(git('status', '--porcelain')), targets=plan['targets'],
+                    created_at=datetime.now(timezone.utc).isoformat(), git_commit=git_commit,
+                    git_dirty=git_dirty, source_fingerprint=source_fingerprint, targets=plan['targets'],
                     workspaces=plan['workspaces'], queue='PC backup owns queued deliveries',
                     excluded=['old_snapshots', 'staging', 'receipts', 'logs', 'pid', 'lock'], files=[])
     with zipfile.ZipFile(partial, 'x', compression=zipfile.ZIP_DEFLATED) as archive:
@@ -132,13 +152,26 @@ def write_zip(plan, output, backup_id):
     return dict(zip_name=final.name, zip_sha256=sha)
 
 
+def health_context(ca):
+    context = ssl.create_default_context(cafile=str(ca))
+    strict = getattr(ssl, 'VERIFY_X509_STRICT', 0)
+    if strict:
+        context.verify_flags &= ~strict
+    return context
+
+
+def restore_server_signals():
+    signal.signal(signal.SIGTERM, signal.SIG_DFL)
+    signal.signal(signal.SIGHUP, signal.SIG_DFL)
+
+
 class ServerControl:
     def __init__(self, config, health_url, ca):
         self.config = Path(config).resolve()
         self.scripts = Path(__file__).resolve().parent
         self.pid_file = Path.home() / '.cache/codex-mobile-dashboard/server.pid'
         self.health_url, self.ca = health_url, ca
-        ssl.create_default_context(cafile=str(ca))
+        health_context(ca)
 
     def running(self):
         if not self.pid_file.exists():
@@ -170,8 +203,9 @@ class ServerControl:
         if not self.running():
             subprocess.Popen([str(self.scripts / 'start_server.sh'), str(self.config)],
                              stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                             stderr=subprocess.DEVNULL, start_new_session=True, close_fds=True)
-        context = ssl.create_default_context(cafile=str(self.ca))
+                             stderr=subprocess.DEVNULL, start_new_session=True, close_fds=True,
+                             preexec_fn=restore_server_signals)
+        context = health_context(self.ca)
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPSHandler(context=context))
         for _ in range(20):
             try:
