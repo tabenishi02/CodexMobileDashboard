@@ -410,13 +410,13 @@
   - [x] Phase F：一時ディレクトリで復元検証し、運用手順・CHANGELOGを更新する（`docs/BACKUP_RESTORE.md`、PC・Android・両端の一時復元を検証）
   - [ ] 実機受入：Termux SSH切断・両端復旧・実HTTPS再送・週次本番登録を確認する
 - [ ] fullバックアップモードを追加する（recovery完了後の明示操作専用）
-- [ ] AndroidのSnapshot蓄積による容量不足を解消し、バックアップ実機受入を再開する（2026-09-14：data約86GB、staging約45GB、public約41GB、空き約0.9GB。バックアップはcapacity_insufficientで事前終了）
+- [x] AndroidのSnapshot蓄積による容量不足を解消し、バックアップ実機受入を再開する（2026-09-22完了：確認済みSnapshot整理後、空き79GB・使用率28%へ回復。Android単体recovery ZIPの検証・サーバー復旧、PC未送信キュー再送、定期HTTPS送信、スマホ実画面の正常表示まで確認）
   - [x] PCの定期送信を一時停止し、実行中のcollector・再送・バックアップ処理が終了したことを確認する（2026-09-14：CollectorタスクをDisabled／Enabled=Falseに変更。PC関連プロセス0件、collector mutex取得可能、バックアップ定期タスク未登録を確認。容量整理完了まで無効状態を維持）
   - [x] 各workspaceのcurrent.jsonと参照先Snapshotを確認し、整理対象から除外する（2026-09-14：利用者のTermux実行結果で全8workspaceのcurrent.jsonと参照先Snapshotの存在を確認、PROTECT計16件・ERRORなし。各current.jsonと参照先Snapshot配下全体を保護対象とする。実際の候補抽出・削除処理は次項以降で実施し、直前にcurrentを再読込して保護対象を再検証する）
   - [x] 古いpublic Snapshotと公開完了を確認できるstagingについて、削除候補・件数・容量をdry-runで表示し、現在参照中・受信途中・再送に必要なデータが含まれないことを確認する（2026-09-14：利用者提供の実機dry-run JSONを検証。public・staging各37,011件、合計74,022ディレクトリ・81,684,824,738論理bytes。8workspaceのcurrentとPC未送信1件の候補混入なし、受付記録2ディレクトリは保留。パス・対になる候補・集計の整合確認済み。削除は未実施、削除直前の再検証は次項で実施）
   - [x] 確認済みの候補を、サーバーの更新処理と競合しない状態で整理し、必要な空き容量と現在の表示データの維持を確認する（2026-09-22：PC送信・Androidサーバー・backup worker停止下で再検証し、確認済み74,022ディレクトリ・81,684,824,738論理bytesを整理。current 8件と未送信1件を保護し、空き容量795MBから79GB、使用率100%から28%へ回復。独立再起動後に全8workspaceのHTTPS health・current IDと実データJSONを確認）
   - [x] 空き容量確保後、新しいBackup IDでAndroid単体バックアップを再実行し、ZIP検証・サーバー復旧を確認する（2026-09-22：Backup ID `20260921T233848Z-06d4112c`。Android結果・再起動結果ともsuccess、errorsなし。ZIP SHA-256 `ddada84d8bd4541ebcdb705f28ab905dfa0b7a7e0218e68a59ad8edc6f45f924`がresultと一致し、Manifest 8workspace・93ファイル、partial 0件。復旧後PID管理と全8workspaceのCA検証付きHTTPS health・current ID・metadata.jsonを確認）
-  - [ ] PCの定期送信を再開し、未送信キューの再送・HTTPS受信・スマホ表示が復旧することを確認する（2026-09-22：定期タスクをEnabledへ戻し、容量不足で保持していたsequence 36932をcommit・ackしてキュー0件を確認。再開後に判明したmessage pageの1MiB超過は、各メッセージへ全履歴のファイル言及を重複格納しない修正で解消し、修正前SnapshotはSHA-256記録付きでqueue-quarantineへ保全。修正後の最大送信JSONは523,701 bytes、手動実行は終了コード0、Task Scheduler実行でも全workspaceをcommit・ack。CA検証付きHTTPSで全10workspaceのhealth・current ID・dashboard・metadata・messagesとclient HTMLを確認済み。スマホ実画面の確認待ち）
+  - [x] PCの定期送信を再開し、未送信キューの再送・HTTPS受信・スマホ表示が復旧することを確認する（2026-09-22：定期タスクをEnabledへ戻し、容量不足で保持していたsequence 36932をcommit・ackしてキュー0件を確認。再開後に判明したmessage pageの1MiB超過は、各メッセージへ全履歴のファイル言及を重複格納しない修正で解消し、修正前SnapshotはSHA-256記録付きでqueue-quarantineへ保全。修正後の最大送信JSONは523,701 bytes、手動実行は終了コード0、Task Scheduler実行でも全workspaceをcommit・ack。CA検証付きHTTPSで全10workspaceのhealth・current ID・dashboard・metadata・messagesとclient HTMLを確認し、利用者がスマホ実画面の正常表示を確認）
 - [ ] 古いJSONの削除方法を決める
   - [ ] public Snapshotの保存世代数・保持期間と、公開済み／未完了stagingの保持・削除条件を決める（current参照先は常に保護する）
   - [ ] .deliveries・.commitsの保持方針を、PCの未送信キューと再送時の重複判定への影響を確認して決める
