@@ -384,7 +384,9 @@ def _message_value(
         "duplicate_of": message.duplicate_of,
         "occurrence_count": message.occurrence_count,
         "removed_automatic_contexts": list(message.removed_automatic_contexts),
-        "file_references": [_file_reference_value(item) for item in references],
+        "file_references": [
+            _file_reference_value(item, message.message_id) for item in references
+        ],
     }
     if len(encode_json(value)) <= MESSAGE_CHUNK_MAX_BYTES:
         return value, {}
@@ -621,7 +623,15 @@ def _block_id(message_id: str, index: int) -> str:
     return "block_" + hashlib.sha256(source).hexdigest()
 
 
-def _file_reference_value(reference: ExtractedFileReference) -> Mapping[str, object]:
+def _file_reference_value(
+    reference: ExtractedFileReference,
+    message_id: str,
+) -> Mapping[str, object]:
+    mentions = tuple(
+        mention for mention in reference.mentions if mention.message_id == message_id
+    )
+    if not mentions:
+        raise ValueError("file_reference_message_mismatch")
     return {
         "reference_id": reference.reference_id,
         "scope": reference.scope,
@@ -629,9 +639,9 @@ def _file_reference_value(reference: ExtractedFileReference) -> Mapping[str, obj
         "display_name": reference.display_name,
         "extension": reference.extension,
         "kind": reference.kind,
-        "mention_count": reference.mention_count,
-        "source_session_ids": list(reference.source_session_ids),
-        "source_message_ids": list(reference.source_message_ids),
+        "mention_count": len(mentions),
+        "source_session_ids": list(dict.fromkeys(item.session_id for item in mentions)),
+        "source_message_ids": [message_id],
         "mentions": [
             {
                 "session_id": mention.session_id,
@@ -640,7 +650,7 @@ def _file_reference_value(reference: ExtractedFileReference) -> Mapping[str, obj
                 "column": mention.column,
                 "origin": mention.origin,
             }
-            for mention in reference.mentions
+            for mention in mentions
         ],
     }
 

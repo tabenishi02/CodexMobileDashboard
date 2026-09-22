@@ -19,7 +19,11 @@ from tools.chat_extractor import (
 )
 from tools.decision_extractor import DecisionExtractionResult, ExtractedDecision
 from tools.error_extractor import ErrorExtractionResult, ExtractedDevelopmentError
-from tools.file_reference_extractor import FileReferenceExtractionResult
+from tools.file_reference_extractor import (
+    ExtractedFileReference,
+    FileReferenceExtractionResult,
+    FileReferenceMention,
+)
 from tools.git_change_collector import (
     GitCollectionResult,
     GitFileChange,
@@ -31,6 +35,7 @@ from tools.json_converter import (
     CollectorMetadata,
     JsonContext,
     MESSAGE_CHUNK_MAX_BYTES,
+    PAGE_MAX_BYTES,
     ProjectPresentation,
     UnsafeJsonInputError,
     build_json_snapshot,
@@ -184,6 +189,7 @@ class JsonConverterTests(unittest.TestCase):
         content_is_masked: bool = True,
         phase: Optional[str] = "Phase 3",
         errors=None,
+        file_references=(),
     ):
         source_messages = tuple(messages) if messages is not None else self.messages
         work = CurrentWorkStatus(
@@ -237,7 +243,7 @@ class JsonConverterTests(unittest.TestCase):
                 ),
                 tuple(),
             ),
-            FileReferenceExtractionResult(tuple(), tuple()),
+            FileReferenceExtractionResult(tuple(file_references), tuple()),
             git_result(),
             ChangeSummaryGenerationResult(
                 (summary(rolled_back=rolled_back),), tuple(), tuple(), 0
@@ -406,6 +412,45 @@ class JsonConverterTests(unittest.TestCase):
         self.assertTrue(
             {value["path"] for value in content["chunks"]} <= metadata_paths
         )
+
+    def test_message_pages_include_only_that_messages_file_reference_mentions(self) -> None:
+        message_ids = tuple(f"msg-{value}" for value in range(1, 202))
+        mentions = tuple(
+            FileReferenceMention("session-1", message_id, value, None, "plain_text")
+            for value, message_id in enumerate(message_ids, start=1)
+        )
+        references = tuple(
+            ExtractedFileReference(
+                reference_id=f"reference-{index}",
+                scope="workspace",
+                path=f"src/file-{index}.py",
+                display_name=f"file-{index}.py",
+                extension=".py",
+                kind="file",
+                mention_count=len(mentions),
+                source_session_ids=("session-1",),
+                source_message_ids=message_ids,
+                mentions=mentions,
+            )
+            for index in range(60)
+        )
+
+        snapshot = self.build(file_references=references)
+        page = snapshot.document("messages/pages/page-000001.json")
+
+        self.assertLessEqual(
+            len(snapshot.encoded("messages/pages/page-000001.json")), PAGE_MAX_BYTES
+        )
+        for value in page["messages"]:
+            for reference in value["file_references"]:
+                self.assertEqual(1, reference["mention_count"])
+                self.assertEqual(
+                    [value["message_id"]], reference["source_message_ids"]
+                )
+                self.assertEqual(
+                    [value["message_id"]],
+                    [mention["message_id"] for mention in reference["mentions"]],
+                )
 
     def test_preserves_code_block_metadata_across_chunks(self) -> None:
         code = "print('🙂')\n" * 30_000
