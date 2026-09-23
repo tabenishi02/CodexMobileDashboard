@@ -11,6 +11,7 @@ config/*.ini
 
 # Runtime data
 logs/
+tmp/
 data/*.json
 data/*.tmp
 data/runtime/

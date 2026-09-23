@@ -1,4 +1,4 @@
-﻿# Snapshot整理のdry-run
+# Snapshot整理のdry-run
 
 `tools/snapshot_cleanup_inventory.py`は読み取り専用で、削除機能はない。
 
@@ -14,20 +14,22 @@ if ($LASTEXITCODE -ne 0) { throw 'queue-status failed' }
 [IO.File]::WriteAllText("$PWD/tmp/cleanup-queue-status.json", ($queue -join "`n"), (New-Object Text.UTF8Encoding($false)))
 ```
 
-このJSONと`tools/snapshot_cleanup_inventory.py`をAndroidの`$HOME`へ転送する。実設定・Tokenの転送は不要。複数PCから送信する場合は全送信元のキューを同形式で集約するまで実施しない。
+このJSONと`tools/snapshot_cleanup_inventory.py`をAndroidの`$HOME/CodexMobileDashboard/app/tools`へ転送する。実設定・Tokenの転送は不要。複数PCから送信する場合は全送信元のキューを同形式で集約するまで実施しない。
 
-Termuxで実行する。
+Termuxで実行する。指定ディレクトリが存在し、スクリプトとキューJSONを配置済みであることを確認する。
+
+開始時と5秒ごとに`[running 経過秒数] 処理段階`を標準エラーへ表示する。通常の`>`リダイレクトでも画面に表示され、結果JSONには混入しない。成功時は`[completed]`、失敗時は`[failed]`を表示する。同じ段階の表示が続く場合は大きな処理やI/O待ちの可能性があり、表示の継続だけで処理が前進しているとは断定できない。既に実行中の旧版には反映されないため、必要ならCtrl+Cで旧版を中断し、更新版で再実行する。中断した結果JSONは使用しない。
 
 ```sh
-python "$HOME/snapshot_cleanup_inventory.py" \
+python "$HOME/CodexMobileDashboard/app/tools/snapshot_cleanup_inventory.py" \
   --data "$HOME/CodexMobileDashboard/data" \
-  --queue-status "$HOME/cleanup-queue-status.json" \
-  --writers-stopped > "$HOME/cleanup-dry-run.json"
+  --queue-status "$HOME/CodexMobileDashboard/app/tools/cleanup-queue-status.json" \
+  --writers-stopped > "$HOME/CodexMobileDashboard/app/tools/cleanup-dry-run.json"
 echo "dry_run_exit=$?"
 python - <<'PY'
 import json
 from pathlib import Path
-r = json.loads((Path.home() / 'cleanup-dry-run.json').read_text())
+r = json.loads((Path.home() / 'CodexMobileDashboard/app/tools/cleanup-dry-run.json').read_text())
 print({k: r.get(k) for k in ('error', 'candidate_count', 'logical_bytes')})
 print('protected:', len(r.get('protected', [])))
 print('deferred:', len(r.get('deferred', [])))
