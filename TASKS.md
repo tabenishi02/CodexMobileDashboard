@@ -410,6 +410,7 @@
   - [x] Phase D：SSH制御・共通ID・両端結果統合を実装する（`docs/BACKUP_PAIR.md`）
   - [x] Phase E：週次タスク・非表示起動・手動実行を実装する（`docs/BACKUP_SCHEDULE.md`）
   - [x] Phase F：検証付き一時復元と運用手順を実装する（`docs/BACKUP_RESTORE.md`）
+- [x] PC送信Tokenを正規設計の`secrets`へ統一する（2026-09-28：実設定を移行し、旧`certificates`配置を削除。新配置で実HTTPS認証を通過し、PCバックアップがTokenを`secrets`から1件だけ選ぶことを確認）
 - [x] AndroidのSnapshot蓄積による容量不足を緊急整理し、通常運用とバックアップ受入を再開する（2026-09-22：current・未送信データを保護して確認済み候補を整理し、空き容量を回復。Android単体recovery ZIP検証、サーバー復旧、PCキュー再送、定期HTTPS送信、スマホ表示まで確認。継続的な保持・自動整理は残タスク）
 - [x] 古いログの削除方法を決める（既存文書で対応済み：docs/LOGGING.md：日次ローテーション・7世代保持）
 - [x] ディスク容量不足への対応を決める（既存文書で対応済み：docs/DATA_LIMITS.md、docs/UPDATE_POLICY.md：保存停止・既存データ維持・容量確保後再送）
@@ -419,8 +420,7 @@
 
 ### 残タスク（実施順）
 
-1. [ ] PC送信Tokenを正規設計の`secrets`へ統一し、実設定・設定例・文書・バックアップ対象を整合させる（2026-09-27確認：実設定は`certificates`、設定例と文書は`secrets`）
-2. [ ] recoveryバックアップの実機受入を完了する
+1. [ ] recoveryバックアップの実機受入を完了する
    - [x] Android単体でrecovery ZIP作成・検証、サーバー再起動、HTTPS healthを確認する（2026-09-22完了）
    - [x] 容量復旧後にPC未送信キューの実HTTPS再送・commit・定期送信・スマホ表示を確認する（2026-09-22完了）
    - [ ] 手動の両端recoveryを同じBackup IDで実行し、`pair_state=complete`・`recovery_state=restored`・両ZIPの検証付き一時展開を確認する
@@ -428,19 +428,19 @@
    - [ ] PC保存失敗・Android保存失敗・容量不足の各ケースで通常運用へ復帰し、正常な既存ZIPを維持することを確認する
    - [ ] 別の一時復旧環境で両端復旧後の実HTTPS再送・commit・閲覧・推論台帳再利用を確認する
    - [ ] 本番週次バックアップタスクを登録・手動実行し、PC再起動後の有効状態・次回予定・正常実行を確認する（2026-09-27時点では未登録）
-3. [ ] 古いJSONの保持・削除方針を決める（実際の自動削除はfullバックアップの初回成功後に行う）
+2. [ ] 古いJSONの保持・削除方針を決める（実際の自動削除はfullバックアップの初回成功後に行う）
    - [ ] public Snapshotの保存世代数・保持期間と、公開済み／未完了stagingの保持・削除条件を決める（current参照先は常に保護する）
    - [ ] `.deliveries`・`.commits`の保持方針を、PC未送信キューと再送時の重複判定への影響を確認して決める
    - [ ] recovery・fullの対象範囲、復元可能期間、必要空き容量との関係を文書化する
-4. [ ] fullバックアップモードを追加する（recovery実機受入と保持方針確定後の明示操作専用）
+3. [ ] fullバックアップモードを追加する（recovery実機受入と保持方針確定後の明示操作専用）
    - [ ] PC・Androidのfull対象を確定し、Androidの全公開世代・staging・受付履歴を保存する
    - [ ] `--mode full`の明示操作、容量事前確認、排他、Manifest・ZIP検証、一時復元を実装・テストする（通常・週次recoveryから暗黙起動しない）
    - [ ] 自動整理を有効にする前に、実機で最初の両端fullバックアップと検証付き一時展開を成功させる
-5. [ ] 保持方針に基づく古いJSONの自動整理を実装・運用確認する
+4. [ ] 保持方針に基づく古いJSONの自動整理を実装・運用確認する
    - [ ] 受信・公開・recovery/fullバックアップとの排他、削除範囲の再検証、dry-runに対応する
    - [ ] current・受信途中・未送信／再送データの保護、同時更新、整理失敗時の安全性をテストし、運用手順を文書化する
    - [ ] 実機で定期送信と整理を継続実行し、容量増加が抑えられ、受信・表示・バックアップが維持されることを確認する
-6. [ ] 未記載の完了内容を`CHANGELOG.md`の`Unreleased`へ反映する（Termux wake lock、Phase 7追加テスト、容量復旧・Snapshot整理、大容量message page修正、実機バックアップ受入結果）
+5. [ ] 未記載の完了内容を`CHANGELOG.md`の`Unreleased`へ反映する（Termux wake lock、Phase 7追加テスト、容量復旧・Snapshot整理、大容量message page修正、実機バックアップ受入結果）
 
 ## Phase 9：外部アクセス
 

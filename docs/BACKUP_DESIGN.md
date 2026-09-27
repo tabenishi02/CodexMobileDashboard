@@ -26,7 +26,7 @@ Windowsを起点に同じBackup IDでPC・AndroidそれぞれのローカルZIP�
 | --- | --- | --- |
 | collector設定 | 実行時指定のcollector.ini | 必須 |
 | backup設定 | バックアップ実行用の外部設定 | 必須 |
-| Token | sender.token_file | 必須。certificates配置の既存環境も設定値どおり |
+| Token | sender.token_file | 必須。PC正規配置は`%LOCALAPPDATA%/CodexMobileDashboard/secrets/sender.token`。実collector設定から選択 |
 | CA公開証明書 | sender.ca_file | 必須 |
 | TLS発行資材 | バックアップ設定の明示的なtls_sources | CA鍵、サーバー鍵、CRT、CSR、serial、拡張設定。存在・不要を明示 |
 | collector状態 | storage.state_file | 存在時必須 |
