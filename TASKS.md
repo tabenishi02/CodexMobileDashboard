@@ -393,43 +393,54 @@
 
 ## Phase 8：運用・保守
 
-2026-09-10の既存成果照合後、初回セットアップとバックアップ方式の仕様を確定した。バックアップ実行機能はPhase A～Fで分割追跡する。判定根拠は`docs/PHASE8_TASK_AUDIT.md`を参照。
+2026-09-27に実装・文書・実機記録を再照合した。完了済みの機能や緊急容量復旧は再実施せず、残タスクは依存関係順に進める。判定根拠は`docs/PHASE8_TASK_AUDIT.md`を参照。
+
+### 完了済み
 
 - [x] 初回セットアップ手順を作成する（`docs/INITIAL_SETUP.md`：PC・TLS・Android・初回送信・閲覧・自動起動）
 - [x] 作業PC側の起動手順を作成する（既存文書で対応済み：docs/MANUAL_COMMAND.md、docs/SCHEDULED_EXECUTION.md）
 - [x] Androidサーバー端末側の起動手順を作成する（既存文書で対応済み：docs/TERMUX_SETUP.md）
 - [x] 通常運用手順を作成する（既存文書で対応済み：docs/LAN_ACCESS.md、docs/SCHEDULED_EXECUTION.md）
 - [x] 障害切り分け手順を作成する（既存文書で対応済み：docs/LAN_ACCESS.md、docs/ERROR_HANDLING.md）
-- [x] バックアップ方法を決める（`docs/BACKUP_DESIGN.md`：Phase A仕様確定。実行機能は以下で追跡）
-- [ ] PC・Androidのrecoveryバックアップ機能を実装する
+- [x] バックアップ方法を決める（`docs/BACKUP_DESIGN.md`：Phase A仕様確定）
+- [x] PC・Androidのrecoveryバックアップ機能を実装する（Phase A～Fのコード・自動テスト・一時復元・運用手順まで完了。実機受入は残タスクで別途追跡）
   - [x] Phase A：対象・除外・Manifest・障害復帰・復元仕様を確定する
-  - [x] Phase B：PC対象選択・ZIP検証・collector mutex統合を実装する（`docs/BACKUP_PC.md`、一時復元・Windows mutex競合検証済み）
-  - [x] Phase C：Android独立worker・停止再開・current Snapshot保存を実装する（`docs/BACKUP_ANDROID.md`、実TermuxのSSH切断は実機受入で確認）
-  - [x] Phase D：SSH制御・共通ID・両端結果統合を実装する（`docs/BACKUP_PAIR.md`、通信断・片側失敗・復旧失敗検証済み）
-  - [x] Phase E：週次タスク・非表示起動・手動実行を実装する（`docs/BACKUP_SCHEDULE.md`、専用一時タスクの登録・起動・解除検証済み）
-  - [x] Phase F：一時ディレクトリで復元検証し、運用手順・CHANGELOGを更新する（`docs/BACKUP_RESTORE.md`、PC・Android・両端の一時復元を検証）
-  - [ ] 実機受入：Termux SSH切断・両端復旧・実HTTPS再送・週次本番登録を確認する
-- [ ] fullバックアップモードを追加する（recovery完了後の明示操作専用）
-- [x] AndroidのSnapshot蓄積による容量不足を解消し、バックアップ実機受入を再開する（2026-09-22完了：確認済みSnapshot整理後、空き79GB・使用率28%へ回復。Android単体recovery ZIPの検証・サーバー復旧、PC未送信キュー再送、定期HTTPS送信、スマホ実画面の正常表示まで確認）
-  - [x] PCの定期送信を一時停止し、実行中のcollector・再送・バックアップ処理が終了したことを確認する（2026-09-14：CollectorタスクをDisabled／Enabled=Falseに変更。PC関連プロセス0件、collector mutex取得可能、バックアップ定期タスク未登録を確認。容量整理完了まで無効状態を維持）
-  - [x] 各workspaceのcurrent.jsonと参照先Snapshotを確認し、整理対象から除外する（2026-09-14：利用者のTermux実行結果で全8workspaceのcurrent.jsonと参照先Snapshotの存在を確認、PROTECT計16件・ERRORなし。各current.jsonと参照先Snapshot配下全体を保護対象とする。実際の候補抽出・削除処理は次項以降で実施し、直前にcurrentを再読込して保護対象を再検証する）
-  - [x] 古いpublic Snapshotと公開完了を確認できるstagingについて、削除候補・件数・容量をdry-runで表示し、現在参照中・受信途中・再送に必要なデータが含まれないことを確認する（2026-09-14：利用者提供の実機dry-run JSONを検証。public・staging各37,011件、合計74,022ディレクトリ・81,684,824,738論理bytes。8workspaceのcurrentとPC未送信1件の候補混入なし、受付記録2ディレクトリは保留。パス・対になる候補・集計の整合確認済み。削除は未実施、削除直前の再検証は次項で実施）
-  - [x] 確認済みの候補を、サーバーの更新処理と競合しない状態で整理し、必要な空き容量と現在の表示データの維持を確認する（2026-09-22：PC送信・Androidサーバー・backup worker停止下で再検証し、確認済み74,022ディレクトリ・81,684,824,738論理bytesを整理。current 8件と未送信1件を保護し、空き容量795MBから79GB、使用率100%から28%へ回復。独立再起動後に全8workspaceのHTTPS health・current IDと実データJSONを確認）
-  - [x] 空き容量確保後、新しいBackup IDでAndroid単体バックアップを再実行し、ZIP検証・サーバー復旧を確認する（2026-09-22：Backup ID `20260921T233848Z-06d4112c`。Android結果・再起動結果ともsuccess、errorsなし。ZIP SHA-256 `ddada84d8bd4541ebcdb705f28ab905dfa0b7a7e0218e68a59ad8edc6f45f924`がresultと一致し、Manifest 8workspace・93ファイル、partial 0件。復旧後PID管理と全8workspaceのCA検証付きHTTPS health・current ID・metadata.jsonを確認）
-  - [x] PCの定期送信を再開し、未送信キューの再送・HTTPS受信・スマホ表示が復旧することを確認する（2026-09-22：定期タスクをEnabledへ戻し、容量不足で保持していたsequence 36932をcommit・ackしてキュー0件を確認。再開後に判明したmessage pageの1MiB超過は、各メッセージへ全履歴のファイル言及を重複格納しない修正で解消し、修正前SnapshotはSHA-256記録付きでqueue-quarantineへ保全。修正後の最大送信JSONは523,701 bytes、手動実行は終了コード0、Task Scheduler実行でも全workspaceをcommit・ack。CA検証付きHTTPSで全10workspaceのhealth・current ID・dashboard・metadata・messagesとclient HTMLを確認し、利用者がスマホ実画面の正常表示を確認）
-- [ ] 古いJSONの削除方法を決める
-  - [ ] public Snapshotの保存世代数・保持期間と、公開済み／未完了stagingの保持・削除条件を決める（current参照先は常に保護する）
-  - [ ] .deliveries・.commitsの保持方針を、PCの未送信キューと再送時の重複判定への影響を確認して決める
-  - [ ] 保持方針に基づく自動整理を実装し、受信・公開・バックアップとの排他、削除範囲の検証、dry-runに対応する
-  - [ ] current保護・受信途中／再送データの保護・同時更新・整理失敗時の安全性をテストし、運用手順を文書化する
-  - [ ] 実機で定期送信と整理を継続実行し、容量の増加が抑えられ、受信・表示・バックアップが維持されることを確認する
+  - [x] Phase B：PC対象選択・ZIP検証・collector mutex統合を実装する（`docs/BACKUP_PC.md`）
+  - [x] Phase C：Android独立worker・停止再開・current Snapshot保存を実装する（`docs/BACKUP_ANDROID.md`）
+  - [x] Phase D：SSH制御・共通ID・両端結果統合を実装する（`docs/BACKUP_PAIR.md`）
+  - [x] Phase E：週次タスク・非表示起動・手動実行を実装する（`docs/BACKUP_SCHEDULE.md`）
+  - [x] Phase F：検証付き一時復元と運用手順を実装する（`docs/BACKUP_RESTORE.md`）
+- [x] AndroidのSnapshot蓄積による容量不足を緊急整理し、通常運用とバックアップ受入を再開する（2026-09-22：current・未送信データを保護して確認済み候補を整理し、空き容量を回復。Android単体recovery ZIP検証、サーバー復旧、PCキュー再送、定期HTTPS送信、スマホ表示まで確認。継続的な保持・自動整理は残タスク）
 - [x] 古いログの削除方法を決める（既存文書で対応済み：docs/LOGGING.md：日次ローテーション・7世代保持）
 - [x] ディスク容量不足への対応を決める（既存文書で対応済み：docs/DATA_LIMITS.md、docs/UPDATE_POLICY.md：保存停止・既存データ維持・容量確保後再送）
 - [x] 認証トークン更新手順を作成する（既存文書で対応済み：docs/CONFIGURATION.md：新旧Tokenの認証確認まで規定）
-- [ ] PC送信Tokenの実配置（`certificates`）と正規設計（`secrets`）をどちらへ統一するか決め、実設定・設定例・文書を整合させる
 - [x] データ形式変更時の互換性ルールを決める（既存文書で対応済み：docs/DATA_SCHEMA.md：スキーマ互換性）
-- [ ] 変更内容を`CHANGELOG.md`へ記録する
 - [x] バージョン番号の付け方を決める（既存文書で対応済み：CHANGELOG.md：Semantic Versioning、初回リリース前はUnreleased）
+
+### 残タスク（実施順）
+
+1. [ ] PC送信Tokenを正規設計の`secrets`へ統一し、実設定・設定例・文書・バックアップ対象を整合させる（2026-09-27確認：実設定は`certificates`、設定例と文書は`secrets`）
+2. [ ] recoveryバックアップの実機受入を完了する
+   - [x] Android単体でrecovery ZIP作成・検証、サーバー再起動、HTTPS healthを確認する（2026-09-22完了）
+   - [x] 容量復旧後にPC未送信キューの実HTTPS再送・commit・定期送信・スマホ表示を確認する（2026-09-22完了）
+   - [ ] 手動の両端recoveryを同じBackup IDで実行し、`pair_state=complete`・`recovery_state=restored`・両ZIPの検証付き一時展開を確認する
+   - [ ] SSH切断後もAndroid workerが完走・サーバー再起動し、再接続後に同じBackup IDを照会できることを確認する
+   - [ ] PC保存失敗・Android保存失敗・容量不足の各ケースで通常運用へ復帰し、正常な既存ZIPを維持することを確認する
+   - [ ] 別の一時復旧環境で両端復旧後の実HTTPS再送・commit・閲覧・推論台帳再利用を確認する
+   - [ ] 本番週次バックアップタスクを登録・手動実行し、PC再起動後の有効状態・次回予定・正常実行を確認する（2026-09-27時点では未登録）
+3. [ ] 古いJSONの保持・削除方針を決める（実際の自動削除はfullバックアップの初回成功後に行う）
+   - [ ] public Snapshotの保存世代数・保持期間と、公開済み／未完了stagingの保持・削除条件を決める（current参照先は常に保護する）
+   - [ ] `.deliveries`・`.commits`の保持方針を、PC未送信キューと再送時の重複判定への影響を確認して決める
+   - [ ] recovery・fullの対象範囲、復元可能期間、必要空き容量との関係を文書化する
+4. [ ] fullバックアップモードを追加する（recovery実機受入と保持方針確定後の明示操作専用）
+   - [ ] PC・Androidのfull対象を確定し、Androidの全公開世代・staging・受付履歴を保存する
+   - [ ] `--mode full`の明示操作、容量事前確認、排他、Manifest・ZIP検証、一時復元を実装・テストする（通常・週次recoveryから暗黙起動しない）
+   - [ ] 自動整理を有効にする前に、実機で最初の両端fullバックアップと検証付き一時展開を成功させる
+5. [ ] 保持方針に基づく古いJSONの自動整理を実装・運用確認する
+   - [ ] 受信・公開・recovery/fullバックアップとの排他、削除範囲の再検証、dry-runに対応する
+   - [ ] current・受信途中・未送信／再送データの保護、同時更新、整理失敗時の安全性をテストし、運用手順を文書化する
+   - [ ] 実機で定期送信と整理を継続実行し、容量増加が抑えられ、受信・表示・バックアップが維持されることを確認する
+6. [ ] 未記載の完了内容を`CHANGELOG.md`の`Unreleased`へ反映する（Termux wake lock、Phase 7追加テスト、容量復旧・Snapshot整理、大容量message page修正、実機バックアップ受入結果）
 
 ## Phase 9：外部アクセス
 
