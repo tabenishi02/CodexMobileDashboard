@@ -91,6 +91,8 @@ def apply_cleanup(data, queue, approved, progress=lambda stage: None):
         ):
             raise RuntimeError("candidate_content_changed")
         progress(f'deleting {removed + 1}/{len(candidates)}: {item["area"]}/{item["workspace"]}/{item["snapshot_id"]}')
+        if any(path.read_bytes() != body for path, body in current_bytes.items()):
+            raise RuntimeError("current_changed_during_cleanup")
         shutil.rmtree(target)
         removed += 1
         removed_bytes += item["logical_bytes"]

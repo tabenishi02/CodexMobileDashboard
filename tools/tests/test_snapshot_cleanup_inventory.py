@@ -33,6 +33,39 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(result['logical_bytes'], 4)
         self.assertEqual(before, {str(p): p.read_bytes() for p in self.root.rglob('*') if p.is_file()})
 
+    def test_current_and_retry_queue_are_protected_in_both_areas(self):
+        result = inspect(self.root, self.queue)
+        protected = {(item["area"], item["snapshot_id"])
+                     for item in result["protected"] if "area" in item}
+        self.assertIn(("public", "current"), protected)
+        self.assertIn(("staging", "current"), protected)
+        self.assertIn(("public", "pending"), protected)
+        self.assertIn(("staging", "pending"), protected)
+
+    def test_receive_in_progress_without_commit_is_deferred(self):
+        receiving = self.root / "staging/w/receiving"
+        receiving.mkdir()
+        (receiving / "data.json").write_text('{"partial":true}')
+        result = inspect(self.root, self.queue)
+        self.assertNotIn("receiving", {item["snapshot_id"] for item in result["candidates"]})
+        self.assertIn(
+            ("staging", "receiving", "commit_not_confirmed"),
+            {(item.get("area"), item.get("snapshot_id"), item["reason"]) for item in result["deferred"]},
+        )
+        self.assertTrue(receiving.is_dir())
+
+    def test_current_change_during_inventory_aborts(self):
+        current = self.root / "public/w/current.json"
+
+        def change_at_recheck(stage):
+            if stage == "rechecking current pointers":
+                current.write_text('{"snapshot_id":"old"}')
+
+        with self.assertRaisesRegex(ValueError, "current_changed"):
+            inspect(self.root, self.queue, change_at_recheck)
+        self.assertTrue((self.root / "public/w/snapshots/current").is_dir())
+        self.assertTrue((self.root / "public/w/snapshots/old").is_dir())
+
     def test_cli_progress_keeps_json_clean(self):
         queue = self.root / 'queue.json'
         queue.write_text(json.dumps(self.queue))
