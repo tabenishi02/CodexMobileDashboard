@@ -1,6 +1,6 @@
 # バックアップ設計（Phase A）
 
-状態：Phase A仕様確定、Phase BのPC単体バックアップを実装済み。手順は[BACKUP_PC.md](BACKUP_PC.md)。Phase CのAndroid workerも実装済み（[BACKUP_ANDROID.md](BACKUP_ANDROID.md)）。Phase Dの[両端統合](BACKUP_PAIR.md)も実装済み。Phase Eの[週次登録機能](BACKUP_SCHEDULE.md)も実装済み。本番登録・復元受入は未完了。Phase Fの[一時復元・手順](BACKUP_RESTORE.md)は実装済み。実機受入はTASKS.mdで追跡する。
+状態：recoveryはPC・Android・両端統合・週次実行・検証付き一時復元を実装し、実機受入まで完了した。手順は[PC](BACKUP_PC.md)、[Android](BACKUP_ANDROID.md)、[両端統合](BACKUP_PAIR.md)、[週次実行](BACKUP_SCHEDULE.md)、[復元](BACKUP_RESTORE.md)を参照する。fullは対象・復元範囲・容量基準だけを本書で確定しており、コマンド実装と実機受入は未完了である。
 
 ## 方針
 
@@ -38,6 +38,8 @@ Windowsを起点に同じBackup IDでPC・AndroidそれぞれのローカルZIP�
 | 定期実行定義 | collector/retryタスクの読み取り専用取得 | 定義・登録状態を記録。復元時は現行登録スクリプトで再登録 |
 | ログ | logging.directory | include_logs指定時のみ任意保存 |
 
+PCのfull対象はrecoveryと同じである。PC側にはAndroidの全公開世代・staging・受付履歴の複製を作らず、同じBackup IDのPC運用状態とAndroid fullを組み合わせる。fullでPCのCodex原本、ユーザーGitリポジトリ、既存バックアップZIPを追加保存しない。
+
 初回利用で状態ファイルが存在しない場合はabsentとして明示する。存在するファイルの読取失敗・破損は黙って省略せず失敗。TLS発行資材はCA公開証明書の親を無条件に再帰保存しない。バックアップ設定で専用ディレクトリまたは個別ファイルを明示する。
 
 | Android論理対象 | 決定元 | recovery | full |
@@ -59,6 +61,42 @@ currentのJSON破損、参照Snapshot欠落、安全でないworkspace/Snapshot 
 PC mutex取得後はcollector/retryから送信しない。既存の未送信キューにはSnapshot全本文とIDがあるため、Androidのstaging・receiptが消えてもfile POSTから再送できる。queueのない送信済み過去Snapshotは再送可能とは限らないが、現在公開中のものをAndroid ZIPへ保存するため通常復旧に不要。recoveryは過去全世代の再現を保証しない。
 
 PCのみを古い時点へ戻すと、古いキュー再送でAndroidのcurrentが一時的に巻き戻る可能性がある。両端の同一ID復元を推奨し、片側復元では再開前にキューと公開Snapshotを照合する。原本が別途復元されていない場合、再収集や将来更新は保証できない。
+
+## recovery・fullの復元範囲と期間
+
+| モード | PC | Android | 復元できる状態 | 復元できない状態 |
+| --- | --- | --- | --- | --- |
+| recovery | 設定、秘密ファイル、CA/TLS資材、state、history、推論台帳、registry、未送信キュー、生成JSON、タスク定義、任意ログ | 設定、Token・証明書・鍵、boot、各workspaceのcurrentと参照中Snapshot、任意ログ | Backup ID作成時点のcollector状態、推論再利用状態、pending本文、現在表示中のSnapshotを使う通常運用 | 過去のpublic世代、未完了staging、受付履歴、削除済みSnapshot |
+| full | recoveryと同じ | recovery対象に加えて、バックアップ開始時に存在する全public世代、全staging、`.deliveries`、`.commits`、任意ログ | Backup ID作成時点でAndroidに保持されていた公開履歴、未完了受信データ、冪等受付状態を含む手動チェックポイント | full作成前に既に削除された履歴、別保管のCodex原本・ユーザーGitリポジトリ、記録したGit commitに含まれない変更 |
+
+両モードともPC mutexを保持し、Android serverを停止して対象を固定する。同じBackup IDの両ZIPと`pair_state=complete`を一組として扱う。作成時刻は両端で完全に同一ではないが、collector・再送・server書込みを止めるため、同じ停止区間の論理状態を復元点とする。
+
+recovery ZIPが提供する復元点は各ZIPの`created_at`である。週次タスクが毎回成功している場合、障害時に選べる最新の定期復元点は最大で約7日前になる。ZIPを自動削除しないため保管期間自体に固定期限はないが、選択した時点より後のcollector状態や表示更新は復元されない。Androidではその時点のcurrentだけを保存するため、同じZIPからさらに古い表示世代へ戻ることはできない。
+
+full ZIPが提供する履歴範囲は、その`created_at`時点で実際にpublic・stagingに残っていた最古データから最新データまでである。full作成前に整理済みのSnapshotは復元できない。自動整理を初めて有効にする前に両端fullを作成し、SHA-256・内部Manifest・検証付き一時展開を確認する。そのfullは、次のfullが同じ検証を完了するまで、整理前チェックポイントとして保持する。
+
+fullからstagingと受付履歴を復元しても、対応するPCキューがなければ未完了Snapshotのcommit完遂を保証しない。復元後は[受付履歴の保持方針](SNAPSHOT_CLEANUP.md#deliveriescommitsの保持方針)に従い、PCキュー、public、staging、receiptの対応を確認してから送信を再開する。
+
+現行実装はrecoveryだけを受け付ける。`tools.backup --mode full`は`full_not_implemented`で終了し、Android workerと両端オーケストレーターもfullを作成しない。上表は後続実装の契約であり、full ZIPが実在することを示さない。
+
+## 必要空き容量
+
+PCとAndroidはそれぞれ自端末の保存先ファイルシステムで独立に容量を判定する。片側の空き容量を他方へ充当できない。現在のrecovery事前確認は次の値以上の空きを要求し、fullも同じ式を使用する。
+
+```text
+必要空き容量 = 1.02 × S + 2,048 × N + 1 MiB + R
+```
+
+- `S`：その端末でZIPへ入れる通常ファイルの非圧縮合計バイト数。
+- `N`：ZIPへ入れるファイル数。
+- `R`：バックアップ完了後にも残す予約容量。`minimum_free_bytes`で指定し、既定は1 GiB。
+- 判定対象の空き容量には、既存ZIP、失敗したpartial、同じファイルシステム上の他データが消費している容量も反映される。
+
+圧縮後のZIPサイズは内容に依存するため、容量判定には使用しない。元データを残したままpartial ZIPを作るので、fullではAndroidの全public・staging・受付履歴が`S`へ加わり、recoveryより大幅に多い空きが必要になる。Android workerは停止前のpreflightと停止後の再選択時に容量を確認する。容量不足時は既存の正常ZIPと元データを削除せず、`capacity_insufficient`で中止する。
+
+最初のfullが容量不足になる場合、fullで保護する予定のSnapshotを先に削除して帳尻を合わせない。不要な別データを整理するか、十分な空きがある別の保存先ファイルシステムを設定する。自動整理開始後も、次のfullに必要な容量を確保できる範囲でpublic・stagingの保持量と既存ZIP数を監視する。
+
+検証付き一時展開では、Manifest記載の非圧縮合計`U`とファイル数`N`に対し、展開先へ少なくとも`U + 2,048 × N + 1 MiB`の空きを用意する。運用再開後の余裕も必要な場合はさらに`R`を加える。同じファイルシステムへZIPを新たにコピーしてから展開する場合はZIPサイズ`Z`も加え、`Z + U + 2,048 × N + 1 MiB + R`を計画値とする。旧環境を残して新規ディレクトリへ展開するため、旧データを削除して空きを作る前に検証を完了する。
 
 ## 保存先・設定
 
