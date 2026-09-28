@@ -1,6 +1,6 @@
 # バックアップ設計（Phase A）
 
-状態：recoveryはPC・Android・両端統合・週次実行・検証付き一時復元を実装し、実機受入まで完了した。手順は[PC](BACKUP_PC.md)、[Android](BACKUP_ANDROID.md)、[両端統合](BACKUP_PAIR.md)、[週次実行](BACKUP_SCHEDULE.md)、[復元](BACKUP_RESTORE.md)を参照する。fullは明示操作、両端統合、容量事前確認、排他、Manifest・ZIP検証、検証付き一時復元まで実装済みである。実機での最初の両端full作成・一時展開は未完了である。
+状態：recoveryはPC・Android・両端統合・週次実行・検証付き一時復元を実装し、実機受入まで完了した。手順は[PC](BACKUP_PC.md)、[Android](BACKUP_ANDROID.md)、[両端統合](BACKUP_PAIR.md)、[週次実行](BACKUP_SCHEDULE.md)、[復元](BACKUP_RESTORE.md)を参照する。fullは明示操作、両端統合、容量事前確認、排他、Manifest・ZIP検証、検証付き一時復元を実装し、最初の両端実機バックアップと検証付き一時展開まで完了した。
 
 ## 方針
 

@@ -80,3 +80,7 @@ HTTP復元テストは一時ループバック用で、本番はHTTPS必須。�
 - 検証済み展開物から同一Android上の分離ディレクトリ・別ポートに一時HTTPSサーバーを構成した。復元したPC側CA・Token・キューから実HTTPS再送とcommitを行い、キュー解消、health、HTML、`dashboard.json`、`metadata.json`、currentの一致を確認した。復元した推論台帳のcombined-turnキャッシュも再利用できた。一時環境は確認後に停止・削除した。
 
 この一時復旧試験は本番ディレクトリ・本番ポートから分離しているが、別の物理Android端末への移行試験ではない。週次タスクは日曜03:00で登録し、PC再起動後も有効状態と次回予定を維持した。再起動後の手動実行でも新しい両端ZIPがcomplete/restoredとなり、両ZIPの内部検証と記録SHA-256一致、最終結果0を確認した。collectorの再開、未送信0件、再起動後の実HTTPS受信も確認した。
+
+### 2026-09-29 full実機受入結果
+
+Backup ID `20260928T091303Z-bf2b7e6c`で最初の両端fullバックアップを実行し、`pair_state=complete`、`recovery_state=restored`、PC・Android結果とサーバー再起動がすべて成功した。両ZIPはpair記録のSHA-256と一致し、`--mode full`と`--pair`を指定した検証付き一時展開で`staged_verified`となった。Android展開物では全public・staging・`.deliveries`・`.commits`が含まれることを確認し、実機サーバーのHTTPS health応答も復旧した。次のfullが同じ検証を完了するまで、この両端ZIPを整理前チェックポイントとして保持する。
