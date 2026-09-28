@@ -1,6 +1,6 @@
 # バックアップ週次実行（Phase E）
 
-同じ`tools.backup_pair`を手動CLIと非表示の週次タスクから実行する。既存collector/retryタスクは変更しない。
+同じ`tools.backup_pair`を手動CLIと非表示の週次タスクから実行する。既存collector/retryタスクは変更しない。週次ランチャーはmodeを指定せず、常に既定のrecoveryを実行する。fullは手動の`--mode full`だけで実行する。
 
 ## 登録前
 

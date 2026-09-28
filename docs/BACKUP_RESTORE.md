@@ -9,7 +9,7 @@ ZIPを検証して新しい一時ディレクトリへ展開する`tools.backup_
 - PCのみの古いバックアップを復元すると、古いqueueの再送でAndroidのcurrentが一時的に戻る可能性がある。稼働側とキューを照合し、必要なら両端を同じIDへ戻す。queueを消して調整しない。
 - 元のGitコミットを両端へ再配置する。Git dirtyが記録されている場合、未commitコードは別途必要。ユーザーGitリポジトリとCodex原本は別バックアップから復元する。本ZIPには含まれない。
 - 証明書の期限・SAN・Tokenの対応を確認する。漏えいした鍵・Tokenはそのまま復元せず更新する。
-- 一時展開前に[対象範囲・復元可能期間・必要空き容量](BACKUP_DESIGN.md#recoveryfullの復元範囲と期間)を確認する。fullは現時点で未実装であり、recovery ZIPから過去全世代やstagingを復元できるとは扱わない。
+- 一時展開前に[対象範囲・復元可能期間・必要空き容量](BACKUP_DESIGN.md#recoveryfullの復元範囲と期間)を確認する。recovery ZIPから過去全世代やstagingを復元できるとは扱わない。full ZIPの一時展開では`--mode full`を明示する。
 
 ## 検証付き一時展開
 
@@ -18,6 +18,7 @@ PCの例。引数は実際のファイルと、新規の存在しない展開先
 ```powershell
 python -m tools.backup_restore --side PC --zip '<PC ZIP>' --sha256 '<pair.jsonのpc.zip_sha256>' --pair '<ID.pair.json>' --destination '<新規の一時展開先>'
 python -m tools.backup_restore --side Android --zip '<Android ZIP>' --sha256 '<pair.jsonのandroid.zip_sha256>' --pair '<ID.pair.json>' --destination '<別の新規一時展開先>'
+# full ZIPではPC・Android両方のコマンド末尾へ --mode full を追加する
 ```
 
 Android/Termuxでも同じPythonモジュールを使用できる。片側単体バックアップでは--pairを省略できるが、ID.PC.result.jsonまたはAndroid ID/result.jsonのhashを照合する。この場合は両端の整合性を検証したことにはならない。
@@ -41,8 +42,8 @@ Manifestのtargetsは元パスと論理ラベルを示す。payload配下をそ�
 1. [Termuxセットアップ](TERMUX_SETUP.md)で環境と同じコミットを配置する。PCのcollector/retry/backupの新規実行を一時停止し、実行中の処理が終わるまで待つ。
 2. Androidサーバーを停止した状態でZIPを一時展開する。
 3. server_config、token、certificate、private_keyを現在の実設定先へ配置し、server.iniのパスを照合する。設定・鍵は600、ディレクトリは700。bootは内容と実行権を確認して戻す。
-4. 各workspaceのcurrentラベル内のcurrent.jsonを`public/<workspace>/current.json`へ、snapshotラベル内の内容を`public/<workspace>/snapshots/<snapshot_id>/`へ配置する。IDはManifestとcurrent.jsonを照合する。過去全世代はrecovery ZIPに含まれない。
-5. stagingは空の新規ディレクトリを設定する。古いreceiptだけを混在させない。PC queueには本文・Delivery ID・commit IDがあるためfile POSTから再送できる。PID・lockは復元しない。
+4. recoveryでは各workspaceのcurrentラベル内のcurrent.jsonを`public/<workspace>/current.json`へ、snapshotラベル内の内容を`public/<workspace>/snapshots/<snapshot_id>/`へ配置する。fullでは`payload/public`を全公開世代として対応付け、Manifestと各current.jsonを照合する。
+5. recoveryではstagingを空の新規ディレクトリにする。fullでは`payload/staging`を未完了データと受付履歴を含む一組として対応付ける。古いreceiptだけを混在させない。PC queueには本文・Delivery ID・commit IDがあるためfile POSTから再送できる。PID・lockは復元しない。
 6. health検証に必要なCA公開証明書はPCの保存物から配置する。`start_server.sh`で起動し、CA検証ありのHTTPS /health、workspace指定の表示を確認する。
 7. PCのqueue-status、retry-queued --all、collect-onceで順に確認してから定期処理を再開する。
 

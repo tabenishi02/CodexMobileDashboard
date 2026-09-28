@@ -232,7 +232,10 @@ class ServerControl:
 
 
 def run_worker(request, job, control=None):
-    result = dict(backup_id=request['backup_id'], mode='recovery', state='running',
+    mode = request.get('mode', 'recovery')
+    if mode not in ('recovery', 'full'):
+        raise BackupError('mode_invalid')
+    result = dict(backup_id=request['backup_id'], mode=mode, state='running',
                   android_result='failed', pc_result='not_run', restart_result='not_needed',
                   pair_state='incomplete', errors=[])
     path = job / 'result.json'
@@ -245,7 +248,7 @@ def run_worker(request, job, control=None):
     try:
         event('preflight')
         config, output, boot = (Path(request[k]) for k in ('config', 'output', 'boot'))
-        plan = select_android(config, output, boot)
+        plan = select_android(config, output, boot, mode=mode)
         capacity(plan, output, request['reserve'])
         control = control or ServerControl(config, request['health_url'], request['ca'])
         was_running = control.running()
@@ -255,7 +258,7 @@ def run_worker(request, job, control=None):
         if was_running:
             control.stop()
         event('server_stopped')
-        plan = select_android(config, output, boot)
+        plan = select_android(config, output, boot, mode=mode)
         capacity(plan, output, request['reserve'])
         event('zip_start')
         result.update(write_zip(plan, output, request['backup_id']))
@@ -289,7 +292,7 @@ def launch(request):
     output.mkdir(parents=True, exist_ok=True, mode=0o700)
     job = output / request['backup_id']
     if job.exists():
-        return dict(backup_id=request['backup_id'], state='existing')
+        return dict(backup_id=request['backup_id'], mode=request.get('mode', 'recovery'), state='existing')
     runtime = Path.home() / '.cache/codex-mobile-dashboard'
     runtime.mkdir(parents=True, exist_ok=True, mode=0o700)
     with (runtime / 'backup.lock').open('a') as lock:
@@ -299,16 +302,19 @@ def launch(request):
             raise BackupError('backup_busy') from None
         job.mkdir(mode=0o700)
         atomic_json(job / 'request.json', request)
-        atomic_json(job / 'result.json', dict(backup_id=request['backup_id'], state='starting', pair_state='incomplete'))
+        atomic_json(job / 'result.json', dict(backup_id=request['backup_id'], mode=request.get('mode', 'recovery'),
+                                                state='starting', pair_state='incomplete'))
         try:
             subprocess.Popen([sys.executable, '-m', 'server.backup_worker', 'work', '--job', str(job), '--lock-fd', str(lock.fileno())],
                              cwd=Path(__file__).resolve().parent.parent, stdin=subprocess.DEVNULL,
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                              start_new_session=True, close_fds=True, pass_fds=(lock.fileno(),))
         except Exception:
-            atomic_json(job / 'result.json', dict(backup_id=request['backup_id'], state='finished', android_result='failed', pair_state='incomplete', errors=['launch_failed']))
+            atomic_json(job / 'result.json', dict(backup_id=request['backup_id'], mode=request.get('mode', 'recovery'),
+                                                    state='finished', android_result='failed',
+                                                    pair_state='incomplete', errors=['launch_failed']))
             raise BackupError('launch_failed') from None
-    return dict(backup_id=request['backup_id'], state='started')
+    return dict(backup_id=request['backup_id'], mode=request.get('mode', 'recovery'), state='started')
 
 
 def main(argv=None):
@@ -322,19 +328,21 @@ def main(argv=None):
     start.add_argument('--health-url', required=True)
     start.add_argument('--reserve', type=int, default=1073741824)
     start.add_argument('--collector-paused', action='store_true', required=True)
+    start.add_argument('--mode', choices=['recovery', 'full'], default='recovery')
     status = sub.add_parser('status')
     status.add_argument('--backup-id', required=True)
     status.add_argument('--output', type=Path, required=True)
     verify = sub.add_parser('verify')
     verify.add_argument('zip', type=Path)
+    verify.add_argument('--mode', choices=['recovery', 'full'], default='recovery')
     work = sub.add_parser('work')
     work.add_argument('--job', type=Path, required=True)
     work.add_argument('--lock-fd', type=int, required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == 'verify':
-            manifest = verify_zip(args.zip, expected_side='Android')
-            print(json.dumps(dict(backup_id=manifest['backup_id'], state='verified')))
+            manifest = verify_zip(args.zip, expected_side='Android', expected_mode=args.mode)
+            print(json.dumps(dict(backup_id=manifest['backup_id'], mode=args.mode, state='verified')))
             return 0
         if os.name != 'posix':
             raise BackupError('termux_required')
@@ -360,7 +368,7 @@ def main(argv=None):
                 raise BackupError('configuration_invalid')
             if linked(args.output.absolute()):
                 raise BackupError('linked_output')
-            request = dict(backup_id=args.backup_id, config=str(args.config.resolve()), output=str(args.output.resolve()),
+            request = dict(backup_id=args.backup_id, mode=args.mode, config=str(args.config.resolve()), output=str(args.output.resolve()),
                            ca=str(args.ca.resolve()), health_url=args.health_url, reserve=args.reserve,
                            boot=str(Path.home() / '.termux/boot'))
             if args.command == 'preflight':
@@ -368,10 +376,10 @@ def main(argv=None):
                 output.mkdir(parents=True, exist_ok=True, mode=0o700)
                 if (output / args.backup_id).exists():
                     raise BackupError('backup_id_exists')
-                plan = select_android(Path(request['config']), output, Path(request['boot']))
+                plan = select_android(Path(request['config']), output, Path(request['boot']), mode=args.mode)
                 capacity(plan, output, request['reserve'])
                 ServerControl(request['config'], request['health_url'], request['ca']).running()
-                value = dict(backup_id=args.backup_id, state='ready')
+                value = dict(backup_id=args.backup_id, mode=args.mode, state='ready')
             else:
                 value = launch(request)
         print(json.dumps(value))

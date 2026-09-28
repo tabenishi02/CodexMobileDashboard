@@ -10,15 +10,17 @@ PCがcollector mutexを保持し、SSHでAndroid workerを起動・照会する�
 4. repository/config/output/caはAndroid上の絶対パスにする。`~`は使わない。health_urlは証明書SANに一致するHTTPS `/health`。CAは公開証明書のみ。
 5. collectorと同じWindowsユーザー・同一ログオンセッションで実行する。直接CLIのcollect/backfill/retry、Android手動起動操作を重ねない。
 
-`wait_seconds`はPCのZIP作成後にAndroidの終了結果を待つ上限（既定1800秒）。SSH要求ごとの上限は30秒、接続待ちは10秒。Androidは待機上限後も独立して続行する。
+`wait_seconds`はPCのZIP作成後にAndroidの終了結果を待つ上限（既定1800秒）。start・statusのSSH要求上限は30秒、接続待ちは10秒。対象列挙と容量確認を行うpreflightは`wait_seconds`を上限とする。Androidは待機上限後も独立して続行する。
 
 ## 実行
 
 ```powershell
 python -m tools.backup_pair --config "$env:LOCALAPPDATA\CodexMobileDashboard\config\backup.ini"
+# fullを手動実行する場合
+python -m tools.backup_pair --config "$env:LOCALAPPDATA\CodexMobileDashboard\config\backup.ini" --mode full
 ```
 
-任意で`--backup-id 20260911T010000Z-a31f82c4`を指定できる。通常は省略し自動発行する。実行すると実データのバックアップとAndroidサーバーの停止・再開が発生する。既存Scheduled TaskをDisable/Enableしない。PC単体コマンド`tools.backup`は引き続き利用可能。
+任意で`--backup-id 20260911T010000Z-a31f82c4`を指定できる。通常は省略し自動発行する。modeの既定はrecoveryで、fullは`--mode full`を明示する。実行すると実データのバックアップとAndroidサーバーの停止・再開が発生する。既存Scheduled TaskをDisable/Enableしない。PC単体コマンド`tools.backup`は引き続き利用可能。
 
 ## 処理と結果
 

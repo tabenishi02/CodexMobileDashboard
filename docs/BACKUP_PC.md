@@ -26,7 +26,7 @@ collectorと同じWindowsユーザー・ログオンセッションで、リポ�
 python -m tools.backup --config "$env:LOCALAPPDATA\CodexMobileDashboard\config\backup.ini"
 ```
 
-指定可能な`--backup-id`は`20260910T063000Z-a31f82c4`形式。通常は省略して自動発行する。同じIDのZIP・partial・成功結果を上書きしない。`--mode full`は未実装エラーとなり、recoveryへ置き換えない。
+指定可能な`--backup-id`は`20260910T063000Z-a31f82c4`形式。通常は省略して自動発行する。同じIDのZIP・partial・成功結果を上書きしない。既定はrecoveryである。PC単体fullは`--mode full`を明示する。PCの対象はrecoveryと同一だが、Manifestと結果へmode=fullを記録する。
 
 PythonからWin32 mutexを取得する。既存PowerShellの`Local\CodexMobileDashboard-Collector`と同じOSオブジェクトなので、Scheduled TaskをDisable/Enableせず排他できる。既存runnerはバックアップ保持中にスキップする。バックアップ側は上限まで正常終了を待ち、タイムアウト時は終了コード2。例外でもmutexを解放する。直接`tools.collector`を呼ぶ手動collect/backfill/retryは排他対象外なので併用しない。
 
@@ -45,6 +45,7 @@ PythonからWin32 mutexを取得する。既存PowerShellの`Local\CodexMobileDa
 
 ```powershell
 python -m tools.backup --verify '<正式ZIPの絶対パス>'
+# full ZIPの場合だけ --mode full を追加する
 Get-FileHash -Algorithm SHA256 -LiteralPath '<正式ZIPの絶対パス>'
 ```
 

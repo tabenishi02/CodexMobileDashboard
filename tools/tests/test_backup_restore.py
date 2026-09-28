@@ -70,6 +70,89 @@ class RestoreTests(unittest.TestCase):
         self.restore_pc(self.pair)
         self.restore_android(self.pair)
 
+    def test_full_both_sides_stage_all_android_history(self):
+        staging = self.android.root / 'staging'
+        (staging / '.deliveries').mkdir(parents=True)
+        (staging / '.deliveries/receipt.json').write_text('{"ok":true}')
+        (staging / '.commits').mkdir()
+        (staging / '.commits/receipt.json').write_text('{"ok":true}')
+        (staging / 'workspace-1/pending').mkdir(parents=True)
+        (staging / 'workspace-1/pending/metadata.json').write_text(
+            '{"snapshot_id":"pending"}'
+        )
+        backup_id = backup.new_backup_id()
+        pc_result = backup.create_pc_zip(
+            backup.select_pc(self.pc.config, mode='full'), backup_id, []
+        )
+        android_result = test_backup_worker.worker.write_zip(
+            test_backup_worker.worker.select_android(
+                self.android.config, self.android.output, self.android.boot, mode='full'
+            ),
+            self.android.output,
+            backup_id,
+        )
+        pair = dict(
+            backup_id=backup_id,
+            mode='full',
+            pair_state='complete',
+            pc=pc_result,
+            android=android_result,
+        )
+        pc_zip = self.pc.output / pc_result['zip_name']
+        android_zip = self.android.output / android_result['zip_name']
+        pc_destination = self.pc.root / 'pc-full-restored'
+        android_destination = self.android.root / 'android-full-restored'
+        backup_restore.stage(
+            pc_zip, pc_destination, 'PC', backup.digest(pc_zip), pair, mode='full'
+        )
+        backup_restore.stage(
+            android_zip, android_destination, 'Android',
+            backup.digest(android_zip), pair, mode='full'
+        )
+        self.assertTrue(
+            (android_destination /
+             'payload/public/workspace-1/snapshots/old/metadata.json').is_file()
+        )
+        self.assertTrue(
+            (android_destination /
+             'payload/staging/workspace-1/pending/metadata.json').is_file()
+        )
+        self.assertTrue(
+            (android_destination /
+             'payload/staging/.deliveries/receipt.json').is_file()
+        )
+        self.assertTrue(
+            (android_destination /
+             'payload/staging/.commits/receipt.json').is_file()
+        )
+        with self.assertRaisesRegex(backup.BackupError, 'manifest_invalid'):
+            backup_restore.stage(
+                android_zip, self.android.root/'wrong-mode', 'Android',
+                backup.digest(android_zip), pair
+            )
+
+    def test_restore_cli_requires_explicit_full_mode(self):
+        staging = self.android.root / 'staging'
+        staging.mkdir()
+        backup_id = backup.new_backup_id()
+        plan = test_backup_worker.worker.select_android(
+            self.android.config, self.android.output, self.android.boot, mode='full'
+        )
+        result = test_backup_worker.worker.write_zip(
+            plan, self.android.output, backup_id
+        )
+        archive = self.android.output / result['zip_name']
+        destination = self.android.root / 'cli-full-restored'
+        with unittest.mock.patch('sys.stdout'), self.subTest('explicit full'):
+            self.assertEqual(0, backup_restore.main([
+                '--zip', str(archive),
+                '--destination', str(destination),
+                '--side', 'Android',
+                '--sha256', backup.digest(archive),
+                '--mode', 'full',
+            ]))
+        self.assertEqual(backup_id, (destination/'RESTORE_VERIFIED').read_text())
+
     def test_wrong_id_or_incomplete_pair_rejected_without_writes(self):
         for changes in ({'backup_id':backup.new_backup_id()},{'pair_state':'incomplete'}):
             with self.assertRaises(backup.BackupError):

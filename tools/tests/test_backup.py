@@ -212,10 +212,16 @@ class BackupTests(unittest.TestCase):
         with self.assertRaisesRegex(backup.BackupError, 'source_scope_invalid'):
             backup.select_pc(self.config)
 
-    def test_full_rejected_before_mutex(self):
+    def test_full_cli_is_explicit_and_uses_mutex(self):
         with patch('tools.backup.CollectorMutex') as mutex, redirect_stdout(io.StringIO()):
-            self.assertEqual(2, backup.main(['--config', str(self.config), '--mode', 'full']))
-            mutex.assert_not_called()
+            self.assertEqual(0, backup.main(['--config', str(self.config), '--mode', 'full']))
+        mutex.assert_called_once()
+        result = json.loads(next(self.output.glob('*.PC.result.json')).read_text())
+        self.assertEqual('full', result['mode'])
+        archive = self.output / result['zip_name']
+        self.assertEqual('full', backup.verify_zip(archive, expected_mode='full')['mode'])
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(0, backup.main(['--verify', str(archive), '--mode', 'full']))
 
 
 @unittest.skipUnless(os.name == 'nt', 'Windows mutex required')

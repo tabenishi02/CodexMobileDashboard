@@ -1,6 +1,6 @@
 # Androidバックアップworker（Phase C）
 
-Android側のrecovery ZIP作成とサーバー停止・再開を実装した。PCからのSSHオーケストレーション・両端complete判定はPhase D、週次登録はPhase Eで追加する。本workerの成功だけで両端一組の完了とはしない。fullは提供しない。
+Android側のrecovery/full ZIP作成とサーバー停止・再開を実装した。本workerの成功だけで両端一組の完了とはしない。fullは利用者が`--mode full`を明示した場合だけ実行する。
 
 ## 実行条件
 
@@ -25,6 +25,7 @@ python -m server.backup_worker start \
   --ca "$HOME/.config/codex-mobile-dashboard/tls/ca.crt" \
   --health-url "https://192.0.2.10:8765/health" \
   --collector-paused
+# fullの場合だけ末尾へ --mode full を追加する
 ```
 
 `started`は起動受付であり保存成功ではない。同じID・保存先で再度startしても`existing`となり重複起動しない。別IDの同時workerは`backup_busy`。SSHから切断してもworkerは独立セッションで続行する。
@@ -41,7 +42,7 @@ python -m server.backup_worker status \
 
 保存前に対象と空き容量を確認し、稼働状態を記録する。稼働中なら既存stop_server.shで正常停止後、対象を再選択する。未完成ファイル・欠損current・不正ID・リンクを検出した場合は失敗。ZIPはpartialへ保存し、CRC・Manifest・必須対象・SHA-256を検証して正式名へrenameする。
 
-保存対象は実server.ini、設定が指すToken/証明書/秘密鍵、`~/.termux/boot`の通常ファイル、各workspaceのcurrent.jsonとその参照Snapshotだけ。古いSnapshot、staging、receipt、ログ、PID、lockを保存しない。保存先が必要なSnapshotと重なる場合は安全のため拒否する。
+保存対象は実server.ini、設定が指すToken/証明書/秘密鍵、`~/.termux/boot`の通常ファイルを共通とする。recoveryは各workspaceのcurrent.jsonと参照Snapshotだけを保存する。fullは全public世代と全stagingを保存し、受付履歴`.deliveries`・`.commits`も含める。ログ、PID、lock、書込み途中の一時ファイルは保存しない。保存先が対象と重なる場合は安全のため拒否する。
 
 元々起動中なら、停止・保存の失敗やSIGTERM/SIGHUPでもfinallyで起動を試みる。元々停止なら起動しない。再起動は既存start_server.shを独立セッションで起動し、CA検証ありのHTTPS healthとPID管理対象の稼働を確認する。wake lockは解放しない。workerが復旧中に無視するSIGTERM/SIGHUPは子プロセス起動直前に既定値へ戻し、復旧したserver.pyが次回の正常停止を受け付ける状態を維持する。
 
@@ -64,6 +65,7 @@ SIGKILL、Termux全体の終了、電源断ではfinallyは実行できない。
 
 ```sh
 python -m server.backup_worker verify "$HOME/CodexMobileDashboard/backups/CodexMobileDashboard-Android-20260911T010000Z-a31f82c4.zip"
+# full ZIPの場合だけ末尾へ --mode full を追加する
 ```
 
 result.jsonのZIP SHA-256とも照合する。ZIP内Manifestのtargetsとfilesに元パス・論理パス・POSIX modeを保存する。一時ディレクトリへ展開し、current.jsonが示すSnapshotと内容を照合する。本番へは同じコミットと設定パスを用意し、停止中に手動で対応付けて復元する。鍵は600、bootスクリプトは記録した実行権に戻す。PID/lockを復元しない。統合復元は[復元手順](BACKUP_RESTORE.md)を参照。

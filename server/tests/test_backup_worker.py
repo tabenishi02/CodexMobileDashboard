@@ -103,6 +103,47 @@ class WorkerTests(unittest.TestCase):
         with self.assertRaisesRegex(BackupError, 'required_source_missing'):
             worker.select_android(self.config, self.output, self.boot, mode='full')
 
+    def test_full_worker_checks_capacity_before_and_after_stop(self):
+        (self.root / 'staging').mkdir()
+        self.request['mode'] = 'full'
+        with patch.object(worker, 'capacity', wraps=worker.capacity) as capacity:
+            result = self.run_worker()
+        self.assertEqual('full', result['mode'])
+        self.assertEqual('success', result['android_result'])
+        self.assertEqual(2, capacity.call_count)
+        archive = self.output / result['zip_name']
+        self.assertEqual(
+            'full',
+            verify_zip(archive, expected_side='Android', expected_mode='full')['mode'],
+        )
+
+    def test_full_start_cli_passes_explicit_mode_to_detached_request(self):
+        fake_os = Mock(wraps=os)
+        fake_os.name = 'posix'
+        fake_os.umask = Mock()
+        with (
+            patch.object(worker, 'os', fake_os),
+            patch.object(worker, 'launch', return_value={
+                'backup_id': self.request['backup_id'],
+                'mode': 'full',
+                'state': 'started',
+            }) as launch,
+            redirect_stdout(io.StringIO()),
+        ):
+            code = worker.main([
+                'start',
+                '--backup-id', self.request['backup_id'],
+                '--config', str(self.config),
+                '--output', str(self.output),
+                '--ca', str(self.root/'ca.crt'),
+                '--health-url', 'https://localhost:8765/health',
+                '--collector-paused',
+                '--mode', 'full',
+                '--reserve', '0',
+            ])
+        self.assertEqual(0, code)
+        self.assertEqual('full', launch.call_args.args[0]['mode'])
+
     def test_health_context_disables_python_314_strict_x509_only(self):
         context = Mock(verify_flags=ssl.VERIFY_X509_STRICT | ssl.VERIFY_X509_TRUSTED_FIRST)
         with patch.object(worker.ssl, 'create_default_context', return_value=context) as create:

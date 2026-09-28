@@ -331,12 +331,10 @@ def main(argv=None):
                 stream.write(line + '\n')
     try:
         if args.verify:
-            manifest = verify_zip(args.verify)
+            manifest = verify_zip(args.verify, expected_mode=args.mode)
             backup_id = manifest['backup_id']
             event('zip_verified')
             return 0
-        if args.mode != 'recovery':
-            raise BackupError('full_not_implemented')
         if not args.config:
             raise BackupError('configuration_missing')
         if not ID_PATTERN.fullmatch(backup_id):
@@ -348,7 +346,7 @@ def main(argv=None):
         event('backup_start')
         with CollectorMutex(wait):
             event('mutex_acquired')
-            plan = select_pc(args.config)
+            plan = select_pc(args.config, mode=args.mode)
             plan['output'].mkdir(parents=True, exist_ok=True)
             log_path = plan['output'] / 'backup.log'
             event('backup_start_locked')
@@ -368,7 +366,7 @@ def main(argv=None):
             if log_path is not None:
                 failure = log_path.parent / f'{backup_id}.PC.failure.json'
                 with failure.open('x', encoding='utf-8') as stream:
-                    json.dump(dict(backup_id=backup_id, pc_result='failed', android_result='not_run',
+                    json.dump(dict(backup_id=backup_id, mode=args.mode, pc_result='failed', android_result='not_run',
                                    restart_result='not_run', pair_state='incomplete', error=code), stream)
         except OSError:
             print(json.dumps(dict(event=code, pair_state='incomplete')), flush=True)

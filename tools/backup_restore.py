@@ -10,13 +10,14 @@ import zipfile
 from tools.backup import BackupError, digest, linked, temporary, verify_zip
 
 
-def stage(archive, destination, side, expected_sha256, pair=None):
+def stage(archive, destination, side, expected_sha256, pair=None, mode='recovery'):
     archive, destination = Path(archive), Path(destination).absolute()
     if not re.fullmatch(r'[a-fA-F0-9]{64}', expected_sha256) or digest(archive) != expected_sha256.lower():
         raise BackupError('archive_hash_mismatch')
-    manifest = verify_zip(archive, expected_side=side)
+    manifest = verify_zip(archive, expected_side=side, expected_mode=mode)
     if pair is not None:
-        if pair.get('pair_state') != 'complete' or pair.get('backup_id') != manifest['backup_id']:
+        if (pair.get('pair_state') != 'complete' or pair.get('backup_id') != manifest['backup_id'] or
+                pair.get('mode', 'recovery') != mode):
             raise BackupError('pair_mismatch')
         result = pair.get('pc' if side == 'PC' else 'android', {})
         if result.get('zip_sha256') != expected_sha256.lower() or result.get('zip_name') != archive.name:
@@ -51,11 +52,12 @@ def main(argv=None):
     parser.add_argument('--side',required=True,choices=['PC','Android'])
     parser.add_argument('--sha256',required=True)
     parser.add_argument('--pair',type=Path)
+    parser.add_argument('--mode',choices=['recovery','full'],default='recovery')
     args=parser.parse_args(argv)
     try:
         pair=json.loads(args.pair.read_text()) if args.pair else None
-        manifest=stage(args.zip,args.destination,args.side,args.sha256,pair)
-        print(json.dumps(dict(backup_id=manifest['backup_id'],side=args.side,state='staged_verified')))
+        manifest=stage(args.zip,args.destination,args.side,args.sha256,pair,mode=args.mode)
+        print(json.dumps(dict(backup_id=manifest['backup_id'],mode=args.mode,side=args.side,state='staged_verified')))
         return 0
     except Exception as error:
         print(json.dumps(dict(error=str(error) if isinstance(error,BackupError) else 'restore_failed')))
