@@ -65,6 +65,44 @@ class WorkerTests(unittest.TestCase):
         self.assertNotIn('DO-NOT-LOG', (self.job/'events.jsonl').read_text())
         self.assertFalse(list(self.output.glob('*.partial')))
 
+    def test_full_saves_all_public_staging_and_receipts(self):
+        staging = self.root / 'staging'
+        (staging / 'workspace-1/pending').mkdir(parents=True)
+        (staging / 'workspace-1/pending/metadata.json').write_text(
+            '{"snapshot_id":"pending"}'
+        )
+        (staging / '.deliveries').mkdir()
+        (staging / '.deliveries/delivery.json').write_text(json.dumps({
+            'workspace_id': 'workspace-1',
+            'snapshot_id': 'pending',
+            'relative_json_path': 'metadata.json',
+            'body_sha256': 'a' * 64,
+        }))
+        (staging / '.commits').mkdir()
+        (staging / '.commits/commit.json').write_text(json.dumps({
+            'workspace_id': 'workspace-1',
+            'snapshot_id': 'current',
+            'body_sha256': 'b' * 64,
+        }))
+        plan = worker.select_android(self.config, self.output, self.boot, mode='full')
+        result = worker.write_zip(plan, self.output, self.request['backup_id'])
+        archive = self.output / result['zip_name']
+        manifest = verify_zip(archive, expected_side='Android', expected_mode='full')
+        names = {entry['path'] for entry in manifest['files']}
+        self.assertIn('payload/public/workspace-1/snapshots/old/metadata.json', names)
+        self.assertIn('payload/public/workspace-1/snapshots/current/metadata.json', names)
+        self.assertIn('payload/staging/workspace-1/pending/metadata.json', names)
+        self.assertIn('payload/staging/.deliveries/delivery.json', names)
+        self.assertIn('payload/staging/.commits/commit.json', names)
+        self.assertNotIn('staging', manifest['excluded'])
+        self.assertNotIn('receipts', manifest['excluded'])
+        with self.assertRaisesRegex(BackupError, 'manifest_invalid'):
+            verify_zip(archive, expected_side='Android')
+
+    def test_full_requires_staging_root(self):
+        with self.assertRaisesRegex(BackupError, 'required_source_missing'):
+            worker.select_android(self.config, self.output, self.boot, mode='full')
+
     def test_health_context_disables_python_314_strict_x509_only(self):
         context = Mock(verify_flags=ssl.VERIFY_X509_STRICT | ssl.VERIFY_X509_TRUSTED_FIRST)
         with patch.object(worker.ssl, 'create_default_context', return_value=context) as create:

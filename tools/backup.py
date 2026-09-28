@@ -1,4 +1,4 @@
-"""PC recovery backup. No network access, deletion, or scheduled task mutation."""
+"""PC backup primitives. The standalone CLI remains recovery-only."""
 import argparse
 import configparser
 import ctypes
@@ -87,7 +87,9 @@ def within(path, root):
     return path == root or root in path.parents
 
 
-def select_pc(config):
+def select_pc(config, mode='recovery'):
+    if mode not in ('recovery', 'full'):
+        raise BackupError('mode_invalid')
     config = Path(config).absolute()
     backup = read_config(config)
     collector = _path_value(backup, 'backup', 'collector_config').absolute()
@@ -160,7 +162,7 @@ def select_pc(config):
     for path, name in files:
         if path.suffix == '.json':
             json.loads(path.read_text(encoding='utf-8'))
-    return dict(output=output, reserve=reserve, wait=wait, files=files, targets=records,
+    return dict(mode=mode, output=output, reserve=reserve, wait=wait, files=files, targets=records,
                 excluded=excluded, workspaces=sorted({p.name for p in runtime.output_dir.iterdir() if p.is_dir() and not within(p.resolve(), output.resolve())}) if runtime.output_dir.exists() else [],
                 queue=[dict(workspace_id=q.workspace_id, snapshot_id=q.snapshot_id,
                             sequence=q.sequence, commit_delivery_id=q.commit_delivery_id) for q in queued])
@@ -174,8 +176,10 @@ def digest(path):
     return result.hexdigest()
 
 
-def verify_zip(path, expected_side="PC"):
+def verify_zip(path, expected_side="PC", expected_mode="recovery"):
     try:
+        if expected_side not in ("PC", "Android") or expected_mode not in ("recovery", "full"):
+            raise BackupError("manifest_invalid")
         with zipfile.ZipFile(path) as archive:
             names = archive.namelist()
             if len(names) != len(set(names)) or archive.testzip():
@@ -187,12 +191,10 @@ def verify_zip(path, expected_side="PC"):
                 if stat.S_ISLNK(info.external_attr >> 16):
                     raise BackupError('zip_path_invalid')
             manifest = json.loads(archive.read('manifest.json'))
-            if manifest['schema_version'] != 1 or not ID_PATTERN.fullmatch(manifest['backup_id']) or manifest['side'] != expected_side or manifest['mode'] != 'recovery':
+            if manifest['schema_version'] != 1 or not ID_PATTERN.fullmatch(manifest['backup_id']) or manifest['side'] != expected_side or manifest['mode'] != expected_mode:
                 raise BackupError('manifest_invalid')
             listed = [f['path'] for f in manifest['files']]
             if len(listed) != len(set(listed)) or set(names) != set(listed) | {'manifest.json'}:
-                raise BackupError('manifest_invalid')
-            if expected_side not in ('PC', 'Android'):
                 raise BackupError('manifest_invalid')
             mandatory = ({'backup_config', 'collector_config', 'token', 'ca'} if expected_side == 'PC'
                          else {'server_config', 'token', 'certificate', 'private_key'})
@@ -201,18 +203,35 @@ def verify_zip(path, expected_side="PC"):
                     wid, sid = workspace['workspace_id'], workspace['snapshot_id']
                     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', wid) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', sid):
                         raise BackupError('manifest_invalid')
-                    mandatory.update({f'current_{wid}', f'snapshot_{wid}'})
-                    current = json.loads(archive.read(f'payload/current_{wid}/current.json'))
+                    if expected_mode == 'recovery':
+                        mandatory.update({f'current_{wid}', f'snapshot_{wid}'})
+                        current_name = f'payload/current_{wid}/current.json'
+                        snapshot_prefix = f'payload/snapshot_{wid}/'
+                    else:
+                        mandatory.update({'public', 'staging'})
+                        current_name = f'payload/public/{wid}/current.json'
+                        snapshot_prefix = f'payload/public/{wid}/snapshots/{sid}/'
+                    current = json.loads(archive.read(current_name))
                     if current['snapshot_id'] != sid:
                         raise BackupError('manifest_invalid')
+                    if not any(name.startswith(snapshot_prefix) for name in names):
+                        raise BackupError('required_source_missing')
+                if expected_mode == 'full':
+                    mandatory.update({'public', 'staging'})
             labels = {t['label'] for t in manifest['targets'] if t['present'] and t['files']}
+            if expected_side == 'Android' and expected_mode == 'full':
+                labels.update(t['label'] for t in manifest['targets']
+                              if t['present'] and t.get('allow_empty') is True)
             if not mandatory <= labels:
                 raise BackupError('required_source_missing')
             target_files = [n for t in manifest['targets'] for n in t['files']]
             if len(target_files) != len(set(target_files)) or set(target_files) != set(listed):
                 raise BackupError('manifest_invalid')
             for target in manifest['targets']:
-                if target['required'] and (not target['present'] or not target['files']):
+                allow_empty = (expected_side == 'Android' and expected_mode == 'full' and
+                               target['label'] in ('public', 'staging') and
+                               target.get('allow_empty') is True)
+                if target['required'] and (not target['present'] or (not target['files'] and not allow_empty)):
                     raise BackupError('required_source_missing')
             for entry in manifest['files']:
                 value = hashlib.sha256()
@@ -247,6 +266,9 @@ def task_definitions(names):
 def create_pc_zip(plan, backup_id, tasks):
     if not ID_PATTERN.fullmatch(backup_id):
         raise BackupError('backup_id_invalid')
+    mode = plan.get('mode', 'recovery')
+    if mode not in ('recovery', 'full'):
+        raise BackupError('mode_invalid')
     output = plan['output']
     output.mkdir(parents=True, exist_ok=True)
     final = output / f'CodexMobileDashboard-PC-{backup_id}.zip'
@@ -262,7 +284,7 @@ def create_pc_zip(plan, backup_id, tasks):
         return subprocess.check_output(['git', '-C', str(root), *args], stderr=subprocess.DEVNULL,
                                        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0)).decode().strip()
     manifest = dict(schema_version=1, backup_id=backup_id, created_at=datetime.now(timezone.utc).isoformat(),
-                    side='PC', mode='recovery', git_commit=git('rev-parse', 'HEAD'),
+                    side='PC', mode=mode, git_commit=git('rev-parse', 'HEAD'),
                     git_dirty=bool(git('status', '--porcelain')), targets=plan['targets'],
                     excluded=plan['excluded'], workspaces=plan['workspaces'], queue=plan['queue'],
                     task_definitions=tasks, files=[])
@@ -276,13 +298,13 @@ def create_pc_zip(plan, backup_id, tasks):
                 raise BackupError('source_changed')
             manifest['files'].append(dict(path=name, size=before.st_size, sha256=sha, mode=stat.S_IMODE(before.st_mode)))
         archive.writestr('manifest.json', json.dumps(manifest, ensure_ascii=False))
-    verify_zip(partial)
+    verify_zip(partial, expected_mode=mode)
     checksum = digest(partial)
     # On Windows rename refuses an existing destination; mutex protects the normal path.
     if final.exists():
         raise BackupError('backup_id_exists')
     partial.rename(final)
-    result = dict(schema_version=1, backup_id=backup_id, mode='recovery', pc_result='success',
+    result = dict(schema_version=1, backup_id=backup_id, mode=mode, pc_result='success',
                   android_result='not_run', restart_result='not_run', pair_state='incomplete',
                   zip_sha256=checksum, zip_name=final.name)
     temp_result = Path(str(result_path) + '.partial')

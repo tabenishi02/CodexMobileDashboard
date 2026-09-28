@@ -84,6 +84,21 @@ class BackupTests(unittest.TestCase):
         self.assertEqual(load_ledger(self.ledger), load_ledger(restored / 'payload/ledger/ledger.json'))
         self.assertEqual(self.token.read_bytes(), (restored / 'payload/token/sender.token').read_bytes())
 
+    def test_full_uses_recovery_pc_targets_and_writes_full_manifest(self):
+        recovery = backup.select_pc(self.config)
+        full = backup.select_pc(self.config, mode='full')
+        self.assertEqual(
+            [(target['label'], target['source']) for target in recovery['targets']],
+            [(target['label'], target['source']) for target in full['targets']],
+        )
+        result = backup.create_pc_zip(full, backup.new_backup_id(), [])
+        archive = self.output / result['zip_name']
+        manifest = backup.verify_zip(archive, expected_mode='full')
+        self.assertEqual('full', manifest['mode'])
+        self.assertEqual('full', result['mode'])
+        with self.assertRaisesRegex(backup.BackupError, 'manifest_invalid'):
+            backup.verify_zip(archive)
+
     def test_symlink_or_junction_source_is_rejected(self):
         with patch('tools.backup.linked', side_effect=lambda p: p == self.token):
             with self.assertRaisesRegex(backup.BackupError, 'linked_source'):

@@ -1,6 +1,6 @@
 # バックアップ設計（Phase A）
 
-状態：recoveryはPC・Android・両端統合・週次実行・検証付き一時復元を実装し、実機受入まで完了した。手順は[PC](BACKUP_PC.md)、[Android](BACKUP_ANDROID.md)、[両端統合](BACKUP_PAIR.md)、[週次実行](BACKUP_SCHEDULE.md)、[復元](BACKUP_RESTORE.md)を参照する。fullは対象・復元範囲・容量基準だけを本書で確定しており、コマンド実装と実機受入は未完了である。
+状態：recoveryはPC・Android・両端統合・週次実行・検証付き一時復元を実装し、実機受入まで完了した。手順は[PC](BACKUP_PC.md)、[Android](BACKUP_ANDROID.md)、[両端統合](BACKUP_PAIR.md)、[週次実行](BACKUP_SCHEDULE.md)、[復元](BACKUP_RESTORE.md)を参照する。fullはPC・Androidの対象選択、ZIP作成、Manifest・ZIP検証までを内部実装している。明示操作、両端統合、検証付き一時復元、実機受入は未完了である。
 
 ## 方針
 
@@ -77,7 +77,7 @@ full ZIPが提供する履歴範囲は、その`created_at`時点で実際にpub
 
 fullからstagingと受付履歴を復元しても、対応するPCキューがなければ未完了Snapshotのcommit完遂を保証しない。復元後は[受付履歴の保持方針](SNAPSHOT_CLEANUP.md#deliveriescommitsの保持方針)に従い、PCキュー、public、staging、receiptの対応を確認してから送信を再開する。
 
-現行実装はrecoveryだけを受け付ける。`tools.backup --mode full`は`full_not_implemented`で終了し、Android workerと両端オーケストレーターもfullを作成しない。上表は後続実装の契約であり、full ZIPが実在することを示さない。
+現行の利用者向けコマンドはrecoveryだけを受け付ける。`tools.backup --mode full`は`full_not_implemented`で終了し、Android workerと両端オーケストレーターもfullを起動しない。内部の対象選択・ZIP作成・検証はfullに対応し、PCはrecoveryと同一対象、Androidは全public・全staging（`.deliveries`・`.commits`を含む）を保存する。利用者向けの明示操作、容量事前確認、排他、検証付き一時復元は後続タスクで有効化する。
 
 ## 必要空き容量
 

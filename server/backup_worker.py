@@ -1,4 +1,4 @@
-"""Detached Termux recovery worker. Run as python -m server.backup_worker."""
+"""Detached Termux backup worker primitives. Public commands remain recovery-only."""
 import argparse
 import hashlib
 from datetime import datetime, timezone
@@ -29,7 +29,9 @@ def atomic_json(path, value):
     os.replace(temp, path)
 
 
-def select_android(config, output, boot):
+def select_android(config, output, boot, mode='recovery'):
+    if mode not in ('recovery', 'full'):
+        raise BackupError('mode_invalid')
     settings = load_server_settings(str(config))
     if linked(settings['public_directory'].absolute()):
         raise BackupError('linked_source')
@@ -55,15 +57,21 @@ def select_android(config, output, boot):
         path = workspace / 'snapshots' / snapshot
         if not path.is_dir():
             raise BackupError('snapshot_missing')
-        targets += [(f'current_{workspace.name}', current, True),
-                    (f'snapshot_{workspace.name}', path, True)]
+        if mode == 'recovery':
+            targets += [(f'current_{workspace.name}', current, True),
+                        (f'snapshot_{workspace.name}', path, True)]
         workspaces.append(dict(workspace_id=workspace.name, snapshot_id=snapshot))
+    if mode == 'full':
+        targets += [('public', public, True),
+                    ('staging', settings['staging_directory'], True)]
     files, records = [], []
     for label, source, required in targets:
         source = Path(source).absolute()
         if linked(source) or within(source.resolve(), output.resolve()):
             raise BackupError('source_invalid')
         record = dict(label=label, source=str(source), required=required, present=source.exists(), files=[])
+        if mode == 'full' and label in ('public', 'staging'):
+            record['allow_empty'] = True
         records.append(record)
         if not source.exists():
             if required:
@@ -90,9 +98,9 @@ def select_android(config, output, boot):
             else:
                 raise BackupError('source_invalid')
         walk(source)
-        if required and not record['files']:
+        if required and not record['files'] and not record.get('allow_empty'):
             raise BackupError('required_source_empty')
-    return dict(files=files, targets=records, workspaces=workspaces, settings=settings)
+    return dict(mode=mode, files=files, targets=records, workspaces=workspaces, settings=settings)
 
 
 def capacity(plan, output, reserve):
@@ -122,17 +130,22 @@ def source_metadata(root):
 
 
 def write_zip(plan, output, backup_id):
+    mode = plan.get('mode', 'recovery')
+    if mode not in ('recovery', 'full'):
+        raise BackupError('mode_invalid')
     final = output / f'CodexMobileDashboard-Android-{backup_id}.zip'
     partial = Path(str(final) + '.partial')
     if final.exists() or partial.exists():
         raise BackupError('backup_id_exists')
     root = Path(__file__).resolve().parent.parent
     git_commit, git_dirty, source_fingerprint = source_metadata(root)
-    manifest = dict(schema_version=1, backup_id=backup_id, side='Android', mode='recovery',
+    exclusions = (['old_snapshots', 'staging', 'receipts', 'logs', 'pid', 'lock']
+                  if mode == 'recovery' else ['logs', 'pid', 'lock', 'temporary'])
+    manifest = dict(schema_version=1, backup_id=backup_id, side='Android', mode=mode,
                     created_at=datetime.now(timezone.utc).isoformat(), git_commit=git_commit,
                     git_dirty=git_dirty, source_fingerprint=source_fingerprint, targets=plan['targets'],
                     workspaces=plan['workspaces'], queue='PC backup owns queued deliveries',
-                    excluded=['old_snapshots', 'staging', 'receipts', 'logs', 'pid', 'lock'], files=[])
+                    excluded=exclusions, files=[])
     with zipfile.ZipFile(partial, 'x', compression=zipfile.ZIP_DEFLATED) as archive:
         for path, name in plan['files']:
             before = path.stat()
@@ -143,7 +156,7 @@ def write_zip(plan, output, backup_id):
                 raise BackupError('source_changed')
             manifest['files'].append(dict(path=name, size=before.st_size, sha256=sha, mode=stat.S_IMODE(before.st_mode)))
         archive.writestr('manifest.json', json.dumps(manifest))
-    verify_zip(partial, expected_side='Android')
+    verify_zip(partial, expected_side='Android', expected_mode=mode)
     sha = digest(partial)
     # Global flock and per-ID job reservation exclude another publisher.
     if final.exists():
