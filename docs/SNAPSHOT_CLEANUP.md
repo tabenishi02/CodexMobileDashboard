@@ -19,7 +19,24 @@
 
 保持期間の基準となる最終活動日時は、Snapshotディレクトリ自身と配下の通常ファイルのmtimeの最大値とする。整理開始時刻との差がそれぞれ1時間または7日以上の場合だけ期限経過と判定する。mtimeが整理開始時刻より5分を超えて未来の場合は時刻異常として保留する。保持期間は作成途中を年齢だけで消さないための猶予であり、世代数と期間の両方を外れた場合だけ削除できる。
 
-公開済みstagingはpublicの保持世代数とは独立して整理できるが、`.deliveries`が残ったままstaging本文だけを削除すると、同じDelivery IDの再送時に本文保存が省略される可能性がある。このため、関連する`.deliveries`・`.commits`の失効条件を次のタスクで確定し、stagingと受付履歴を同じ整理処理で整合させる。受付履歴の条件が未確定・未実装の間は、恒常運用としてstagingを削除しない。
+公開済みstagingはpublicの保持世代数とは独立して整理できるが、受付履歴と本文を以下の方針で整合させる。受付履歴との同時整理が未実装の間は、恒常運用としてstagingを削除しない。
+
+### `.deliveries`・`.commits`の保持方針
+
+`.deliveries`は各JSONのDelivery IDに対する保存済み判定、`.commits`はcommit Delivery IDに対する受付済み判定である。PCキューはSnapshot本文、各Delivery ID、commit Delivery IDをcommit成功確認まで保持し、成功後だけ削除する。
+
+| 受付履歴 | 保持する条件 | 削除できる条件 |
+| --- | --- | --- |
+| `.deliveries` | 対応するworkspace/SnapshotがいずれかのPC未送信キュー、current、または保持対象stagingにある | 対応stagingを削除する同じ整理処理で、全PCキュー・currentの対象外と再確認できる |
+| `.commits` | 対応するworkspace/SnapshotがいずれかのPC未送信キュー、current、または保持対象publicにある | 対応publicを削除する同じ整理処理で、全PCキュー・currentの対象外と再確認できる |
+| 対応データがない正常な孤立receipt | 最終更新から7日 | 7日以上変化せず、全PCキュー・current・保持対象データのいずれにも対応しない |
+| 不正または判定不能なreceipt | 自動削除しない | JSON構造・Delivery ID・workspace/Snapshot ID・hash・通常ファイル性を検証できない場合は手動調査する |
+
+関連付けにはファイル名だけでなくreceipt本文のworkspace IDとSnapshot IDを使用する。PCキューに同じ組がある場合は年齢に関係なく、その組に属するすべてのreceiptを保護する。将来の整理実装では、検証済みqueue manifestから各ファイルのDelivery IDとcommit Delivery IDも取得し、複数PCがある場合は全送信元の保護集合を統合する。
+
+削除順序は、stagingを削除する場合は対応する`.deliveries`を先、publicを削除する場合は対応する`.commits`を先とする。両方を削除する場合は両receipt群を先に失効させてからstaging、publicの順に削除する。receipt削除後に処理が中断してデータだけ残っても、同じDelivery IDの再送は本文保存・commit検証を再実行できる。データを先に削除してreceiptだけを残す順序は禁止する。
+
+同一receiptを保持している間は、同じDelivery IDと同じ内容の再送を成功として扱い、異なる内容は競合として拒否する。安全にreceiptを削除した後は、PCキューに本文一式があれば通常のfile POSTから再保存できる。`.commits`をpublicより先に削除することで、過去Snapshotの再commitでも空き容量確認と公開検証を省略しない。
 
 すべての候補で、整理開始前のwriter停止、backup lock、最新の全PCキュー、current、ファイル内容、最終活動日時をdry-runと適用直前に再検証する。適用中にcurrentや候補集合が変わった場合は削除前に停止する。容量不足でもcurrentと未送信キューの保護は緩和しない。
 

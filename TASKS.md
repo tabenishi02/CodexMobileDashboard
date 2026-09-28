@@ -430,7 +430,7 @@
    - [x] 本番週次バックアップタスクを登録・手動実行し、PC再起動後の有効状態・次回予定・正常実行を確認する（2026-09-28完了）
 2. [ ] 古いJSONの保持・削除方針を決める（実際の自動削除はfullバックアップの初回成功後に行う）
    - [x] public Snapshotの保存世代数・保持期間と、公開済み／未完了stagingの保持・削除条件を決める（`docs/SNAPSHOT_CLEANUP.md`、2026-09-28完了。current参照先は常に保護）
-   - [ ] `.deliveries`・`.commits`の保持方針を、PC未送信キューと再送時の重複判定への影響を確認して決める
+   - [x] `.deliveries`・`.commits`の保持方針を、PC未送信キューと再送時の重複判定への影響を確認して決める（`docs/SNAPSHOT_CLEANUP.md`、2026-09-28完了）
    - [ ] recovery・fullの対象範囲、復元可能期間、必要空き容量との関係を文書化する
 3. [ ] fullバックアップモードを追加する（recovery実機受入と保持方針確定後の明示操作専用）
    - [ ] PC・Androidのfull対象を確定し、Androidの全公開世代・staging・受付履歴を保存する
