@@ -2,8 +2,9 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import Mock, patch
 
-from tools.snapshot_cleanup_apply import apply_cleanup, candidate_signature
+from tools.snapshot_cleanup_apply import acquire_exclusive_lock, apply_cleanup, candidate_signature, execute_cleanup
 from tools.snapshot_cleanup_inventory import inspect
 
 
@@ -48,6 +49,36 @@ class CleanupApplyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "candidate_set_changed"):
             apply_cleanup(self.root, self.queue, approved)
         self.assertTrue((self.root / "public/w/snapshots/old").is_dir())
+
+    def test_exclusive_lock_reports_maintenance_busy(self):
+        handle = Mock()
+        handle.fileno.return_value = 10
+        lock_api = Mock(LOCK_EX=2, LOCK_NB=4)
+        lock_api.flock.side_effect = BlockingIOError()
+        with self.assertRaisesRegex(RuntimeError, "maintenance_busy"):
+            acquire_exclusive_lock(handle, lock_api)
+        lock_api.flock.assert_called_once_with(10, 6)
+
+    def test_dry_run_does_not_delete(self):
+        before = {str(path): path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
+        report = execute_cleanup(self.root, self.queue, apply=False)
+        self.assertTrue(report["dry_run"])
+        self.assertEqual(2, report["candidate_count"])
+        self.assertEqual(before, {str(path): path.read_bytes() for path in self.root.rglob("*") if path.is_file()})
+
+    def test_content_change_after_rescan_aborts_before_deletion(self):
+        approved = inspect(self.root, self.queue)
+
+        def inspect_then_change(*args, **kwargs):
+            fresh = inspect(*args, **kwargs)
+            (self.root / "public/w/snapshots/old/data.json").write_text('{"changed":true}')
+            return fresh
+
+        with patch("tools.snapshot_cleanup_apply.inspect", side_effect=inspect_then_change):
+            with self.assertRaisesRegex(RuntimeError, "candidate_content_changed"):
+                apply_cleanup(self.root, self.queue, approved)
+        self.assertTrue((self.root / "public/w/snapshots/old").is_dir())
+        self.assertTrue((self.root / "staging/w/old").is_dir())
 
     def test_invalid_approved_report_rejected(self):
         with self.assertRaisesRegex(ValueError, "approved_report_invalid"):

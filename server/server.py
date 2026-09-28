@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import configparser
 from datetime import datetime, timezone
 import json
@@ -26,6 +27,29 @@ from typing import Optional, Sequence, Type
 
 _IDENTIFIER_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 _JSON_PATH_COMPONENT_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+
+
+class MaintenanceBusyError(RuntimeError):
+    """A cleanup or backup holds the Android storage maintenance lock."""
+
+
+@contextmanager
+def storage_write_lock(lock_file: Optional[Path]):
+    """Hold a shared lock for one receive/publish transaction on POSIX."""
+    if lock_file is None or os.name != "posix":
+        yield
+        return
+    import fcntl
+    lock_file.parent.mkdir(parents=True, exist_ok=True)
+    with lock_file.open("a+") as handle:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise MaintenanceBusyError("storage_maintenance_busy") from None
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 def configure_server_logging(log_directory: Path) -> tuple[logging.Logger, logging.Logger]:
     """Create separate UTF-8 access and error logs without sensitive request data."""
@@ -380,7 +404,7 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
                 "relative_json_path": relative_json_path,
                 "body_sha256": hashlib.sha256(body).hexdigest(),
             }
-            with self.server.delivery_lock:
+            with self.server.delivery_lock, storage_write_lock(self.server.maintenance_lock_file):
                 receipt = delivery_receipt(str(staging_directory), delivery_id)
                 if receipt is None:
                     if not has_storage_capacity(staging_directory, self.server.minimum_free_bytes, body_length):
@@ -396,6 +420,12 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
                     self.send_header("Content-Length", "0")
                     self.end_headers()
                     return
+        except MaintenanceBusyError:
+            self.send_response(503)
+            self.send_header("Retry-After", "1")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         except InsufficientStorageError:
             self.server.error_logger.warning("server_warning event=storage_capacity_unavailable")
             self.send_response(507)
@@ -446,7 +476,7 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             "body_sha256": hashlib.sha256(body).hexdigest(),
         }
         try:
-            with self.server.delivery_lock:
+            with self.server.delivery_lock, storage_write_lock(self.server.maintenance_lock_file):
                 receipt = commit_receipt(str(staging_directory), delivery_id)
                 if receipt is not None and receipt != request_receipt:
                     self.send_response(409)
@@ -464,6 +494,12 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
                 )
                 if receipt is None:
                     store_commit_receipt(str(staging_directory), delivery_id, request_receipt)
+        except MaintenanceBusyError:
+            self.send_response(503)
+            self.send_header("Retry-After", "1")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         except InsufficientStorageError:
             self.server.error_logger.warning("server_warning event=storage_capacity_unavailable")
             self.send_response(507)
@@ -600,6 +636,9 @@ def load_server_settings(config_file: str) -> dict:
             "minimum_free_bytes": minimum_free_bytes,
             "token": token,
             "token_file": token_file,
+            "maintenance_lock_file": (read_path("maintenance", "lock_file")
+                                      if parser.has_option("maintenance", "lock_file")
+                                      else Path.home() / ".cache/codex-mobile-dashboard/backup.lock"),
         }
     except ServerConfigurationError:
         raise
@@ -863,7 +902,7 @@ def safe_static_path(root: Path, request_path: str) -> Path:
 def content_type_for(path: Path) -> str:
     return {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8"}.get(path.suffix.lower(), "application/octet-stream")
 
-def create_server(host: str = "0.0.0.0", port: int = 8765, static_directory: str = ".", public_directory: str = ".", staging_directory: Optional[str] = None, log_directory: Optional[str] = None, minimum_free_bytes: int = DEFAULT_MINIMUM_FREE_BYTES) -> ThreadingHTTPServer:
+def create_server(host: str = "0.0.0.0", port: int = 8765, static_directory: str = ".", public_directory: str = ".", staging_directory: Optional[str] = None, log_directory: Optional[str] = None, minimum_free_bytes: int = DEFAULT_MINIMUM_FREE_BYTES, maintenance_lock_file: Optional[str] = None) -> ThreadingHTTPServer:
     if not 0 <= port <= 65535:
         raise ValueError("port_invalid")
     if minimum_free_bytes < 0:
@@ -895,6 +934,7 @@ def create_server(host: str = "0.0.0.0", port: int = 8765, static_directory: str
     server.public_directory = public_root
     server.staging_directory = staging_root
     server.delivery_lock = threading.Lock()
+    server.maintenance_lock_file = Path(maintenance_lock_file).expanduser() if maintenance_lock_file else None
     server.started_at = time.monotonic()
     server.minimum_free_bytes = minimum_free_bytes
     if log_directory is None:
@@ -905,10 +945,10 @@ def create_server(host: str = "0.0.0.0", port: int = 8765, static_directory: str
     else:
         server.access_logger, server.error_logger = configure_server_logging(Path(log_directory))
     return server
-def create_https_server(certificate_file: str, private_key_file: str, host: str = "0.0.0.0", port: int = 8765, static_directory: str = ".", public_directory: str = ".", staging_directory: Optional[str] = None, log_directory: Optional[str] = None, minimum_free_bytes: int = DEFAULT_MINIMUM_FREE_BYTES) -> ThreadingHTTPServer:
+def create_https_server(certificate_file: str, private_key_file: str, host: str = "0.0.0.0", port: int = 8765, static_directory: str = ".", public_directory: str = ".", staging_directory: Optional[str] = None, log_directory: Optional[str] = None, minimum_free_bytes: int = DEFAULT_MINIMUM_FREE_BYTES, maintenance_lock_file: Optional[str] = None) -> ThreadingHTTPServer:
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(certificate_file, private_key_file)
-    server = create_server(host, port, static_directory, public_directory, staging_directory, log_directory, minimum_free_bytes)
+    server = create_server(host, port, static_directory, public_directory, staging_directory, log_directory, minimum_free_bytes, maintenance_lock_file)
     server.socket = context.wrap_socket(server.socket, server_side=True)
     return server
 
@@ -922,6 +962,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--static-dir", default=".")
     parser.add_argument("--public-dir", default=".")
     parser.add_argument("--staging-dir")
+    parser.add_argument("--maintenance-lock")
     arguments = parser.parse_args(argv)
     if arguments.config:
         try:
@@ -932,13 +973,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             str(settings["certificate_file"]), str(settings["private_key_file"]),
             settings["host"], settings["port"], str(settings["static_directory"]),
             str(settings["public_directory"]), str(settings["staging_directory"]), str(settings["log_directory"]),
-            settings["minimum_free_bytes"],
+            settings["minimum_free_bytes"], str(settings["maintenance_lock_file"]),
         )
         server.bearer_token = settings["token"]
     else:
         if bool(arguments.cert) != bool(arguments.key):
             parser.error("--cert and --key must be specified together")
-        server = create_https_server(arguments.cert, arguments.key, arguments.host, arguments.port, arguments.static_dir, arguments.public_dir, arguments.staging_dir) if arguments.cert else create_server(arguments.host, arguments.port, arguments.static_dir, arguments.public_dir, arguments.staging_dir)
+        server = create_https_server(arguments.cert, arguments.key, arguments.host, arguments.port, arguments.static_dir, arguments.public_dir, arguments.staging_dir, maintenance_lock_file=arguments.maintenance_lock) if arguments.cert else create_server(arguments.host, arguments.port, arguments.static_dir, arguments.public_dir, arguments.staging_dir, maintenance_lock_file=arguments.maintenance_lock)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

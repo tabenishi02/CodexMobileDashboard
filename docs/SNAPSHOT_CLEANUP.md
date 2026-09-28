@@ -1,6 +1,6 @@
 # Snapshot整理のdry-run
 
-`tools/snapshot_cleanup_inventory.py`は読み取り専用で、削除機能はない。
+`tools/snapshot_cleanup_inventory.py`は読み取り専用で、削除機能はない。削除承認用の確認では、受信・公開・recovery/fullバックアップと排他する`tools/snapshot_cleanup_apply.py --dry-run`を使用する。
 
 ## 恒常運用の保持方針
 
@@ -38,43 +38,13 @@
 
 同一receiptを保持している間は、同じDelivery IDと同じ内容の再送を成功として扱い、異なる内容は競合として拒否する。安全にreceiptを削除した後は、PCキューに本文一式があれば通常のfile POSTから再保存できる。`.commits`をpublicより先に削除することで、過去Snapshotの再commitでも空き容量確認と公開検証を省略しない。
 
-すべての候補で、整理開始前のwriter停止、backup lock、最新の全PCキュー、current、ファイル内容、最終活動日時をdry-runと適用直前に再検証する。適用中にcurrentや候補集合が変わった場合は削除前に停止する。容量不足でもcurrentと未送信キューの保護は緩和しない。
+すべての候補で、共通lock、最新の全PCキュー、current、ファイル内容、最終活動日時をdry-runと適用直前に再検証する。適用では候補集合と合計に加え、各候補の相対パス・サイズ・SHA-256から作る`tree_sha256`を削除直前に再計算する。current、候補集合、または内容指紋が変わった場合はその候補を削除せず停止する。容量不足でもcurrentと未送信キューの保護は緩和しない。
 
-## 前提
+## dry-runと適用
 
-PCの定期送信を無効化し、手動送信・再送・バックアップも終了させる。Androidの独立backup workerが終了していることを確認したうえで、`stop_server.sh`でサーバーを停止する。候補調査が終わるまで書き込みを再開しない。`--writers-stopped`はこの状態の申告であり、自動停止や排他ロックではない。
+削除承認に使用するdry-runと適用コマンドは[Snapshot整理の適用](SNAPSHOT_CLEANUP_APPLY.md)に従う。`snapshot_cleanup_apply.py`はAndroidサーバーとrecovery/fullバックアップが共有するlockを排他取得し、受信・公開・バックアップと同時更新しない。dry-runは削除せず、applyは承認済み候補との一致と各候補の`tree_sha256`を削除直前に再確認する。
 
-PCで停止後の最新キュー一覧を取得する（PowerShellのリダイレクトによるUTF-16を避ける）。
-
-```powershell
-$queue = python -m tools.collector --config "$env:LOCALAPPDATA/CodexMobileDashboard/config/collector.ini" queue-status
-if ($LASTEXITCODE -ne 0) { throw 'queue-status failed' }
-[IO.File]::WriteAllText("$PWD/tmp/cleanup-queue-status.json", ($queue -join "`n"), (New-Object Text.UTF8Encoding($false)))
-```
-
-このJSONと`tools/snapshot_cleanup_inventory.py`をAndroidの`$HOME/CodexMobileDashboard/app/tools`へ転送する。実設定・Tokenの転送は不要。複数PCから送信する場合は全送信元のキューを同形式で集約するまで実施しない。
-
-Termuxで実行する。指定ディレクトリが存在し、スクリプトとキューJSONを配置済みであることを確認する。
-
-開始時と5秒ごとに`[running 経過秒数] 処理段階`を標準エラーへ表示する。通常の`>`リダイレクトでも画面に表示され、結果JSONには混入しない。成功時は`[completed]`、失敗時は`[failed]`を表示する。同じ段階の表示が続く場合は大きな処理やI/O待ちの可能性があり、表示の継続だけで処理が前進しているとは断定できない。既に実行中の旧版には反映されないため、必要ならCtrl+Cで旧版を中断し、更新版で再実行する。中断した結果JSONは使用しない。
-
-```sh
-python "$HOME/CodexMobileDashboard/app/tools/snapshot_cleanup_inventory.py" \
-  --data "$HOME/CodexMobileDashboard/data" \
-  --queue-status "$HOME/CodexMobileDashboard/app/tools/cleanup-queue-status.json" \
-  --writers-stopped > "$HOME/CodexMobileDashboard/app/tools/cleanup-dry-run.json"
-echo "dry_run_exit=$?"
-python - <<'PY'
-import json
-from pathlib import Path
-r = json.loads((Path.home() / 'CodexMobileDashboard/app/tools/cleanup-dry-run.json').read_text())
-print({k: r.get(k) for k in ('error', 'candidate_count', 'logical_bytes')})
-print('protected:', len(r.get('protected', [])))
-print('deferred:', len(r.get('deferred', [])))
-PY
-```
-
-終了コード0のJSONをPCへ回収して確認する。`candidates`は候補ごとのパス・ファイル件数・論理バイト数、`candidate_count`は候補ディレクトリ総数、`logical_bytes`は合計。実ディスク解放量とは異なる。内容照合で数十GBを読む可能性があり、処理に時間がかかる。
+`tools/snapshot_cleanup_inventory.py`はlockを取得しない読み取り専用の調査ツールとして残す。その出力だけを自動削除の承認に使用せず、適用前には必ず共通lock下の`--dry-run`を実行する。
 
 ## 保護条件と制限
 
@@ -82,5 +52,6 @@ PY
 - PC未送信キューのworkspace/Snapshot組を両側とも保護する。
 - commit受付記録のないSnapshotは保留する。stagingは対応publicの存在と全ファイルのSHA-256一致が必須。両側が存在して不一致なら両側とも保留する。
 - 受付記録・未知のworkspace・受信途中や一時ディレクトリは候補にしない。不正なcurrentや受付記録、リンク等の異常では安全側に停止する。
-- 処理終了時にもcurrentが変化していないことを確認する。候補一覧は削除の許可リストではない。削除を実装する次タスクで、書き込み停止・キュー・current・内容を再検証する。
-- 今回PCで取得した一覧とローカルテストだけではAndroidの実機確認は完了しない。実機の終了コードとJSONを確認してからTASKS.mdを完了にする。
+- dry-runとapplyで候補集合、件数、論理容量、内容指紋が変化した場合は削除しない。適用中も各候補の内容指紋とcurrentを削除直前に確認する。
+- 複数PCから送信する場合は、全送信元の最新キューを集約できるまで適用しない。
+- 恒常保持期間とreceipt同時整理は後続タスクで実装する。それまでは通常の自動整理を有効にしない。

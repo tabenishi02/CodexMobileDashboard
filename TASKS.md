@@ -437,7 +437,7 @@
    - [x] `--mode full`の明示操作、容量事前確認、排他、Manifest・ZIP検証、一時復元を実装・テストする（2026-09-28完了。通常・週次recoveryから暗黙起動しない）
    - [x] 自動整理を有効にする前に、実機で最初の両端fullバックアップと検証付き一時展開を成功させる（2026-09-29完了。Backup ID `20260928T091303Z-bf2b7e6c`で`pair_state=complete`・`recovery_state=restored`、両ZIPのSHA-256・Manifest・検証付き一時展開、Androidの全public・staging・`.deliveries`・`.commits`、サーバー復旧を確認）
 4. [ ] 保持方針に基づく古いJSONの自動整理を実装・運用確認する
-   - [ ] 受信・公開・recovery/fullバックアップとの排他、削除範囲の再検証、dry-runに対応する
+   - [x] 受信・公開・recovery/fullバックアップとの排他、削除範囲の再検証、dry-runに対応する（2026-09-29完了。共通POSIX lock、候補`tree_sha256`、削除直前再検証、排他下の`--dry-run`を実装）
    - [ ] current・受信途中・未送信／再送データの保護、同時更新、整理失敗時の安全性をテストし、運用手順を文書化する
    - [ ] 実機で定期送信と整理を継続実行し、容量増加が抑えられ、受信・表示・バックアップが維持されることを確認する
 5. [ ] 未記載の完了内容を`CHANGELOG.md`の`Unreleased`へ反映する（Termux wake lock、Phase 7追加テスト、容量復旧・Snapshot整理、大容量message page修正、実機バックアップ受入結果）

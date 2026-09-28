@@ -193,6 +193,14 @@ C:\codex
 | `page_max_items` | 必須 | integer、`100` | 1ページの最大件数 |
 | `page_max_bytes` | 必須 | integer、`524288` | 最大512KiB |
 
+### Androidサーバーの`[maintenance]`
+
+| キー | 必須 | 型・既定値 | 規則 |
+|---|---|---|---|
+| `lock_file` | 任意 | path、`~/.cache/codex-mobile-dashboard/backup.lock` | 受信・公開、Snapshot整理、recovery/fullバックアップで共有するPOSIX lock。 |
+
+サーバーは1回のファイル受信または公開処理ごとに共有lockを取得する。Snapshot整理とAndroidバックアップは同じファイルの排他lockを取得するため、受信・公開・整理・recovery/fullが同じ保存領域を同時更新しない。lock競合中のPOSTは`503`と`Retry-After: 1`を返し、GETとhealthは継続する。lockファイルは削除によって解除せず、全処理で同じパスを指定する。
+
 ### Androidサーバーの`[storage]`
 
 | キー | 必須 | 型・既定値 | 規則 |
@@ -320,7 +328,7 @@ CA秘密鍵はAndroid端末へ置かず、作業用PCのリポジトリ外で保
 
 ## Androidサーバーの実設定
 
-Androidサーバーは、リポジトリ外の`~/.config/codex-mobile-dashboard/server.ini`を`python server.py --config`で指定する。INIはUTF-8、補間無効で読み取る。`[server]`の`host`、`port`、`certificate_file`、`private_key_file`、`static_directory`、`public_directory`、`staging_directory`と、`[auth]`の`token_file`を必須とする。`[logging] directory`は指定時に使用し、未指定時はserver.iniと同階層の`logs/`を使用する。`[storage] minimum_free_bytes`は任意で、未指定時は1GiBの空き容量を予約する。`token_file`はUTF-8の1行Tokenであり、前後の空白と改行を除去して読む。空のTokenファイルは起動を中止する。
+Androidサーバーは、リポジトリ外の`~/.config/codex-mobile-dashboard/server.ini`を`python server.py --config`で指定する。INIはUTF-8、補間無効で読み取る。`[server]`の`host`、`port`、`certificate_file`、`private_key_file`、`static_directory`、`public_directory`、`staging_directory`と、`[auth]`の`token_file`を必須とする。`[logging] directory`は指定時に使用し、未指定時はserver.iniと同階層の`logs/`を使用する。`[storage] minimum_free_bytes`は任意で、未指定時は1GiBの空き容量を予約する。`[maintenance] lock_file`は任意で、未指定時は`~/.cache/codex-mobile-dashboard/backup.lock`を使用する。`token_file`はUTF-8の1行Tokenであり、前後の空白と改行を除去して読む。空のTokenファイルは起動を中止する。
 
 `server.ini`、`server.token`、TLS秘密鍵はGit管理せず、同じユーザーだけが読める権限にする。設定例は`config/server.example.ini`を使用する。環境変数と`~`はパスに限り展開する。Tokenの値はINI、コマンドライン、ログ、例外、HTTP応答へ出力しない。
 

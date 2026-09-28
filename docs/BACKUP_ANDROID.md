@@ -46,7 +46,7 @@ python -m server.backup_worker status \
 
 元々起動中なら、停止・保存の失敗やSIGTERM/SIGHUPでもfinallyで起動を試みる。元々停止なら起動しない。再起動は既存start_server.shを独立セッションで起動し、CA検証ありのHTTPS healthとPID管理対象の稼働を確認する。wake lockは解放しない。workerが復旧中に無視するSIGTERM/SIGHUPは子プロセス起動直前に既定値へ戻し、復旧したserver.pyが次回の正常停止を受け付ける状態を維持する。
 
-SSH切断から独立するためstart_new_session、DEVNULL、pass_fdsによるflock引継ぎを使用する。ロックファイルは`~/.cache/codex-mobile-dashboard/backup.lock`。プロセス終了でOSロックが解放されるため、lockファイルを手動削除しない。
+SSH切断から独立するためstart_new_session、DEVNULL、pass_fdsによるflock引継ぎを使用する。ロックファイルは`~/.cache/codex-mobile-dashboard/backup.lock`。サーバー受信・公開は共有lock、Snapshot整理とrecovery/fullバックアップは排他lockを取得する。プロセス終了でOSロックが解放されるため、lockファイルを手動削除しない。
 
 ## 保存物と異常時
 

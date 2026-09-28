@@ -73,6 +73,22 @@ def _digest(stream):
     return h.hexdigest()
 
 
+def tree_stats(files):
+    """Return a deterministic content fingerprint for one candidate tree."""
+    fingerprint = hashlib.sha256()
+    entries = {}
+    logical_bytes = 0
+    for relative, path in sorted(files.items()):
+        size = path.stat().st_size
+        value = digest(path)
+        entries[relative] = (size, value)
+        logical_bytes += size
+        fingerprint.update(json.dumps([relative, size, value], separators=(',', ':')).encode('utf-8'))
+        fingerprint.update(b'\n')
+    return dict(files=len(entries), logical_bytes=logical_bytes,
+                tree_sha256=fingerprint.hexdigest(), entries=entries)
+
+
 def inspect(data, queue, progress=lambda stage: None):
     if queue['pending_snapshots'] != len(queue['items']):
         raise ValueError('queue_count_mismatch')
@@ -127,18 +143,21 @@ def inspect(data, queue, progress=lambda stage: None):
                 if not files:
                     report['deferred'].append(dict(row, reason='empty_snapshot'))
                     continue
+                stats = tree_stats(files)
                 if area == 'staging' or (stage_workspace / snapshot.name).exists():
                     published = (snapshots if area == 'staging' else stage_workspace) / snapshot.name
                     if not published.is_dir():
                         report['deferred'].append(dict(row, reason='public_missing'))
                         continue
-                    other = tree(published)
-                    if files.keys() != other.keys() or any(digest(p) != digest(other[k]) for k, p in files.items()):
+                    other = tree_stats(tree(published))
+                    if stats['entries'] != other['entries']:
                         report['deferred'].append(dict(row, reason='public_mismatch'))
                         continue
-                size = sum(p.stat().st_size for p in files.values())
-                report['candidates'].append(dict(row, files=len(files), logical_bytes=size))
-                report['logical_bytes'] += size
+                report['candidates'].append(dict(
+                    row, files=stats['files'], logical_bytes=stats['logical_bytes'],
+                    tree_sha256=stats['tree_sha256'],
+                ))
+                report['logical_bytes'] += stats['logical_bytes']
     # Unknown staging workspaces are never candidates.
     for entry in staging.iterdir():
         if entry.name not in {p.parent.name for p in currents}:

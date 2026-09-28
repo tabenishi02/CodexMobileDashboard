@@ -1,4 +1,4 @@
-"""Delete only Snapshot candidates matching a previously reviewed dry-run report."""
+"""Inspect candidates, or delete only those matching a reviewed dry-run report."""
 
 import argparse
 import json
@@ -11,12 +11,20 @@ if os.name == 'posix':
     import fcntl
 
 try:
-    from tools.snapshot_cleanup_inventory import Progress, inspect
+    from tools.snapshot_cleanup_inventory import Progress, inspect, tree, tree_stats
 except ModuleNotFoundError as error:
     if error.name != "tools":
         raise
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from tools.snapshot_cleanup_inventory import Progress, inspect
+    from tools.snapshot_cleanup_inventory import Progress, inspect, tree, tree_stats
+
+
+def acquire_exclusive_lock(handle, lock_api):
+    """Acquire the shared maintenance file exclusively without waiting."""
+    try:
+        lock_api.flock(handle.fileno(), lock_api.LOCK_EX | lock_api.LOCK_NB)
+    except BlockingIOError:
+        raise RuntimeError("maintenance_busy") from None
 
 
 def candidate_signature(report):
@@ -26,7 +34,7 @@ def candidate_signature(report):
     return {
         (
             item["area"], item["workspace"], item["snapshot_id"],
-            item["path"], item["files"], item["logical_bytes"],
+            item["path"], item["files"], item["logical_bytes"], item["tree_sha256"],
         )
         for item in candidates
     }
@@ -77,6 +85,11 @@ def apply_cleanup(data, queue, approved, progress=lambda stage: None):
         )
         if target != expected or target.is_symlink() or not target.is_dir():
             raise RuntimeError("candidate_path_changed")
+        actual = tree_stats(tree(target))
+        if (actual["files"], actual["logical_bytes"], actual["tree_sha256"]) != (
+            item["files"], item["logical_bytes"], item["tree_sha256"],
+        ):
+            raise RuntimeError("candidate_content_changed")
         progress(f'deleting {removed + 1}/{len(candidates)}: {item["area"]}/{item["workspace"]}/{item["snapshot_id"]}')
         shutil.rmtree(target)
         removed += 1
@@ -92,15 +105,26 @@ def apply_cleanup(data, queue, approved, progress=lambda stage: None):
     }
 
 
+def execute_cleanup(data, queue, approved=None, *, apply=False, progress=lambda stage: None):
+    """Evaluate candidates without deletion, or apply one reviewed report."""
+    if not apply:
+        return inspect(data, queue, progress)
+    if approved is None:
+        raise ValueError("approved_report_required")
+    return apply_cleanup(data, queue, approved, progress)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data", type=Path, required=True)
     parser.add_argument("--queue-status", type=Path, required=True)
-    parser.add_argument("--approved-report", type=Path, required=True)
-    parser.add_argument("--server-pid-file", type=Path, required=True)
-    parser.add_argument("--server-script", type=Path, required=True)
+    parser.add_argument("--approved-report", type=Path)
+    parser.add_argument("--server-pid-file", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--server-script", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--backup-lock", type=Path, required=True)
-    parser.add_argument("--apply", action="store_true", required=True)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--dry-run", action="store_true")
+    mode.add_argument("--apply", action="store_true")
     args = parser.parse_args()
 
     if os.name != "posix":
@@ -109,23 +133,24 @@ def main():
     args.backup_lock.parent.mkdir(parents=True, exist_ok=True)
     lock = args.backup_lock.open("a+")
     try:
-        try:
-            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            raise RuntimeError("backup_running")
-        if args.server_pid_file.exists() or running_server(args.server_script):
-            raise RuntimeError("server_running")
+        acquire_exclusive_lock(lock, fcntl)
         queue = json.loads(args.queue_status.read_text(encoding="utf-8-sig"))
-        approved = json.loads(args.approved_report.read_text(encoding="utf-8-sig"))
         with Progress() as progress:
-            result = apply_cleanup(args.data, queue, approved, progress.update)
+            approved = (json.loads(args.approved_report.read_text(encoding="utf-8-sig"))
+                        if args.approved_report is not None else None)
+            result = execute_cleanup(
+                args.data, queue, approved, apply=args.apply, progress=progress.update,
+            )
     except (OSError, ValueError, KeyError, TypeError, RuntimeError) as error:
         print(f"[failed] {error}", file=sys.stderr, flush=True)
         return 1
     finally:
         lock.close()
     print(json.dumps(result, ensure_ascii=False, indent=2))
-    print(f'[completed] removed={result["removed_count"]}', file=sys.stderr, flush=True)
+    if args.dry_run:
+        print(f'[completed] dry_run candidates={result["candidate_count"]}', file=sys.stderr, flush=True)
+    else:
+        print(f'[completed] removed={result["removed_count"]}', file=sys.stderr, flush=True)
     return 0
 
 

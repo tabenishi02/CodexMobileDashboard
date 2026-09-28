@@ -15,7 +15,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from server.server import configure_server_logging, DEFAULT_MINIMUM_FREE_BYTES, has_storage_capacity, MAX_REQUEST_BODY_BYTES, RequestBodyLengthError, SnapshotJsonValidationError, create_server, load_server_settings, main, parse_snapshot_json_request_path, safe_static_path, store_snapshot_json, validate_request_content_length, validate_snapshot_json_body
+from server.server import configure_server_logging, DEFAULT_MINIMUM_FREE_BYTES, has_storage_capacity, MAX_REQUEST_BODY_BYTES, RequestBodyLengthError, SnapshotJsonValidationError, MaintenanceBusyError, create_server, load_server_settings, main, parse_snapshot_json_request_path, safe_static_path, store_snapshot_json, validate_request_content_length, validate_snapshot_json_body
 
 
 class ServerTests(unittest.TestCase):
@@ -231,6 +231,7 @@ class ServerTests(unittest.TestCase):
             self.assertEqual(8765, settings["port"])
             self.assertEqual("test-token-value", settings["token"])
             self.assertEqual(token_file, settings["token_file"])
+            self.assertEqual(Path.home() / ".cache/codex-mobile-dashboard/backup.lock", settings["maintenance_lock_file"])
 
     def test_load_server_settings_rejects_empty_token(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -523,6 +524,42 @@ class ServerTests(unittest.TestCase):
             changed["warnings"] = ["changed"]
             connection.request("POST", url, body=json.dumps(changed).encode("utf-8"), headers=headers)
             self.assertEqual(409, connection.getresponse().status)
+    def test_maintenance_lock_rejects_receive_and_publish_without_mutation(self) -> None:
+        self.server.bearer_token = "test-secret-token"
+        file_delivery = "123e4567-e89b-12d3-a456-426614174000"
+        commit_delivery = "123e4567-e89b-12d3-a456-426614174001"
+        snapshot_body = json.dumps(self._valid_snapshot_json(), separators=(",", ":")).encode("utf-8")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            staging = root / "staging"
+            public = root / "public"
+            staging.mkdir()
+            public.mkdir()
+            self.server.staging_directory = staging
+            self.server.public_directory = public
+            connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
+            with patch("server.server.storage_write_lock", side_effect=MaintenanceBusyError("busy")):
+                connection.request(
+                    "POST", "/api/v1/snapshots/workspace-1/snapshot-1/metadata.json",
+                    body=snapshot_body,
+                    headers={"Authorization": "Bearer test-secret-token", "X-Delivery-Id": file_delivery},
+                )
+                response = connection.getresponse()
+                self.assertEqual(503, response.status)
+                self.assertEqual("1", response.getheader("Retry-After"))
+                manifest = json.dumps({"files": [{
+                    "path": "metadata.json", "byte_size": len(snapshot_body),
+                    "sha256": hashlib.sha256(snapshot_body).hexdigest(),
+                }]}).encode("utf-8")
+                connection.request(
+                    "POST", "/api/v1/snapshots/workspace-1/snapshot-1/commit",
+                    body=manifest,
+                    headers={"Authorization": "Bearer test-secret-token", "X-Delivery-Id": commit_delivery},
+                )
+                self.assertEqual(503, connection.getresponse().status)
+            self.assertFalse((staging / "workspace-1").exists())
+            self.assertFalse((public / "workspace-1").exists())
+
     def test_api_post_rejects_invalid_json_body_over_http(self) -> None:
         self.server.bearer_token = "test-secret-token"
         headers = {
