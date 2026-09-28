@@ -115,6 +115,7 @@ class PairTests(TestCase):
             )
         mutex.assert_called_once()
         self.assertEqual('full', coordinate.call_args.args[0]['mode'])
+        self.assertEqual(14400, coordinate.call_args.args[4])
 
     def test_remote_quotes_paths_and_disables_interactive_ssh(self):
         config=configparser.ConfigParser()
@@ -128,6 +129,8 @@ class PairTests(TestCase):
             self.assertIn('StrictHostKeyChecking=yes',args)
             self.assertIn('--mode recovery', args[-1])
             self.assertEqual(1800, run.call_args.kwargs['timeout'])
+            remote.preflight(new_backup_id(), mode='full')
+            self.assertEqual(14400, run.call_args.kwargs['timeout'])
             self.assertIn("'\"'\"'",args[-1])
         config['android']['ssh_host']='-oProxyCommand=bad'
         with self.assertRaises(BackupError):pair.Remote(config)

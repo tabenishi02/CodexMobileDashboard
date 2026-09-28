@@ -32,8 +32,10 @@ class Remote:
         if not self.repository.startswith('/') or any(not self.options[k].startswith('/') for k in ('config','output','ca')):
             raise BackupError('remote_absolute_paths_required')
         self.reserve = config.getint('android', 'minimum_free_bytes', fallback=1073741824)
-        self.preflight_timeout = config.getint('android', 'wait_seconds', fallback=1800)
-        if self.reserve < 0 or not 1 <= self.preflight_timeout <= 86400:
+        self.wait_seconds = config.getint('android', 'wait_seconds', fallback=1800)
+        self.full_wait_seconds = config.getint('android', 'full_wait_seconds', fallback=14400)
+        if (self.reserve < 0 or not 1 <= self.wait_seconds <= 86400 or
+                not 1 <= self.full_wait_seconds <= 86400):
             raise BackupError('limits_invalid')
 
     def call(self, arguments, timeout=30):
@@ -59,8 +61,9 @@ class Remote:
         return args
 
     def preflight(self, backup_id, mode='recovery'):
+        timeout = self.full_wait_seconds if mode == 'full' else self.wait_seconds
         return self.call(['preflight', *self.start_args(backup_id, mode)],
-                         timeout=self.preflight_timeout)
+                         timeout=timeout)
 
     def start(self, backup_id, mode='recovery'):
         return self.call(['start', *self.start_args(backup_id, mode)])
@@ -164,7 +167,9 @@ def main(argv=None):
         if not ID_PATTERN.fullmatch(backup_id): raise BackupError('backup_id_invalid')
         config = read_config(args.config)
         wait = config.getint('backup','mutex_wait_seconds',fallback=300)
-        timeout = config.getint('android','wait_seconds',fallback=1800)
+        timeout_key = 'full_wait_seconds' if args.mode == 'full' else 'wait_seconds'
+        timeout_default = 14400 if args.mode == 'full' else 1800
+        timeout = config.getint('android', timeout_key, fallback=timeout_default)
         if not 0 <= wait <= 86400 or not 1 <= timeout <= 86400: raise BackupError('limits_invalid')
         remote = Remote(config)
         with CollectorMutex(wait):

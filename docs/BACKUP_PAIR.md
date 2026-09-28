@@ -10,7 +10,7 @@ PCがcollector mutexを保持し、SSHでAndroid workerを起動・照会する�
 4. repository/config/output/caはAndroid上の絶対パスにする。`~`は使わない。health_urlは証明書SANに一致するHTTPS `/health`。CAは公開証明書のみ。
 5. collectorと同じWindowsユーザー・同一ログオンセッションで実行する。直接CLIのcollect/backfill/retry、Android手動起動操作を重ねない。
 
-`wait_seconds`はPCのZIP作成後にAndroidの終了結果を待つ上限（既定1800秒）。start・statusのSSH要求上限は30秒、接続待ちは10秒。対象列挙と容量確認を行うpreflightは`wait_seconds`を上限とする。Androidは待機上限後も独立して続行する。
+`wait_seconds`はrecoveryでPCのZIP作成後にAndroidの終了結果を待つ上限（既定1800秒）、`full_wait_seconds`はfullのpreflightと終了結果を待つ上限（既定14400秒）である。start・statusのSSH要求上限は30秒、接続待ちは10秒。対象列挙と容量確認を行うpreflightも各modeの待機上限を使用する。Androidは待機上限後も独立して続行する。
 
 ## 実行
 
