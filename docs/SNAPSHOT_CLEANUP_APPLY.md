@@ -2,6 +2,8 @@
 
 この手順は、確認済みdry-runと削除直前の再検証結果が完全一致した場合だけ、古いpublic・staging Snapshotを削除する。`current.json`、参照中Snapshot、PC未送信キュー、`.commits`、`.deliveries`は削除しない。
 
+このスクリプトは確認済み候補を扱う緊急整理用で、[恒常運用の保持方針](SNAPSHOT_CLEANUP.md#恒常運用の保持方針)に定めた世代数・保持期間・受付履歴との同時整理はまだ実装していない。通常の自動整理には使用しない。
+
 ## 実行前
 
 1. PCの`CodexMobileDashboard-Collector`が無効で、手動collector・再送・バックアップ処理もないことを確認する。
