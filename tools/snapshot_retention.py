@@ -320,54 +320,88 @@ def _receipt_item_signature(group, old_only):
     return (group[prefix + "count"], group[prefix + "logical_bytes"], f'{group[prefix + "fingerprint"]:064x}')
 
 
+def _delete_receipt_files(data, candidates, now_ns, progress=lambda stage: None):
+    selected = {
+        (item["area"], item["workspace"], item["snapshot_id"]): item
+        for item in candidates if item["kind"] == "receipt"
+    }
+    observed = {key: _new_group() for key in selected}
+    cutoff_ns = now_ns - RECEIPT_AGE_SECONDS * 1_000_000_000
+    removed_files = 0
+    for area in ("deliveries", "commits"):
+        directory = _safe_root(data / "staging" / f".{area}")
+        for count, path in enumerate(directory.iterdir(), 1):
+            progress(f"deleting {area} receipts: {count}")
+            if path.is_symlink() or not path.is_file():
+                raise RuntimeError("candidate_path_changed")
+            raw = path.read_bytes()
+            try:
+                body = json.loads(raw.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                raise RuntimeError("candidate_content_changed") from error
+            key = _receipt_identity(path, area, body)
+            item = selected.get((area, key[0], key[1]))
+            if item is None:
+                continue
+            mtime_ns = path.stat().st_mtime_ns
+            if item["old_only"] and mtime_ns > cutoff_ns:
+                continue
+            _add_receipt(observed[(area, key[0], key[1])], path, raw, mtime_ns,
+                         cutoff_ns, include_paths=False)
+            path.unlink()
+            removed_files += 1
+    for key, item in selected.items():
+        if _receipt_item_signature(observed[key], False) != (
+                item["files"], item["logical_bytes"], item["tree_sha256"]):
+            raise RuntimeError("candidate_content_changed")
+    return len(selected), removed_files, sum(item["logical_bytes"] for item in selected.values())
+
+
 def apply_plan(data, queue, approved, progress=lambda stage: None):
     now_ns = approved.get("evaluated_at_ns")
     if isinstance(now_ns, bool) or not isinstance(now_ns, int):
         raise ValueError("approved_report_invalid")
-    fresh, currents, groups = build_plan(data, queue, now_ns=now_ns, progress=progress, include_receipt_paths=True)
+    fresh, currents, groups = build_plan(data, queue, now_ns=now_ns, progress=progress)
     if candidate_signature(fresh) != candidate_signature(approved):
         raise ValueError("candidate_set_changed")
     if fresh["logical_bytes"] != approved.get("logical_bytes"):
         raise ValueError("candidate_total_changed")
-    removed = 0
-    removed_files = 0
-    removed_bytes = 0
+    receipt_candidates = [item for item in fresh["candidates"] if item["kind"] == "receipt"]
+    for item in receipt_candidates:
+        group = groups[item["area"]][(item["workspace"], item["snapshot_id"])]
+        if _receipt_item_signature(group, item["old_only"]) != (
+                item["files"], item["logical_bytes"], item["tree_sha256"]):
+            raise RuntimeError("candidate_content_changed")
+    if any(path.read_bytes() != raw for path, raw in currents.items()):
+        raise RuntimeError("current_changed_during_cleanup")
+    removed, removed_files, removed_bytes = _delete_receipt_files(
+        data, receipt_candidates, now_ns, progress)
     for item in fresh["candidates"]:
+        if item["kind"] == "receipt":
+            continue
         if any(path.read_bytes() != raw for path, raw in currents.items()):
             raise RuntimeError("current_changed_during_cleanup")
         progress(f'deleting {removed + 1}/{len(fresh["candidates"])}: {item["area"]}/{item["workspace"]}/{item["snapshot_id"]}')
-        if item["kind"] == "receipt":
-            group = groups[item["area"]][(item["workspace"], item["snapshot_id"])]
-            if _receipt_item_signature(group, item["old_only"]) != (item["files"], item["logical_bytes"], item["tree_sha256"]):
-                raise RuntimeError("candidate_content_changed")
-            paths = group["old_paths"] if item["old_only"] else group["paths"]
-            for path in paths:
-                if path.is_symlink() or not path.is_file():
-                    raise RuntimeError("candidate_path_changed")
-                path.unlink()
-            removed_files += len(paths)
+        target = Path(item["path"])
+        expected = data / item["area"] / item["workspace"]
+        if item["area"] == "public":
+            expected = expected / "snapshots" / item["snapshot_id"]
         else:
-            target = Path(item["path"])
-            expected = data / item["area"] / item["workspace"]
-            if item["area"] == "public":
-                expected = expected / "snapshots" / item["snapshot_id"]
-            else:
-                expected = expected / item["snapshot_id"]
-            if target != expected or target.is_symlink() or not target.is_dir():
-                raise RuntimeError("candidate_path_changed")
-            actual = _snapshot(target, item["area"], item["workspace"], item["snapshot_id"], now_ns)
-            if _snapshot_signature(actual) != _snapshot_signature(item):
-                raise RuntimeError("candidate_content_changed")
-            if any(path.read_bytes() != raw for path, raw in currents.items()):
-                raise RuntimeError("current_changed_during_cleanup")
-            shutil.rmtree(target)
-            removed_files += item["files"]
+            expected = expected / item["snapshot_id"]
+        if target != expected or target.is_symlink() or not target.is_dir():
+            raise RuntimeError("candidate_path_changed")
+        actual = _snapshot(target, item["area"], item["workspace"], item["snapshot_id"], now_ns)
+        if _snapshot_signature(actual) != _snapshot_signature(item):
+            raise RuntimeError("candidate_content_changed")
+        if any(path.read_bytes() != raw for path, raw in currents.items()):
+            raise RuntimeError("current_changed_during_cleanup")
+        shutil.rmtree(target)
+        removed_files += item["files"]
         removed += 1
         removed_bytes += item["logical_bytes"]
     return dict(state="completed", policy=POLICY, removed_count=removed,
                 removed_file_count=removed_files, removed_logical_bytes=removed_bytes,
                 protected_current_count=len(currents))
-
 
 def _public_report(report):
     return report

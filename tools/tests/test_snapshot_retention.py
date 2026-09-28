@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 import uuid
 
 from tools.snapshot_retention import (
@@ -119,6 +120,13 @@ class RetentionCleanupTests(unittest.TestCase):
         self.assertTrue((self.staging / "current").is_dir())
         self.assertTrue((self.staging / "pending").is_dir())
         self.assertTrue((self.staging / "unfinished-recent").is_dir())
+
+    def test_apply_does_not_collect_receipt_paths_in_memory(self):
+        report, _, _ = build_plan(self.data, self.queue, now_ns=self.now_ns)
+        with patch("tools.snapshot_retention.build_plan", wraps=build_plan) as planned:
+            result = apply_plan(self.data, self.queue, report)
+        self.assertEqual("completed", result["state"])
+        self.assertFalse(planned.call_args.kwargs.get("include_receipt_paths", False))
 
     def test_current_change_after_dry_run_aborts(self):
         report, _, _ = build_plan(self.data, self.queue, now_ns=self.now_ns)
