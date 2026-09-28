@@ -51,4 +51,6 @@ python -m tools.backup_pair --config "$env:LOCALAPPDATA\CodexMobileDashboard\con
 
 実機受入では通常成功→SSH切断後の同一ID照会→容量不足で停止しないこと→PC失敗後のAndroid復帰を順に確認する。ZIP復元と週次運用の受入はPhase E/Fで継続する。
 
-2026-09-11：PC・Android worker・両端統合の関連42テスト成功。文書リンクとgit diff --checkを確認。実機SSH受入は未実施。
+2026-09-11：PC・Android worker・両端統合の関連42テスト成功。文書リンクとgit diff --checkを確認。
+
+2026-09-28：実機で通常成功、SSH切断後の同一ID照会、容量不足、PC保存失敗、Android保存失敗を確認した。失敗時もAndroidサーバーを復旧し、既存の正常ZIPを維持した。正常系では両ZIPのhash・内部検証・一時展開まで確認した。

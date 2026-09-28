@@ -55,4 +55,4 @@ python -m unittest tools.tests.test_backup_launcher tools.tests.test_backup_task
 Remove-Item Env:CODEX_DASHBOARD_TASK_TEST
 ```
 
-本番週次タスクは実装時点では未登録。画面フォーカス・スリープ復帰・実Androidでの統合受入は実環境で確認する。
+2026-09-28：本番週次タスクを日曜03:00で登録し、手動起動で両端recoveryを完走した。`LastTaskResult=0`、`pair_state=complete`、`recovery_state=restored`、両ZIPの検証、Androidサーバー復旧を確認した。PC再起動後も登録・有効状態・日曜03:00の次回予定を維持した。再起動後の手動起動でも新しい両端ZIPが`pair_state=complete`、`recovery_state=restored`、`LastTaskResult=0`となり、両ZIPの内部検証と記録SHA-256一致を確認した。collectorの定期実行、未送信0件、再起動後の実HTTPS受信も確認した。
