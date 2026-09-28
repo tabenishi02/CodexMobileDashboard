@@ -4,7 +4,7 @@
 
 ## 恒常運用の保持方針
 
-この方針は将来の自動整理に適用する。現行の`snapshot_cleanup_inventory.py`と`snapshot_cleanup_apply.py`は容量障害から復旧するための確認付き緊急整理であり、以下の世代数・保持期間をまだ実装していない。最初の両端fullバックアップと検証付き一時展開が成功し、受付履歴の保持方針と自動整理が実装・テストされるまでは、自動削除を有効にしない。
+この方針は`tools/snapshot_retention.py`に実装する。`snapshot_cleanup_inventory.py`と`snapshot_cleanup_apply.py`は容量障害から復旧するための確認付き緊急整理として残す。retention CLIは実装・自動テスト済みだが、初回実機dry-run・applyと継続観測が完了するまでは定期削除を有効にしない。実機手順は[Snapshot保持整理](SNAPSHOT_RETENTION.md)を参照する。
 
 | 対象 | 最低保持 | 削除候補にできる条件 |
 | --- | --- | --- |
