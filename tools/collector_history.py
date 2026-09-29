@@ -32,6 +32,9 @@ class CollectorHistory:
     def records_for(self, session_id: str) -> Tuple[NormalizedRecord, ...]:
         return dict(self.sessions).get(session_id, tuple())
 
+    def has_session(self, session_id: str) -> bool:
+        return any(key == session_id for key, _ in self.sessions)
+
     def replace(self, session_id: str, records: Iterable[NormalizedRecord]) -> "CollectorHistory":
         values = {key: value for key, value in self.sessions}
         values[session_id] = tuple(records)

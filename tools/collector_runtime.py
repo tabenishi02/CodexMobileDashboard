@@ -30,6 +30,7 @@ from tools.combined_inference import (
 )
 from tools.collector_history import CollectorHistory, load_collector_history, save_collector_history
 from tools.collector_state import (
+    CollectorState,
     PendingInference,
     load_collector_state,
     replace_pending_inferences,
@@ -180,8 +181,20 @@ def _run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | 
         inference_records = {}
         latest = max(entries, key=lambda entry: entry.current_file.last_timestamp or "")
         for entry in entries:
-            result = collect_incremental_records(entry.session_id, entry.current_file.path, next_state)
             prior = next_history.records_for(entry.session_id)
+            collection_state = next_state
+            if entry.session_id in known_session_ids and not next_history.has_session(entry.session_id):
+                LOGGER.warning(
+                    "collector_history_missing_replay session_id=%s", entry.session_id
+                )
+                collection_state = CollectorState(
+                    tuple(cursor for cursor in next_state.sessions
+                          if cursor.session_id != entry.session_id),
+                    next_state.pending_inferences,
+                )
+            result = collect_incremental_records(
+                entry.session_id, entry.current_file.path, collection_state
+            )
             records = result.records if result.resume.replay_from_start else _merge_records(prior, result.records)
             records = redact_normalized_records(records).records
             next_history = next_history.replace(entry.session_id, records)

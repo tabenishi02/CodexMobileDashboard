@@ -2019,6 +2019,61 @@ class CollectorRuntimeTests(unittest.TestCase):
         self.assertEqual(build_calls[2][1], build_calls[3][1])
         self.assertEqual(tuple(), stored[0].pending_inferences)
 
+    def test_missing_history_entry_replays_session_from_start(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "workspace"
+            root.mkdir()
+            source = Path(directory) / "session.jsonl"
+            source.write_text("{}\n", encoding="utf-8")
+            cursor = SimpleNamespace(session_id="session-1")
+            known_state = CollectorState((cursor,), tuple())
+            record = _terminal_record("turn-1")
+            settings = SimpleNamespace(
+                state_file=Path(directory) / "state.json",
+                history_file=Path(directory) / "history.json",
+                sessions_dir=Path(directory),
+                archived_sessions_dir=None,
+                scan_archived_sessions=False,
+                allowed_roots=(root,),
+                ai_inference_mode="incremental",
+                max_calls_per_run=3,
+            )
+            session = SimpleNamespace(
+                session_id="session-1",
+                current_file=SimpleNamespace(
+                    workspace_candidates=tuple(),
+                    last_timestamp="2026-09-01T00:00:00+00:00",
+                    path=source,
+                ),
+            )
+            received_states = []
+
+            def collect_records(session_id, path, state):
+                received_states.append(state)
+                return SimpleNamespace(
+                    records=(record,),
+                    resume=SimpleNamespace(replay_from_start=False),
+                    next_state=known_state,
+                )
+
+            with patch("tools.collector_runtime.load_collector_state", return_value=known_state), patch(
+                "tools.collector_runtime.load_collector_history", return_value=CollectorHistory()
+            ), patch("tools.collector_runtime.discover_session_files", return_value=tuple()), patch(
+                "tools.collector_runtime.build_session_index", return_value={"session-1": session}
+            ), patch("tools.collector_runtime._workspace_root", return_value=root), patch(
+                "tools.collector_runtime.collect_incremental_records", side_effect=collect_records
+            ), patch(
+                "tools.collector_runtime._build_workspace_snapshot", return_value=tuple()
+            ), patch("tools.collector_runtime.save_collector_history") as save_history, patch(
+                "tools.collector_runtime.save_collector_state"
+            ):
+                self.assertEqual(1, run_once(settings).processed_workspaces)
+
+        self.assertEqual(tuple(), received_states[0].sessions)
+        saved = save_history.call_args.args[0]
+        self.assertTrue(saved.has_session("session-1"))
+        self.assertEqual((record,), saved.records_for("session-1"))
+
 def _runtime_message(message_id, turn_id, text="実装しました。"):
     return SimpleNamespace(
         message_id=message_id,
