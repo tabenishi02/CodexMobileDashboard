@@ -440,7 +440,7 @@
    - [x] 受信・公開・recovery/fullバックアップとの排他、削除範囲の再検証、dry-runに対応する（2026-09-29完了。共通POSIX lock、候補`tree_sha256`、削除直前再検証、排他下の`--dry-run`を実装）
    - [x] current・受信途中・未送信／再送データの保護、同時更新、整理失敗時の安全性をテストし、運用手順を文書化する（2026-09-29完了。保護・同時変更・部分失敗を含む関連85テストと`docs/SNAPSHOT_CLEANUP_APPLY.md`の復旧手順を確認）
    - [x] 実機で定期送信と整理を継続実行し、容量増加が抑えられ、受信・表示・バックアップが維持されることを確認する（2026-09-29完了。初回12.41 GB、定期実行472.66 MBを整理して使用率45%から31%へ改善。未送信0件、HTTPS受信、スマートフォン表示、両端recoveryバックアップを確認）
-5. [ ] 未記載の完了内容を`CHANGELOG.md`の`Unreleased`へ反映する（Termux wake lock、Phase 7追加テスト、容量復旧・Snapshot整理、大容量message page修正、実機バックアップ受入結果）
+5. [x] 未記載の完了内容を`CHANGELOG.md`の`Unreleased`へ反映する（2026-09-29完了。Termux wake lock、Phase 7追加テスト、容量復旧・Snapshot整理、大容量message page修正、fullを含む実機バックアップ受入結果を反映）
 
 ## Phase 9：外部アクセス
 
