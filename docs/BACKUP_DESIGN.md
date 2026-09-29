@@ -9,7 +9,7 @@ Windowsを起点に同じBackup IDでPC・AndroidそれぞれのローカルZIP�
 ## 現行実装の確認結果
 
 - `tools/collector.py`の`_load_settings`・`_runtime_settings`が設定を解決する。追加機能も同じパス解決とhistory_fileのfallbackを使い、別の既定値を作らない。
-- `CollectorRuntimeSettings`にはstate・history・output・queue・inference ledgerが含まれる。workspace_registryは設定例に存在するが、このruntime引数にはない。存在時に保全し、未生成は未生成として記録する。
+- `CollectorRuntimeSettings`にはstate・history・output・queue・inference ledgerが含まれる。v0.1.0 collectorはworkspace registryを生成しない。既存ローカル設定に`storage.workspace_registry`が明示され、そのファイルが存在する場合だけ互換的にバックアップ対象へ含める。
 - queueは本文、manifest、順序、Delivery ID、commit IDを保持し、commit成功後だけ削除する。sequence.jsonも保存対象。
 - PC生成JSONは`json_writer.save_json_snapshot`のoutput_dir配下。全世代のAndroid公開履歴と同一とは仮定しない。
 - Windows runnerは`Local\CodexMobileDashboard-Collector`を使用し、収集・再送を直列化する。取得できない定期runnerはスキップする。直接CLIによる手動collect/backfill/retryはmutexを経由しないため、バックアップと同時実行しない。
@@ -32,7 +32,7 @@ Windowsを起点に同じBackup IDでPC・AndroidそれぞれのローカルZIP�
 | collector状態 | storage.state_file | 存在時必須 |
 | collector履歴 | storage.history_file。未指定時は既存runtimeと同じqueue親/state/collector-history.json | 存在時必須 |
 | 推論台帳 | storage.inference_ledger_file | 存在時必須 |
-| workspace登録簿 | storage.workspace_registry | 存在時保存、未生成は記録 |
+| 旧workspace登録簿（任意） | storage.workspace_registry | 既存ローカル設定に明示され、存在する場合だけ互換保存 |
 | 未送信キュー・送信成功状態 | storage.queue_dir | sequence.json、workspace別send-success.json、各項目manifestとfiles全体。事前に既存queueローダーで検証 |
 | 生成JSON | storage.output_dir | 保持されている復旧用JSON一式 |
 | 定期実行定義 | collector/retryタスクの読み取り専用取得 | 定義・登録状態を記録。復元時は現行登録スクリプトで再登録 |

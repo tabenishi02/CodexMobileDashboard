@@ -1,5 +1,7 @@
 # MVP完了条件
 
+v0.1.0の最終判定結果は[`MVP_ACCEPTANCE_RESULT_V0.1.0.md`](MVP_ACCEPTANCE_RESULT_V0.1.0.md)を参照する。
+
 ## 判定方法
 
 MVPは、実装タスクの消化数ではなく、作業用PC、Androidサーバー端末、閲覧スマートフォンを接続した受入確認の結果で判定する。MVPの実機受入確認には、動作確認済みの基準端末である検証用Android端末をAndroidサーバー端末として使用する。本書の必須条件をすべて満たし、未解決の`critical`または`error`相当の不具合が残っていない時点をMVP完成とする。

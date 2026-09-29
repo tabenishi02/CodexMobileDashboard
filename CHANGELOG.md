@@ -2,11 +2,15 @@
 
 このファイルには、Codex Mobile Dashboardの重要な変更を記録する。
 
-形式は[Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)を参考にし、リリース後のバージョン番号は[Semantic Versioning](https://semver.org/lang/ja/)に従う。MVPの初回リリースまでは`Unreleased`へ記録する。
+形式は[Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)を参考にし、バージョン番号は[Semantic Versioning](https://semver.org/lang/ja/)に従う。次回リリース候補の変更は`Unreleased`へ記録する。
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-30
+
 ### Added
+
+- v0.1.0公開準備としてMIT License、MVP最終判定、公開前セキュリティ・プライバシー監査を追加した。
 
 - Phase 8.1として、Androidサーバーの`GET /workspaces`から公開中ワークスペースをプロジェクト名で選択するトップページを追加した。既存の直接URLを維持し、共通ヘッダーをプロジェクト名と最終更新日時だけに簡素化、Codex状態と手動更新をシステム情報へ集約し、正常取得後の常設成功メッセージを廃止した。
 - Phase 8.1のAndroid実機受入を完了し、ワークスペース選択、各更新経路、主要画面、従来URL、workspace別の前回送信成功日時を確認した。
@@ -240,6 +244,8 @@
 - Androidサーバー端末側ではCodex JSONL、Git、プロジェクトファイルの解析や表示データの整形を行わない方針とした。
 
 ### Fixed
+
+- 公開前テストが本番Collectorのmutexと競合し得る問題を修正し、既定の本番mutex名を維持したままテスト用mutex名を注入できるようにした。
 
 - workspace別の前回送信成功日時を、即時送信・再送のcommit成功後に原子的に保存し、次回の`metadata.json`へ反映するよう修正した。
 

@@ -166,13 +166,15 @@ python -m tools.collector --config "$collectorConfig" queue-status
 
 PCの`certificates/ca.crt`だけを閲覧端末へ転送し、利用者がCA証明書として信頼登録する。設定画面の名称はOSにより異なる。秘密鍵や送信用Tokenは転送しない。
 
-`$dashboardRoot/data`のworkspaceディレクトリと`metadata.json`の`workspace_id`を確認し、`dashboard.json`のプロジェクト名と照合する。
+閲覧端末でAndroidサーバーのトップページを開く。
 
 ```text
-https://<Android固定IP>:8765/?workspace_id=<確認したworkspace_id>
+https://<Android固定IP>:8765/
 ```
 
-証明書警告なしで開き、プロジェクト名・主要画面・システム情報のSnapshot IDと最終受信日時が正しいことを確認する。TokenをURLへ入れない。手動更新と表示中15秒更新も確認する。
+証明書警告なしで開き、公開中ワークスペース一覧から対象プロジェクトを選択する。選択後は内部的に`/?workspace_id=<workspace_id>`へ遷移する。既存ブックマークや診断用途では直接URLも利用できるが、通常操作でworkspace IDを調べる必要はない。
+
+プロジェクト名・主要画面・システム情報のSnapshot IDと最終受信日時が正しいことを確認する。TokenをURLへ入れない。手動更新と表示中15秒更新も確認する。
 
 ## 8. 自動起動へ移行する
 

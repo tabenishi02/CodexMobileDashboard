@@ -42,7 +42,8 @@ CodexMobileDashboard/
 │  └─ ca.crt
 ├─ state\
 │  ├─ collector-state.json
-│  └─ workspaces.json
+│  ├─ collector-history.json
+│  └─ ai-inference-ledger.json
 ├─ data\
 │  └─ <workspace-id>\
 ├─ queue\
@@ -57,7 +58,7 @@ CodexMobileDashboard/
 | `config` | PC固有の実設定 |
 | `secrets` | Androidサーバー認証用トークン |
 | `certificates` | PCが信頼するプライベートCAの公開証明書 |
-| `state` | JSONL読み取り位置、送信状態、ワークスペース登録情報 |
+| `state` | JSONL読み取り位置、マスク済み履歴、AI推論台帳などの永続状態 |
 | `data` | Androidへ送信する前の表示用JSON |
 | `queue` | 受信成功まで保持する未送信スナップショット |
 
@@ -109,29 +110,13 @@ C:\codex
 
 セッション探索時は、まず`session_meta`と`turn_context`の識別情報だけを確認する。許可されたGitルートに関連付けられないセッションのメッセージ本文、ツール入出力、ファイル参照は抽出・保存・送信しない。同一セッション内で作業場所が変わる場合は`turn_id`と各`turn_context.cwd`で関連付け、許可されたワークスペースのターンだけを処理する。許可ワークスペースの会話内で一時的に添付・参照された外部ファイルは会話情報として扱い得るが、その外部パス自体を新しいワークスペースとして登録しない。
 
-### ワークスペース登録簿
+### ワークスペース識別
 
-検出したプロジェクトは次へ保存する。
+v0.1.0のcollectorは独立したワークスペース登録簿を正本として使用しない。Codexセッションから候補パスを検出し、許可ルート配下のGitルートへ解決できたものを実行時にワークスペースとして扱う。
 
-```text
-%LOCALAPPDATA%\CodexMobileDashboard\state\workspaces.json
-```
+`workspace_id`は、解決済みGitルートの絶対パスを大文字小文字を区別しない形へ正規化し、そのUTF-8文字列のSHA-256先頭16桁へ`workspace-`を付けて決定的に生成する。例は`workspace-0123456789abcdef`である。同じパスは同じIDになる一方、プロジェクトを別パスへ移動した場合は別ワークスペースとして扱う。
 
-最低限、次を保持する。
-
-- `workspace_id`
-- 正規化済みGitルート
-- 表示名
-- 初回検出日時
-- 最終検出日時
-- 有効・無効状態
-- 最後に関連付けたセッションID
-
-同じGitルートを複数セッションで使用しても、同一ワークスペースとして扱う。新しいプロジェクトを`C:\codex`配下でCodexが使用した場合、プロジェクトごとのINI追加は不要である。
-
-初回登録時の`workspace_id`は、Gitルートのフォルダ名を英小文字・数字・ハイフンへ正規化した値と、正規化済み絶対パスのSHA-256先頭8桁を組み合わせる。たとえば`CodexMobileDashboard`なら`codex-mobile-dashboard-1a2b3c4d`のような形式になる。登録後は`workspaces.json`のIDを正とし、毎回生成し直さない。パスを移動したプロジェクトを同一とみなす方法は、実装時に誤結合を避けて別途検討する。
-
-生成JSONと未送信キューは`workspace_id`別のディレクトリへ保存し、すべての表示用JSONにも`workspace_id`を持たせる。これにより複数ワークスペースのデータを混在させない。
+表示名はGitルートのディレクトリ名を使用する。生成JSONと未送信キューは`workspace_id`別のディレクトリへ保存し、すべての表示用JSONにも`workspace_id`を持たせる。これにより複数ワークスペースのデータを混在させない。
 
 ## PC収集ツールの設定項目
 
@@ -142,10 +127,7 @@ C:\codex
 | `allowed_roots` | 必須 | 複数行パス | 初期値は`C:\codex` |
 | `sessions_dir` | 必須 | path | 読み取り専用で扱う |
 | `archived_sessions_dir` | 任意 | path | 存在しなければ警告して継続 |
-| `scan_archived_sessions` | 必須 | boolean、`true` | アーカイブ移動後も履歴を追跡 |
-| `require_git` | 必須 | boolean、`true` | MVPでは`false`を許可しない |
-| `require_initial_commit` | 必須 | boolean、`true` | MVPでは`false`を許可しない |
-| `auto_register` | 必須 | boolean、`true` | 条件を満たすGitルートを登録 |
+| `scan_archived_sessions` | 必須 | boolean、`true` | アーカイブ済みセッションも探索 |
 
 ### `[ai_inference]`
 
@@ -155,15 +137,7 @@ C:\codex
 | `max_calls_per_run` | `3` | 1回のcollector実行における全Codex CLI呼び出しの共有上限。0はCLIを起動しない |
 
 `backfill`は通常の`collect-once`へ常用せず、`backfill-ai`コマンドで過去未処理turnを補完する場合だけ使用する。
-### `[collector]`
-
-| キー | 必須 | 型・既定値 | 許容範囲・規則 |
-|---|---|---|---|
-| `working_poll_seconds` | 必須 | integer、`30` | 5～300秒 |
-| `idle_poll_seconds` | 必須 | integer、`60` | 10～600秒 |
-| `heartbeat_seconds` | 必須 | integer、`300` | 60～3,600秒 |
-
-`recent.json`の完了済みターン数は要件として`2`に固定し、設定項目にしない。
+`recent.json`の完了済みターン数は2件、通常Collectorの定期実行間隔はWindowsタスク登録側（既定1分）で管理し、collector INIの設定項目にはしない。
 
 ### `[sender]`
 
@@ -174,7 +148,6 @@ C:\codex
 | `max_attempts` | 必須 | integer、`5` | 初回を含む1～10回 |
 | `backoff_initial_seconds` | 必須 | integer、`1` | 1～60秒 |
 | `backoff_max_seconds` | 必須 | integer、`16` | 初期待機以上、最大300秒 |
-| `request_target_bytes` | 必須 | integer、`819200` | 通常分割目標の800KiB |
 | `request_max_bytes` | 必須 | integer、`1048576` | 絶対上限1MiB |
 | `token_file` | 必須 | path | `%LOCALAPPDATA%`配下の秘密ファイル |
 | `ca_file` | 必須 | path | サーバー証明書を発行したCAの公開証明書 |
@@ -186,12 +159,12 @@ C:\codex
 | キー | 必須 | 型・既定値 | 規則 |
 |---|---|---|---|
 | `output_dir` | 必須 | path | ワークスペースID別に生成JSONを保存 |
-| `state_file` | 必須 | path | JSONL読み取り位置と送信状態 |
-| `workspace_registry` | 必須 | path | 自動検出したワークスペース登録簿 |
-| `queue_dir` | 必須 | path | 受信成功まで削除しない |
-| `message_chunk_bytes` | 必須 | integer、`262144` | 最大256KiB |
-| `page_max_items` | 必須 | integer、`100` | 1ページの最大件数 |
-| `page_max_bytes` | 必須 | integer、`524288` | 最大512KiB |
+| `state_file` | 必須 | path | JSONL読み取り位置とpending推論状態 |
+| `history_file` | 必須 | path | マスク済みの収集済み履歴 |
+| `inference_ledger_file` | 必須 | path | AI推論結果の永続台帳 |
+| `queue_dir` | 必須 | path | Androidのcommit成功まで保持する未送信Snapshot |
+
+メッセージ分割上限256KiB、ページ最大100件・512KiBはv0.1.0では実装定数であり、INIから変更しない。
 
 ### Androidサーバーの`[maintenance]`
 
@@ -304,7 +277,7 @@ CA秘密鍵はAndroid端末へ置かず、作業用PCのリポジトリ外で保
 - `*.key`
 - 実行時JSON
 - 状態ファイル
-- ワークスペース登録簿
+- collectorの状態・履歴・AI推論台帳
 - 未送信キュー
 - 実行ログ
 

@@ -3,7 +3,7 @@
 このディレクトリには、Androidサーバー端末から配信し、閲覧スマートフォンのブラウザで使用するHTML、CSS、JavaScriptを配置します。
 
 > [!IMPORTANT]
-> Phase 5で固定HTML、モバイル向けCSS、JSON取得、概要と6つの詳細画面、更新・状態表示を実装し、Android実機で受入確認しました。
+> Phase 5で閲覧画面を実装し、Phase 8.1で`GET /workspaces`とワークスペース選択トップページ、共通ヘッダー・更新表示の整理を追加しました。Android実機と閲覧スマートフォンで受入確認済みです。
 
 ## 目的
 
@@ -117,7 +117,7 @@ files.json
 metadata.json
 ```
 
-複数ワークスペースを扱う一方、現行サーバーにはworkspace一覧APIがない。画面はURLクエリの`workspace_id`を使用する。閲覧URLは`/?workspace_id=<workspace_id>`とし、未指定時はIDを推測せず指定を案内する。URLパス方式と一覧APIはMVP後の拡張候補とする。詳細は[`../docs/PHASE5_HANDOFF.md`](../docs/PHASE5_HANDOFF.md)を参照する。
+通常の閲覧開始URLは`/`である。`GET /workspaces`からcommit済みpublic Snapshotを持つワークスペースをプロジェクト名と最終更新日時で一覧表示し、選択後は`/?workspace_id=<workspace_id>`へ遷移する。既存の直接URLは互換性のため維持する。詳細は[`../docs/PHASE5_SCREEN_DESIGN.md`](../docs/PHASE5_SCREEN_DESIGN.md)と[`../docs/PHASE8_1_WORKSPACE_SELECTION_UI.md`](../docs/PHASE8_1_WORKSPACE_SELECTION_UI.md)を参照する。
 
 - 初期表示では`dashboard.json`、`metadata.json`、`/health?workspace_id=<workspace_id>`を並行取得し、ETagと`304 Not Modified`をメモリ内キャッシュで扱う。
 - 会話全文などの詳細は、画面を開いたときにページ単位で取得する。
@@ -127,7 +127,7 @@ metadata.json
 
 JSON取得中は、初期表示と各詳細画面に「読み込んでいます」を表示し、アプリ本体へ`aria-busy="true"`を設定します。
 
-「更新」ボタンは、概要・メタデータ・サーバー状態をETag付きで再取得し、表示を更新します。取得中はボタンを無効化します。
+「更新」ボタンはシステム情報画面に配置し、概要・メタデータ・サーバー状態をETag付きで再取得して表示を更新します。取得中はボタンを無効化します。
 
 ブラウザが表示中のときは15秒間隔で初期データをETag付きで再取得します。非表示中は自動取得しません。
 

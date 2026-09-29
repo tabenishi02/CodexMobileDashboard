@@ -3,7 +3,7 @@
 VSCode Codexで進めている開発の状況を、スマートフォンから短時間で確認するためのダッシュボードです。
 
 > [!IMPORTANT]
-> Phase 8まで完了しています。Phase 8.1では、Androidサーバーが公開中のワークスペースを`/`から一覧選択できる閲覧UI、簡素化した共通ヘッダー、システム情報へ集約した更新操作を追加しています。既存の`/?workspace_id=<workspace_id>`直接URLも継続して利用できます。実装状況は[`TASKS.md`](TASKS.md)、設計は[`docs/PHASE8_1_WORKSPACE_SELECTION_UI.md`](docs/PHASE8_1_WORKSPACE_SELECTION_UI.md)を参照してください。
+> v0.1.0はLAN内HTTPSを正式な利用範囲とする初回公開版です。Windows PCで収集したCodex開発状況をAndroid・Termuxサーバーへ送信し、スマートフォンのブラウザから公開中ワークスペースを選択して閲覧できます。Tailscaleおよびインターネット経由アクセスはv0.1.0対象外で、Phase 9へ保留しています。
 
 ## 目的
 
@@ -101,7 +101,7 @@ Codex JSONL内にコードがテキストとして記録されている場合は
 - Androidスマートフォン
 - JavaScriptを使用できるWebブラウザ
 
-初期実装はLAN内のTCP 8765番ポートとプライベートCAによるHTTPSを使用します。HTTPは架空サンプルによる独立した疎通確認だけに限定します。Tailscaleによる外部アクセスはMVP完成後の検討対象です。
+v0.1.0はLAN内のTCP 8765番ポートとプライベートCAによるHTTPSを使用します。HTTPは架空サンプルによる独立した疎通確認だけに限定します。Tailscaleによる外部アクセスはv0.1.0対象外で、Phase 9へ保留しています。
 
 ## 技術方針
 
@@ -138,7 +138,7 @@ data/
 └─ metadata.json
 ```
 
-Codexターン完了時に即時更新し、作業中は30秒、停止中は60秒ごとに変化を確認します。通常データは内容が変わった場合だけ送信し、5分間正常な送信がない場合は小さなハートビートを送信します。
+v0.1.0ではWindowsタスクスケジューラから既定1分間隔で`collect-once --incremental`を起動し、未送信Snapshotの再送後に各ワークスペースの最新Snapshotを生成・送信します。ターン完了時の即時起動や作業状態に応じた30秒/60秒の切替はv0.1.0では実装していません。
 
 閲覧画面は表示中に15秒ごとに更新を確認し、非表示中は自動更新を停止します。
 
@@ -185,6 +185,8 @@ CodexMobileDashboard/
 | [`docs/LAN_ACCESS.md`](docs/LAN_ACCESS.md) | LAN内HTTPSアクセス・workspace選択・障害切り分け |
 | [`docs/NETWORK.md`](docs/NETWORK.md) | LAN内通信の確認結果 |
 | [`docs/MVP_ACCEPTANCE.md`](docs/MVP_ACCEPTANCE.md) | MVPの受入条件 |
+| [`docs/MVP_ACCEPTANCE_RESULT_V0.1.0.md`](docs/MVP_ACCEPTANCE_RESULT_V0.1.0.md) | v0.1.0のMVP最終判定 |
+| [`docs/PUBLIC_RELEASE_AUDIT.md`](docs/PUBLIC_RELEASE_AUDIT.md) | v0.1.0公開前のセキュリティ・プライバシー監査 |
 | [`docs/PHASE3_ACCEPTANCE.md`](docs/PHASE3_ACCEPTANCE.md) | Phase 3の受入確認 |
 | [`docs/PHASE4_ACCEPTANCE.md`](docs/PHASE4_ACCEPTANCE.md) | Phase 4のAndroid実機受入確認 |
 | [`docs/PHASE5_ANDROID_BROWSER_CHECK.md`](docs/PHASE5_ANDROID_BROWSER_CHECK.md) | AndroidブラウザでのPhase 5実機表示確認手順 |
@@ -220,4 +222,9 @@ MVPの合否は[`docs/MVP_ACCEPTANCE.md`](docs/MVP_ACCEPTANCE.md)の10項目で�
 
 ## 変更履歴
 
-重要な設計・実装変更は[`CHANGELOG.md`](CHANGELOG.md)へ記録します。MVPの初回リリースまでは`Unreleased`へ追記します。
+重要な設計・実装変更は[`CHANGELOG.md`](CHANGELOG.md)へ記録します。リリース済みの変更はバージョン別に、次回リリース候補は`Unreleased`へ記録します。
+
+
+## ライセンス
+
+CodexMobileDashboard本体はMIT Licenseです。詳細は[`LICENSE`](LICENSE)を参照してください。同梱する第三者ライブラリのライセンスは[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)と`licenses/`に記載しています。

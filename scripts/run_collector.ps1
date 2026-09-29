@@ -1,13 +1,14 @@
 [CmdletBinding()]
 param(
     [string]$ConfigPath = "$env:LOCALAPPDATA\CodexMobileDashboard\config\collector.ini",
-    [string]$PythonPath = "python"
+    [string]$PythonPath = "python",
+    [string]$MutexName = "Local\CodexMobileDashboard-Collector"
 )
 
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Path $PSScriptRoot -Parent
 $python = Get-Command -Name $PythonPath -ErrorAction Stop
-$mutex = New-Object System.Threading.Mutex($false, 'Local\CodexMobileDashboard-Collector')
+$mutex = New-Object System.Threading.Mutex($false, $MutexName)
 $lockTaken = $false
 
 try {

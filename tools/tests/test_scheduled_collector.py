@@ -16,12 +16,14 @@ class ScheduledCollectorTests(unittest.TestCase):
         self.fake = Path(self.directory.name) / "python.cmd"
         self.fake.write_text('@echo off\necho invoked %*\nif "%5"=="retry-queued" exit /b 0\nexit /b 7\n', encoding="ascii")
         self.config = Path(self.directory.name) / "collector config.ini"
+        self.mutex_name = r"Local\CodexMobileDashboard-Test-" + str(os.getpid()) + "-" + Path(self.directory.name).name.replace(" ", "_")
         self.env = dict(os.environ, PATH=self.directory.name + os.pathsep + os.environ["PATH"])
 
     def run_script(self, name):
         return subprocess.run(
             ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-             str(self.root / "scripts" / name), "-ConfigPath", str(self.config)],
+             str(self.root / "scripts" / name), "-ConfigPath", str(self.config),
+             "-MutexName", self.mutex_name],
             cwd=self.directory.name, env=self.env, capture_output=True, text=True, timeout=20,
         )
 
@@ -53,7 +55,7 @@ class ScheduledCollectorTests(unittest.TestCase):
         kernel.CreateMutexW.restype = ctypes.c_void_p
         kernel.ReleaseMutex.argtypes = [ctypes.c_void_p]
         kernel.CloseHandle.argtypes = [ctypes.c_void_p]
-        handle = kernel.CreateMutexW(None, True, r"Local\CodexMobileDashboard-Collector")
+        handle = kernel.CreateMutexW(None, True, self.mutex_name)
         self.assertTrue(handle)
         try:
             for name in ("run_collector.ps1", "run_pending_queue_retry.ps1"):
