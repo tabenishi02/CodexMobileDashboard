@@ -34,8 +34,10 @@
     documents: new Map(),
     errors: new Map(),
     workspaceId: null,
+    workspaceListCache: null,
     autoRefreshTimer: null,
     chatFilter: "chat",
+    initialized: false,
   };
 
   function createClientError(code) {
@@ -59,6 +61,111 @@
   function readWorkspaceId() {
     const workspaceId = new URLSearchParams(window.location.search).get("workspace_id");
     return workspaceId && workspaceId.trim() ? workspaceId.trim() : null;
+  }
+
+  async function fetchWorkspaceList() {
+    const headers = { Accept: "application/json" };
+    if (state.workspaceListCache && state.workspaceListCache.etag) {
+      headers["If-None-Match"] = state.workspaceListCache.etag;
+    }
+    let response;
+    try {
+      response = await window.fetch("/workspaces", { headers });
+    } catch (_error) {
+      throw createClientError("network_error");
+    }
+    if (response.status === 304) {
+      if (!state.workspaceListCache) {
+        throw createClientError("cache_missing_for_not_modified");
+      }
+      return state.workspaceListCache.data;
+    }
+    if (!response.ok) {
+      throw createClientError("http_error");
+    }
+    let data;
+    try {
+      data = await response.json();
+    } catch (_error) {
+      throw createClientError("json_invalid");
+    }
+    if (!data || typeof data !== "object" || !Array.isArray(data.workspaces)) {
+      throw createClientError("json_shape_invalid");
+    }
+    state.workspaceListCache = {
+      data,
+      etag: response.headers.get("ETag"),
+    };
+    return data;
+  }
+
+  function renderWorkspaceList(data) {
+    const stateElement = getElement("workspace-list-state");
+    const list = getElement("workspace-list");
+    list.replaceChildren();
+    if (!data || !Array.isArray(data.workspaces)) {
+      stateElement.hidden = false;
+      stateElement.textContent = "ワークスペース一覧を取得できませんでした。";
+      list.hidden = true;
+      return;
+    }
+    if (!data.workspaces.length) {
+      stateElement.hidden = false;
+      stateElement.textContent = "公開中のワークスペースはありません。";
+      list.hidden = true;
+      return;
+    }
+    for (const workspace of data.workspaces) {
+      if (!workspace || typeof workspace.workspace_id !== "string"
+          || typeof workspace.project_name !== "string") {
+        continue;
+      }
+      const item = document.createElement("li");
+      const link = document.createElement("a");
+      link.href = "/?workspace_id=" + encodeURIComponent(workspace.workspace_id);
+      const name = document.createElement("strong");
+      name.textContent = workspace.project_name;
+      const updated = document.createElement("span");
+      updated.textContent = "最終更新: " + formatOptionalTimestamp(workspace.last_received_at);
+      link.appendChild(name);
+      link.appendChild(updated);
+      item.appendChild(link);
+      list.appendChild(item);
+    }
+    if (!list.children.length) {
+      stateElement.hidden = false;
+      stateElement.textContent = "公開中のワークスペースはありません。";
+      list.hidden = true;
+      return;
+    }
+    stateElement.hidden = true;
+    list.hidden = false;
+  }
+
+  async function initializeWorkspaceSelector() {
+    const appHeader = getElement("app-header");
+    const selector = getElement("workspace-selector");
+    const bottomNavigation = getElement("bottom-navigation");
+    const globalStatus = getElement("global-status");
+    appHeader.hidden = true;
+    bottomNavigation.hidden = true;
+    selector.hidden = false;
+    for (const screen of document.querySelectorAll("[data-screen]")) {
+      screen.hidden = true;
+    }
+    globalStatus.hidden = true;
+    const stateElement = getElement("workspace-list-state");
+    const list = getElement("workspace-list");
+    stateElement.hidden = false;
+    stateElement.textContent = "ワークスペースを読み込んでいます。";
+    list.hidden = true;
+    try {
+      renderWorkspaceList(await fetchWorkspaceList());
+    } catch (_error) {
+      stateElement.hidden = false;
+      stateElement.textContent = "ワークスペース一覧を取得できませんでした（通信失敗または不正な応答）。";
+      list.hidden = true;
+    }
   }
 
   function documentUrl(documentName) {
@@ -616,9 +723,8 @@
 
     const project = dashboard.project && typeof dashboard.project === "object" ? dashboard.project : {};
     setText("project-name", project.name);
-    setText("project-phase", typeof project.phase === "string" && project.phase ? "Phase: " + project.phase : "Phase: 情報なし");
     const codex = dashboard.codex && typeof dashboard.codex === "object" ? dashboard.codex : null;
-    setText("codex-status", "Codex: " + formatCodexStatus(codex));
+    setText("header-last-updated", formatLastUpdatedStatus());
     setText("current-work", formatCurrentWork(codex));
     setText("latest-summary", formatChangeSummary(dashboard.latest));
     setText("error-summary", formatErrorSummary(dashboard.errors));
@@ -676,9 +782,13 @@
     content.hidden = false;
   }
 
-  async function initialize() {
+  async function initialize(options) {
+    const settings = options && typeof options === "object" ? options : {};
+    const manual = settings.manual === true;
     const appShell = document.querySelector(".app-shell");
-    const missingWorkspace = getElement("missing-workspace");
+    const appHeader = getElement("app-header");
+    const selector = getElement("workspace-selector");
+    const bottomNavigation = getElement("bottom-navigation");
     const globalStatus = getElement("global-status");
     const refreshStatus = getElement("refresh-status");
     const refreshButton = getElement("refresh-button");
@@ -691,18 +801,24 @@
     refreshButton.disabled = true;
 
     if (!state.workspaceId) {
-      appShell.dataset.appState = APP_STATE.MISSING_WORKSPACE;
-      missingWorkspace.hidden = false;
-      globalStatus.textContent = "workspace_idが指定されていないため、データを取得していません。";
-      refreshStatus.textContent = "更新できません";
+      appShell.dataset.appState = APP_STATE.READY;
+      await initializeWorkspaceSelector();
+      refreshButton.disabled = false;
       return;
     }
 
+    appHeader.hidden = false;
+    selector.hidden = true;
+    bottomNavigation.hidden = false;
     appShell.dataset.appState = APP_STATE.LOADING;
     if (typeof appShell.setAttribute === "function") { appShell.setAttribute("aria-busy", "true"); }
-    missingWorkspace.hidden = true;
-    globalStatus.textContent = "初期データを読み込んでいます。";
-    refreshStatus.textContent = "更新中";
+    if (!state.initialized) {
+      globalStatus.hidden = false;
+      globalStatus.textContent = "初期データを読み込んでいます。";
+    }
+    if (manual) {
+      refreshStatus.textContent = "更新中";
+    }
 
     const results = await fetchInitialDocuments();
     const failures = results.filter(({ result }) => result.status === "rejected");
@@ -715,13 +831,19 @@
     }
 
     appShell.dataset.appState = failures.length ? APP_STATE.DEGRADED : APP_STATE.READY;
-    globalStatus.textContent = failures.length
-      ? "一部の初期データを取得できませんでした。"
-      : "初期データを取得しました。";
-    const lastUpdatedStatus = formatLastUpdatedStatus();
-    refreshStatus.textContent = failures.length
-      ? "一部の取得に失敗 / " + lastUpdatedStatus
-      : lastUpdatedStatus;
+    if (failures.length) {
+      globalStatus.hidden = false;
+      globalStatus.textContent = "一部の初期データを取得できませんでした。";
+    } else {
+      globalStatus.hidden = true;
+      globalStatus.textContent = "";
+    }
+    if (manual) {
+      refreshStatus.textContent = failures.length ? "一部の取得に失敗" : "更新しました";
+    } else if (!state.initialized) {
+      refreshStatus.textContent = "更新待機中";
+    }
+    state.initialized = true;
     if (typeof appShell.setAttribute === "function") { appShell.setAttribute("aria-busy", "false"); }
     refreshButton.disabled = false;
   }
@@ -729,6 +851,7 @@
   window.CodexMobileDashboard = {
     fetchDocument,
     fetchInitialDocuments,
+    fetchWorkspaceList,
     getDocument,
     getDocumentError,
     getWorkspaceId: () => state.workspaceId,
@@ -739,6 +862,7 @@
     loadRecent,
     renderDashboard,
     renderRecent,
+    renderWorkspaceList,
     renderSystem,
     showScreen,
   };
@@ -747,9 +871,8 @@
     setupNavigation();
     setupAutoRefresh();
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
     const refreshButton = document.getElementById("refresh-button");
-    if (refreshButton && typeof refreshButton.addEventListener === "function") { refreshButton.addEventListener("click", () => { void initialize(); }); }
+    if (refreshButton && typeof refreshButton.addEventListener === "function") { refreshButton.addEventListener("click", () => { void initialize({ manual: true }); }); }
     const previousMessagesButton = document.getElementById("load-previous-messages");
     if (previousMessagesButton) { previousMessagesButton.addEventListener("click", () => { void loadChat(true); }); }
     const chatFilter = document.getElementById("chat-type-filter");
