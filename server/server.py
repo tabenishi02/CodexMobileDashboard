@@ -867,8 +867,17 @@ def load_public_workspaces(public_directory: Path) -> list[dict[str, object]]:
             continue
         try:
             snapshot_id, received_at = load_current_snapshot_status(public_root, workspace_id)
-            snapshot_root = workspace_root / "snapshots" / snapshot_id
-            dashboard_path = snapshot_root / "dashboard.json"
+            snapshots_root = workspace_root / "snapshots"
+            snapshot_root = snapshots_root / snapshot_id
+            if (
+                snapshots_root.is_symlink()
+                or snapshot_root.is_symlink()
+                or not snapshot_root.is_dir()
+            ):
+                continue
+            resolved_snapshot = snapshot_root.resolve(strict=True)
+            resolved_snapshot.relative_to(public_root)
+            dashboard_path = resolved_snapshot / "dashboard.json"
             if dashboard_path.is_symlink() or not dashboard_path.is_file():
                 continue
             document = validate_snapshot_json_body(
