@@ -50,3 +50,26 @@ applyはdry-runの評価時刻を再利用し、候補集合・容量・内容�
 ## 自動テスト
 
 2026-09-29：保持世代、1時間／7日、current・pending、公開済み／未完了staging、receipt先行削除、孤立receipt、未来時刻、不正receipt、未知workspace、apply時current変更を含むretention関連7テストと、既存cleanup・サーバー・backup workerを合わせた92テストが成功した。
+## 定期実行
+
+Windowsの`CodexMobileDashboard-SnapshotRetention`タスクから、PC側の`tools.snapshot_retention_coordinator`を非表示で実行する。既定は月曜～土曜の03:00で、日曜03:00の週次recoveryバックアップとは重ねない。
+
+```powershell
+.\scripts\install_snapshot_retention_task.ps1 -Preview
+.\scripts\install_snapshot_retention_task.ps1
+.\scripts\get_snapshot_retention_task_status.ps1 | Format-List
+Start-ScheduledTask -TaskName 'CodexMobileDashboard-SnapshotRetention'
+.\scripts\uninstall_snapshot_retention_task.ps1 -Preview
+.\scripts\uninstall_snapshot_retention_task.ps1
+```
+
+コーディネータは`backup.ini`の`backup.collector_config`、`android.ssh_host`、`android.repository`を再利用する。collector mutexを保持して最新キューを取得し、SSH host key確認を有効にしたままAndroidでdry-runと同じレポートを指定したapplyを順に実行する。recovery/fullバックアップも同じcollector mutexとAndroidの`backup.lock`を使用するため、同時実行しない。
+
+タスクは`pythonw.exe`、Interactive、Limited、StartWhenAvailable、MultipleInstances=IgnoreNew、実行時間制限なしで登録する。処理中はcollectorが次回実行へ持ち越され、終了後の定期実行で再送される。Androidの一時queueと大容量レポートは成功・失敗時に削除し、最新の小さな結果とログだけを`$HOME/.cache/codex-mobile-dashboard/retention-latest-*`へ残す。PC側の最終結果はcollector stateファイルと同じディレクトリの`snapshot-retention-result.json`へatomic保存する。
+
+`LastTaskResult=0`かつPC結果の`state=completed`を成功とする。失敗時はAndroidの`retention-latest.log`、PC結果の`error`、collectorキューを確認する。古いレポートを手動で再利用せず、次回タスクまたは手動コーディネータで最新キューからやり直す。
+
+```powershell
+python -m tools.snapshot_retention_coordinator `
+  --config "$env:LOCALAPPDATA\CodexMobileDashboard\config\backup.ini"
+```
