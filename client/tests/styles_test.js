@@ -20,5 +20,10 @@ assert.doesNotMatch(darkTheme, /background:#fff(?:[;}])/);
 
 assert.match(styles, /body\s*\{[^}]*overflow-wrap:\s*anywhere;/,
   "Long file paths must inherit wrapping even without whitespace");
+assert.match(
+  styles,
+  /\.workspace-list a\s*\{[^}]*min-height:\s*4rem;/,
+  "Workspace choices must provide a mobile-friendly tap target",
+);
 
 console.log("client dark code theme and long path wrapping tests passed");
