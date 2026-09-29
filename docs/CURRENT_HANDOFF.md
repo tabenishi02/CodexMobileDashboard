@@ -2,13 +2,13 @@
 
 ## 再開地点
 
-Phase 8は完了済み。Phase 8.1「ワークスペース選択・閲覧UI整理」は実装、追加・回帰自動テスト、関連文書更新まで完了している。残作業はAndroid実機受入である。最新のタスク状態は[`../TASKS.md`](../TASKS.md)、Phase 8.1の設計は[`PHASE8_1_WORKSPACE_SELECTION_UI.md`](PHASE8_1_WORKSPACE_SELECTION_UI.md)を正とする。
+Phase 8とPhase 8.1「ワークスペース選択・閲覧UI整理」は完了済み。最新のタスク状態は[`../TASKS.md`](../TASKS.md)、Phase 8.1の設計は[`PHASE8_1_WORKSPACE_SELECTION_UI.md`](PHASE8_1_WORKSPACE_SELECTION_UI.md)を正とする。
 
 Phase 8.1では、`GET /workspaces`による公開中ワークスペース一覧、`/`の選択画面、プロジェクト名と最終更新日時だけの共通ヘッダー、システム情報内の手動更新、正常取得後の常設成功メッセージ廃止を実装した。既存の`/?workspace_id=<workspace_id>`直接URLは維持する。
 
-2026年9月30日、Python 374件（環境条件による既存2件skip）とクライアント4テストファイルが成功した。Android実機受入は未完了である。
+2026年9月30日、Python 374件（環境条件による既存2件skip）とクライアント4テストファイルが成功した。
 
-同日、Phase 8.1の`server/server.py`と`client/`3ファイルをAndroidへ配置してサーバーを再起動した。CA検証付きHTTPSでhealth、複数workspace一覧、ETag 304、トップページ、JavaScript、公開中dashboard取得が成功し、PC未送信キュー0件と定期Collector再開を確認した。閲覧スマートフォンでの画面・操作受入は未完了である。
+同日、Phase 8.1の`server/server.py`と`client/`3ファイルをAndroidへ配置してサーバーを再起動した。CA検証付きHTTPSでhealth、複数workspace一覧、ETag 304、トップページ、JavaScript、公開中dashboard取得が成功し、PC未送信キュー0件と定期Collector再開を確認した。閲覧スマートフォンでは、一覧選択、共通ヘッダー、システム情報、手動・15秒・画面復帰時更新、主要画面、従来の直接URLを受入確認した。workspace別の前回送信成功日時も表示され、公開中11 workspaceすべてで日時記録済みであることを確認してPhase 8.1を完了した。
 
 再開時は次を確認する。
 

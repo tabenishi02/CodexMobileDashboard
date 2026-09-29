@@ -449,6 +449,8 @@
 
 設計は`docs/PHASE8_1_WORKSPACE_SELECTION_UI.md`を正とする。既存のPhase 9は番号変更せず、このPhaseをMVP完了判定前の閲覧UI改善として実施する。
 
+**Phase 8.1完了: 2026-09-30。自動テスト、Android配置、HTTPS確認、閲覧スマートフォンでの画面・操作受入に合格した。**
+
 ### 8.1.1 ワークスペース選択
 
 - [x] Androidサーバーへcommit済みpublic Snapshotだけを列挙する読み取り専用`GET /workspaces`を追加する
@@ -503,13 +505,13 @@
 - [x] `README.md`、`docs/PHASE5_SCREEN_DESIGN.md`、`docs/LAN_ACCESS.md`、必要に応じて`server/README.md`を現行仕様へ更新する
 - [x] `CHANGELOG.md`の`Unreleased`へ変更内容を記録する
 - [x] 追加・回帰自動テスト一式を実行し、全件成功を確認する（2026-09-30：Python 374件成功・環境条件による既存2件skip、クライアント4テストファイル成功）
-- [ ] Android実機でPhase 8.1の受入確認を行う
-  - 2026-09-30：Androidへ対象4ファイルを配置してサーバーを再起動し、CA検証付きHTTPSでhealth・workspace一覧・ETag 304・トップページ・JavaScript・公開中dashboard、PC未送信0件、定期Collector再開まで確認。残りは閲覧スマートフォンでの画面・操作確認。
-  - [ ] `/`からworkspace IDを知らずに対象プロジェクトを選択できる
-  - [ ] 複数workspaceと最終更新日時が正しく表示される
-  - [ ] 共通ヘッダー・システム情報・更新表示が設計どおりである
-  - [ ] 手動更新・15秒自動更新・画面復帰時更新が維持される
-  - [ ] 既存の主要画面とHTTPS表示に回帰がない
+- [x] Android実機でPhase 8.1の受入確認を行う
+  - 2026-09-30：Androidへ対象4ファイルを配置してサーバーを再起動し、CA検証付きHTTPSでhealth・workspace一覧・ETag 304・トップページ・JavaScript・公開中dashboard、PC未送信0件、定期Collector再開を確認した。閲覧スマートフォンで全画面・更新操作とworkspace別の前回送信成功日時を確認し、公開中11 workspaceすべてで日時記録済みとなった。
+  - [x] `/`からworkspace IDを知らずに対象プロジェクトを選択できる
+  - [x] 複数workspaceと最終更新日時が正しく表示される
+  - [x] 共通ヘッダー・システム情報・更新表示が設計どおりである
+  - [x] 手動更新・15秒自動更新・画面復帰時更新が維持される
+  - [x] 既存の主要画面とHTTPS表示に回帰がない
 
 
 ## Phase 9：外部アクセス
