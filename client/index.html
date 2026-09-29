@@ -17,25 +17,23 @@
   </noscript>
 
   <div class="app-shell" data-app-state="initializing">
-    <header class="app-header">
+    <header id="app-header" class="app-header">
       <div class="project-summary">
-        <p class="eyebrow">Codex Mobile Dashboard</p>
         <h1 id="project-name">データを読み込み中</h1>
-        <p id="project-phase">Phase: —</p>
+        <p id="header-last-updated">最終更新: 日時不明</p>
       </div>
-      <div class="header-status" aria-live="polite">
-        <p id="codex-status">Codex: 状態を確認中</p>
-        <p id="refresh-status">更新待機中</p>
-      </div>
-      <button id="refresh-button" type="button" disabled>更新</button>
     </header>
 
-    <p id="global-status" class="global-status" aria-live="polite">初期データを読み込んでいます。</p>
+    <p id="global-status" class="global-status" aria-live="polite" hidden></p>
 
     <main id="main-content" tabindex="-1">
-      <section id="missing-workspace" class="notice-panel" hidden aria-labelledby="missing-workspace-title">
-        <h2 id="missing-workspace-title">workspace_idを指定してください</h2>
-        <p>閲覧URLに<code>?workspace_id=&lt;workspace_id&gt;</code>を付けて開いてください。</p>
+      <section id="workspace-selector" class="workspace-selector" hidden aria-labelledby="workspace-selector-title">
+        <header class="screen-header">
+          <h1 id="workspace-selector-title">ワークスペースを選択</h1>
+          <p>Androidサーバーで公開中のプロジェクトを選択します。</p>
+        </header>
+        <div id="workspace-list-state" class="screen-state" aria-live="polite">ワークスペースを読み込んでいます。</div>
+        <ol id="workspace-list" class="workspace-list" hidden></ol>
       </section>
 
       <section id="screen-dashboard" class="screen" data-screen="dashboard" aria-labelledby="dashboard-title">
@@ -147,6 +145,11 @@
         </header>
         <div class="screen-state" data-state-for="system" aria-live="polite">システム情報を読み込んでいます。</div>
         <div class="system-grid" data-content-for="system" hidden>
+          <section class="system-update" aria-labelledby="update-title">
+            <h3 id="update-title">更新</h3>
+            <button id="refresh-button" type="button" disabled>更新</button>
+            <p id="refresh-status" aria-live="polite">更新待機中</p>
+          </section>
           <section aria-labelledby="collector-title">
             <h3 id="collector-title">PC収集ツール</h3>
             <dl id="collector-status" class="definition-list"></dl>
