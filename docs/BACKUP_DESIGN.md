@@ -33,7 +33,7 @@ Windowsを起点に同じBackup IDでPC・AndroidそれぞれのローカルZIP�
 | collector履歴 | storage.history_file。未指定時は既存runtimeと同じqueue親/state/collector-history.json | 存在時必須 |
 | 推論台帳 | storage.inference_ledger_file | 存在時必須 |
 | workspace登録簿 | storage.workspace_registry | 存在時保存、未生成は記録 |
-| 未送信キュー | storage.queue_dir | sequence.json、各項目manifestとfiles全体。事前に既存queueローダーで検証 |
+| 未送信キュー・送信成功状態 | storage.queue_dir | sequence.json、workspace別send-success.json、各項目manifestとfiles全体。事前に既存queueローダーで検証 |
 | 生成JSON | storage.output_dir | 保持されている復旧用JSON一式 |
 | 定期実行定義 | collector/retryタスクの読み取り専用取得 | 定義・登録状態を記録。復元時は現行登録スクリプトで再登録 |
 | ログ | logging.directory | include_logs指定時のみ任意保存 |

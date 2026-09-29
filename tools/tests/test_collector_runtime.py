@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -140,6 +141,15 @@ class CollectorRuntimeTests(unittest.TestCase):
                 output_dir=Path(directory) / "output",
                 queue_dir=Path(directory) / "queue",
             )
+            settings.queue_dir.mkdir()
+            succeeded_at = "2026-09-30T00:00:00+00:00"
+            (settings.queue_dir / "send-success.json").write_text(
+                json.dumps({
+                    "version": 1,
+                    "workspaces": {"workspace-1": succeeded_at},
+                }),
+                encoding="utf-8",
+            )
             message = _runtime_message("message-1", "turn-1", "了解しました。")
             chat = ChatExtractionResult((message,), tuple(), tuple())
             work = SimpleNamespace(
@@ -194,6 +204,9 @@ class CollectorRuntimeTests(unittest.TestCase):
         next_task.assert_not_called()
         metric.assert_called_once_with("combined_turn", "skipped")
         self.assertIsNone(json_builder.call_args.args[1].phase)
+        self.assertEqual(
+            succeeded_at, json_builder.call_args.args[10].last_send_succeeded_at
+        )
         self.assertEqual(0, budget.calls)
         self.assertEqual(tuple(), remaining)
 

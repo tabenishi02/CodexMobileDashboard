@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 
 from tools.https_sender import SendErrorKind, SenderError, SnapshotUpload, new_delivery_id
@@ -61,6 +62,9 @@ class PendingSnapshotQueueTests(unittest.TestCase):
             self.assertEqual("sent", queue.send_next(sender))
             self.assertEqual(["snapshot-2"], [item.snapshot_id for item in queue.pending()])
             self.assertEqual(first.commit_delivery_id, sender.calls[0][3])
+            succeeded_at = queue.last_send_succeeded_at("workspace-1")
+            self.assertIsNotNone(succeeded_at)
+            self.assertIsNotNone(datetime.fromisoformat(succeeded_at).tzinfo)
 
     def test_failed_resend_keeps_queue_item(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -71,6 +75,7 @@ class PendingSnapshotQueueTests(unittest.TestCase):
                 queue.send_next(FailingSender())
 
             self.assertEqual((queued.sequence,), tuple(item.sequence for item in queue.pending()))
+            self.assertIsNone(queue.last_send_succeeded_at("workspace-1"))
 
     def test_final_failure_is_enqueued_before_it_is_reraised(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -112,6 +117,7 @@ class PendingSnapshotQueueTests(unittest.TestCase):
             self.assertEqual(commit_id, success.calls[0][3])
             self.assertCountEqual(uploads, success.calls[0][2])
             self.assertEqual(tuple(), restarted.pending())
+            self.assertIsNotNone(restarted.last_send_succeeded_at("workspace-1"))
 
     def test_storage_failure_prevents_network_send(self):
         from unittest.mock import Mock, patch
@@ -132,6 +138,23 @@ class PendingSnapshotQueueTests(unittest.TestCase):
                 commit_delivery_id=new_delivery_id(),
             ))
             self.assertEqual(tuple(), queue.pending())
+            self.assertIsNotNone(queue.last_send_succeeded_at("workspace-1"))
+
+    def test_send_success_state_survives_restart_and_keeps_other_workspaces(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            queue = PendingSnapshotQueue(root)
+            queue.send_or_enqueue(
+                SuccessfulSender(), "workspace-1", "snapshot-1", self.uploads(),
+                commit_delivery_id=new_delivery_id(),
+            )
+            queue.send_or_enqueue(
+                SuccessfulSender(), "workspace-2", "snapshot-2", self.uploads(),
+                commit_delivery_id=new_delivery_id(),
+            )
+            restarted = PendingSnapshotQueue(root)
+            self.assertIsNotNone(restarted.last_send_succeeded_at("workspace-1"))
+            self.assertIsNotNone(restarted.last_send_succeeded_at("workspace-2"))
 
     def test_detects_tampered_queued_file(self):
         with tempfile.TemporaryDirectory() as directory:

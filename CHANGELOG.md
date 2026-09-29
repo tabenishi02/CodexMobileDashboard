@@ -240,6 +240,8 @@
 
 ### Fixed
 
+- workspace別の前回送信成功日時を、即時送信・再送のcommit成功後に原子的に保存し、次回の`metadata.json`へ反映するよう修正した。
+
 - メッセージごとの`file_references`へ別メッセージの参照履歴を重複格納してmessage pageが大容量化する問題を修正し、各メッセージ自身の参照だけを保存するようにした。
 
 ### Security

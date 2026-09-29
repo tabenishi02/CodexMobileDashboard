@@ -9,6 +9,7 @@ import os
 import shutil
 import tempfile
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Iterable, Optional, Tuple
 
@@ -26,6 +27,7 @@ _QUEUE_VERSION = 1
 _SEQUENCE_FILE = "sequence.json"
 _MANIFEST_FILE = "manifest.json"
 _FILES_DIRECTORY = "files"
+_SEND_SUCCESS_FILE = "send-success.json"
 
 
 class InvalidPendingSnapshotError(ValueError):
@@ -150,6 +152,7 @@ class PendingSnapshotQueue:
             commit_delivery_id=commit_delivery_id,
         )
         result = self._send_queued(sender, queued)
+        self._record_send_success(queued.workspace_id)
         self.acknowledge(queued)
         return result
 
@@ -174,7 +177,45 @@ class PendingSnapshotQueue:
             return None
         queued = items[0]
         result = self._send_queued(sender, queued)
+        self._record_send_success(queued.workspace_id)
         self.acknowledge(queued)
+        return result
+
+    def last_send_succeeded_at(self, workspace_id: str) -> Optional[str]:
+        """Return the last confirmed commit time for one workspace."""
+        safe_workspace = _identifier(workspace_id)
+        return self._load_send_successes().get(safe_workspace)
+
+    def _record_send_success(self, workspace_id: str) -> None:
+        safe_workspace = _identifier(workspace_id)
+        values = self._load_send_successes()
+        values[safe_workspace] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        _write_atomic(
+            self._root / _SEND_SUCCESS_FILE,
+            _json_bytes({"version": 1, "workspaces": values}),
+        )
+
+    def _load_send_successes(self) -> dict[str, str]:
+        path = self._root / _SEND_SUCCESS_FILE
+        if not path.exists():
+            return {}
+        try:
+            document = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise InvalidPendingSnapshotError("queue_send_success_invalid") from error
+        values = document.get("workspaces") if isinstance(document, dict) else None
+        if not isinstance(document, dict) or document.get("version") != 1 or not isinstance(values, dict):
+            raise InvalidPendingSnapshotError("queue_send_success_invalid")
+        result: dict[str, str] = {}
+        for workspace_id, succeeded_at in values.items():
+            try:
+                safe_workspace = _identifier(workspace_id)
+                parsed = datetime.fromisoformat(succeeded_at)
+            except (TypeError, ValueError) as error:
+                raise InvalidPendingSnapshotError("queue_send_success_invalid") from error
+            if parsed.tzinfo is None:
+                raise InvalidPendingSnapshotError("queue_send_success_invalid")
+            result[safe_workspace] = succeeded_at
         return result
 
     def acknowledge(self, queued: QueuedSnapshot) -> None:
