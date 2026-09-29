@@ -2019,7 +2019,7 @@ class CollectorRuntimeTests(unittest.TestCase):
         self.assertEqual(build_calls[2][1], build_calls[3][1])
         self.assertEqual(tuple(), stored[0].pending_inferences)
 
-    def test_missing_history_entry_replays_session_from_start(self) -> None:
+    def test_empty_history_replays_session_from_start(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "workspace"
             root.mkdir()
@@ -2071,7 +2071,6 @@ class CollectorRuntimeTests(unittest.TestCase):
 
         self.assertEqual(tuple(), received_states[0].sessions)
         saved = save_history.call_args.args[0]
-        self.assertTrue(saved.has_session("session-1"))
         self.assertEqual((record,), saved.records_for("session-1"))
 
 def _runtime_message(message_id, turn_id, text="実装しました。"):

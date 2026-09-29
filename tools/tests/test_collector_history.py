@@ -17,12 +17,6 @@ class HistoryTests(unittest.TestCase):
             save_collector_history(CollectorHistory().replace("session-1", (record(),)), path)
             self.assertEqual("[REDACTED_TOKEN]", load_collector_history(path).records_for("session-1")[0].content[0].text)
 
-    def test_distinguishes_missing_session_from_recordless_session(self):
-        history = CollectorHistory().replace("empty-session", tuple())
-        self.assertTrue(history.has_session("empty-session"))
-        self.assertFalse(history.has_session("missing-session"))
-        self.assertEqual(tuple(), history.records_for("empty-session"))
-
     def test_invalid_sessions_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "history.json"

@@ -183,7 +183,7 @@ def _run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | 
         for entry in entries:
             prior = next_history.records_for(entry.session_id)
             collection_state = next_state
-            if entry.session_id in known_session_ids and not next_history.has_session(entry.session_id):
+            if entry.session_id in known_session_ids and not prior:
                 LOGGER.warning(
                     "collector_history_missing_replay session_id=%s", entry.session_id
                 )
