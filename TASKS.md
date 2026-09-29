@@ -518,6 +518,8 @@
 
 設計は`docs/PHASE8_2_PUBLIC_RELEASE.md`を正とする。Phase 0～8.1のLAN内HTTPS版を初回公開版`v0.1.0`として確定するための公開準備Phaseとする。Phase 9「外部アクセス」はv0.1.0対象外として保留し、本PhaseではTailscaleを導入しない。
 
+**Phase 8.2完了: 2026-09-30。MVP最終判定・公開前監査・MIT License・公開文書整合・自動テストを完了し、GitHubリポジトリをPublic化、`v0.1.0`タグとGitHub Releaseを公開した。公開対象commitは`d125ac5`。Phase 9は引き続き保留する。**
+
 ### 8.2.1 MVP最終判定
 
 - [x] `docs/MVP_ACCEPTANCE.md`のMVP-01～MVP-10を既存の実装・自動テスト・実機受入記録へ照合する
@@ -565,11 +567,11 @@
 
 ### 8.2.7 GitHub公開・v0.1.0 Release
 
-- [ ] 公開前監査合格後にGitHubリポジトリをPrivateからPublicへ変更する
-- [ ] 公開対象commitへ`v0.1.0`タグを作成する
-- [ ] GitHub Release `v0.1.0`を作成する
-- [ ] Release Notesへ主要機能、動作環境、LAN内限定、Tailscale未対応、既知の制約を記載する
-- [ ] 公開後にREADME・Release・タグ・LICENSE・リポジトリ表示を確認する
+- [x] 公開前監査合格後にGitHubリポジトリをPrivateからPublicへ変更する
+- [x] 公開対象commitへ`v0.1.0`タグを作成する
+- [x] GitHub Release `v0.1.0`を作成する
+- [x] Release Notesへ主要機能、動作環境、LAN内限定、Tailscale未対応、既知の制約を記載する
+- [x] 公開後にREADME・Release・タグ・LICENSE・リポジトリ表示を確認する
 
 
 ## Phase 9：外部アクセス
@@ -593,7 +595,7 @@
 
 ## 将来拡張バックログ
 
-初期実装の完了までは着手しない。
+v0.1.0公開後の将来拡張候補。優先度と必要性を確認してから着手する。
 
 - [ ] 全文検索
 - [ ] エラー検索・絞り込み

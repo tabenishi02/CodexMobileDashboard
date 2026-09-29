@@ -66,3 +66,17 @@ CodexMobileDashboard本体はMIT Licenseを採用し、ルートの`LICENSE`へ�
 v0.1.0はLAN内HTTPS版として公開する。Tailscaleおよびインターネット経由アクセスはPhase 9へ保留する。
 
 Public化の直前には、公開対象commitのclean状態、追跡ファイル、LICENSE、README、CHANGELOG、テスト結果を再確認する。
+
+## 公開後確認
+
+2026-09-30に次を確認した。
+
+- GitHubリポジトリ: `public`
+- 既定ブランチ: `main`
+- 公開対象commit: `d125ac5ec95892087ab3788966f9317821b95e62`
+- タグ: `v0.1.0`（上記commitを参照）
+- GitHub Release: `v0.1.0`、draft=false、prerelease=false
+- Release URL: `https://github.com/tabenishi02/CodexMobileDashboard/releases/tag/v0.1.0`
+- Release Notesの日本語表示とLAN内限定・Tailscale未対応の記載を確認
+
+以上によりPhase 8.2の公開後確認をPASSとする。

@@ -1,5 +1,7 @@
 # Phase 8.2：v0.1.0 公開準備
 
+**完了: 2026-09-30。公開対象commit `d125ac5`、GitHub Release `v0.1.0`。Phase 9は保留。**
+
 ## 目的
 
 Phase 0～8.1で完成したLAN内HTTPS版のCodex Mobile Dashboardを、初回公開版 `v0.1.0` として安全に公開できる状態へ整える。

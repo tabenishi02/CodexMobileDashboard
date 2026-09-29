@@ -2,7 +2,7 @@
 
 ## 再開地点
 
-Phase 8とPhase 8.1「ワークスペース選択・閲覧UI整理」は完了済み。次の作業はPhase 8.2「v0.1.0 公開準備」とする。最新のタスク状態は[`../TASKS.md`](../TASKS.md)、Phase 8.2の設計は[`PHASE8_2_PUBLIC_RELEASE.md`](PHASE8_2_PUBLIC_RELEASE.md)を正とする。Phase 9「外部アクセス」はv0.1.0対象外として保留する。
+Phase 8、Phase 8.1、Phase 8.2「v0.1.0 公開準備」は完了済み。2026年9月30日にGitHubリポジトリをPublic化し、`d125ac5`へ`v0.1.0`タグを付与してGitHub Releaseを公開した。最新のタスク状態は[`../TASKS.md`](../TASKS.md)を正とする。Phase 9「外部アクセス」はv0.1.0対象外の将来拡張として保留中であり、着手判断までは必須の次Phaseを置かない。
 
 Phase 8.1では、`GET /workspaces`による公開中ワークスペース一覧、`/`の選択画面、プロジェクト名と最終更新日時だけの共通ヘッダー、システム情報内の手動更新、正常取得後の常設成功メッセージ廃止を実装した。既存の`/?workspace_id=<workspace_id>`直接URLは維持する。
 
@@ -17,7 +17,7 @@ git status --short
 git log --oneline -10
 ```
 
-続けて[`../TASKS.md`](../TASKS.md)のPhase 8.2、[`PHASE8_2_PUBLIC_RELEASE.md`](PHASE8_2_PUBLIC_RELEASE.md)、[`MVP_ACCEPTANCE.md`](MVP_ACCEPTANCE.md)を読む。実設定、Token、証明書、ログ、生成データは変更・コミットしない。
+再開時は[`../TASKS.md`](../TASKS.md)のPhase 9と将来拡張バックログ、[`PHASE8_2_PUBLIC_RELEASE.md`](PHASE8_2_PUBLIC_RELEASE.md)、[`PUBLIC_RELEASE_AUDIT.md`](PUBLIC_RELEASE_AUDIT.md)を確認する。Phase 9へ着手しない場合はv0.1.xの保守作業だけを行う。実設定、Token、証明書、ログ、生成データは変更・コミットしない。
 
 Phase 8では初回セットアップ、recovery/fullバックアップ、週次非表示実行、検証付き復元、Snapshot保持・自動整理、実機受入まで完了した。完了時の監査経緯は[PHASE8_TASK_AUDIT.md](PHASE8_TASK_AUDIT.md)、現行のバックアップ運用は[BACKUP_DESIGN.md](BACKUP_DESIGN.md)と各バックアップ手順を参照する。
 

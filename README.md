@@ -5,6 +5,8 @@ VSCode Codexで進めている開発の状況を、スマートフォンから�
 > [!IMPORTANT]
 > v0.1.0はLAN内HTTPSを正式な利用範囲とする初回公開版です。Windows PCで収集したCodex開発状況をAndroid・Termuxサーバーへ送信し、スマートフォンのブラウザから公開中ワークスペースを選択して閲覧できます。Tailscaleおよびインターネット経由アクセスはv0.1.0対象外で、Phase 9へ保留しています。
 
+最新の公開版は[GitHub Releases](https://github.com/tabenishi02/CodexMobileDashboard/releases)を参照してください。
+
 ## 目的
 
 本システムは、スマートフォンからリモート開発を行うものではありません。作業用PCでCodexによる開発を続けながら、別の端末から次の情報を閲覧・判断できるようにします。
