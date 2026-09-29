@@ -183,7 +183,17 @@ def _run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | 
         for entry in entries:
             prior = next_history.records_for(entry.session_id)
             collection_state = next_state
-            if entry.session_id in known_session_ids and not prior:
+            existing_cursor = next(
+                (cursor for cursor in next_state.sessions
+                 if cursor.session_id == entry.session_id),
+                None,
+            )
+            repairing_history = (
+                existing_cursor is not None
+                and getattr(existing_cursor, "complete_line_number", 0) > 0
+                and not prior
+            )
+            if repairing_history:
                 LOGGER.warning(
                     "collector_history_missing_replay session_id=%s", entry.session_id
                 )
@@ -200,7 +210,12 @@ def _run_once(settings: CollectorRuntimeSettings, sender: HttpsSnapshotSender | 
             next_history = next_history.replace(entry.session_id, records)
             next_state = result.next_state
             session_records[entry.session_id] = records
-            inference_records[entry.session_id] = tuple() if settings.ai_inference_mode == "incremental" and entry.session_id not in known_session_ids else result.records
+            inference_records[entry.session_id] = (
+                tuple()
+                if settings.ai_inference_mode == "incremental"
+                and (entry.session_id not in known_session_ids or repairing_history)
+                else result.records
+            )
         workspace_pending = tuple(
             item for item in next_pending if item.workspace_id == workspace_id
         )

@@ -2025,7 +2025,7 @@ class CollectorRuntimeTests(unittest.TestCase):
             root.mkdir()
             source = Path(directory) / "session.jsonl"
             source.write_text("{}\n", encoding="utf-8")
-            cursor = SimpleNamespace(session_id="session-1")
+            cursor = SimpleNamespace(session_id="session-1", complete_line_number=1)
             known_state = CollectorState((cursor,), tuple())
             record = _terminal_record("turn-1")
             settings = SimpleNamespace(
@@ -2047,6 +2047,7 @@ class CollectorRuntimeTests(unittest.TestCase):
                 ),
             )
             received_states = []
+            inference_records = []
 
             def collect_records(session_id, path, state):
                 received_states.append(state)
@@ -2063,13 +2064,15 @@ class CollectorRuntimeTests(unittest.TestCase):
             ), patch("tools.collector_runtime._workspace_root", return_value=root), patch(
                 "tools.collector_runtime.collect_incremental_records", side_effect=collect_records
             ), patch(
-                "tools.collector_runtime._build_workspace_snapshot", return_value=tuple()
+                "tools.collector_runtime._build_workspace_snapshot",
+                side_effect=lambda *args: inference_records.append(args[6]) or tuple(),
             ), patch("tools.collector_runtime.save_collector_history") as save_history, patch(
                 "tools.collector_runtime.save_collector_state"
             ):
                 self.assertEqual(1, run_once(settings).processed_workspaces)
 
         self.assertEqual(tuple(), received_states[0].sessions)
+        self.assertEqual(tuple(), inference_records[0]["session-1"])
         saved = save_history.call_args.args[0]
         self.assertEqual((record,), saved.records_for("session-1"))
 
