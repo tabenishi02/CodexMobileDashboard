@@ -25,15 +25,21 @@ PCの定期送信は設定済みのCAで証明書を検証する。定期タス�
 
 ## 閲覧するworkspaceを選ぶ
 
-既存の確認済みブックマークを使用する。新しいworkspaceはPCの`[storage] output_dir`配下にある生成済みworkspaceディレクトリ名、またはその`metadata.json`の`workspace_id`を確認する。既定の出力先は`%LOCALAPPDATA%\CodexMobileDashboard\data`。IDを推測せず、該当ディレクトリの`dashboard.json`と表示プロジェクト名も照合する。workspace一覧APIは未実装である。
+CA信頼済みブラウザでAndroidサーバーのトップページを開く。
 
-次の`<workspace_id>`を確認したIDへ置き換えて開く。
+```text
+https://192.0.2.121:8765/
+```
+
+トップページは`GET /workspaces`を使用し、Androidサーバーで現在公開中のcommit済みSnapshotを持つワークスペースだけをプロジェクト名と最終更新日時で一覧表示する。利用者が`workspace_id`を調べたり入力したりする必要はない。
+
+一覧から対象プロジェクトを選ぶと、内部的には次の既存URLへ遷移する。
 
 ```text
 https://192.0.2.121:8765/?workspace_id=<workspace_id>
 ```
 
-プロジェクト名、主要画面、システム情報の公開中Snapshot IDと最終受信日時を確認し、workspaceごとにブックマークする。TokenをURLに含めない。閲覧操作にPCの送信Tokenを入力する必要はない。
+既存ブックマークや診断用途では直接URLも継続して利用できる。TokenをURLに含めない。閲覧操作にPCの送信Tokenを入力する必要はない。
 
 ## 通常運用
 
@@ -52,7 +58,7 @@ cd C:\path\to\CodexMobileDashboard
 | --- | --- |
 | TCP接続できない | 同一LAN、固定IP、AndroidのWi-Fi、サーバー起動、端末分離設定 |
 | 証明書警告 | CAの信頼、証明書期限、SANとURLのIP・ホスト名の一致 |
-| workspace指定の案内が出る | URLの`workspace_id`。未指定時にIDは自動選択されない |
+| ワークスペース一覧が空 | commit済みpublic Snapshotの有無、PC送信成功、`/workspaces`応答を確認 |
 | データが取得できない | IDの誤り、PC送信の成功、対象workspaceのcommit済みSnapshot |
 | 更新日時が古い | PCのログオン、タスク有効状態、実行結果、collector・senderログ |
 | 再送失敗が続く | LAN復旧後、ログの分類からCA・認証・容量を確認。キューや台帳を削除しない |
