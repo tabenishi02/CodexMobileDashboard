@@ -78,7 +78,7 @@ def _safe_log_path(path: str) -> str:
         return "/api/v1/snapshots"
     if path.startswith("/data/"):
         return "/data"
-    return path if path in ("/", "/health") else "/unknown"
+    return path if path in ("/", "/health", "/workspaces") else "/unknown"
 
 
 def parse_snapshot_json_request_path(request_path: str) -> tuple[str, str, str]:
@@ -301,6 +301,14 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             return
         if request_url.path == "/":
             self._serve_index()
+            return
+        if request_url.path == "/workspaces":
+            if request_url.query:
+                self.send_response(400)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            self._serve_workspaces()
             return
         if request_url.path != "/health":
             self._serve_static(request_url.path)
@@ -539,6 +547,25 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
         valid = hmac.compare_digest(supplied, expected)
         self._authentication = "success" if valid else "failed"
         return valid
+    def _serve_workspaces(self) -> None:
+        body = json.dumps(
+            {"workspaces": load_public_workspaces(self.server.public_directory)},
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode("utf-8") + b"\n"
+        etag = "\"" + hashlib.sha256(body).hexdigest() + "\""
+        if self.headers.get("If-None-Match") == etag:
+            self.send_response(304)
+            self.send_header("ETag", etag)
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("ETag", etag)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def _serve_json(self) -> None:
         parts = self.path.split("?", 1)[0].split("/")[2:]
         if len(parts) < 2 or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", parts[0]):
@@ -819,6 +846,53 @@ def parse_health_workspace_id(query: str) -> Optional[str]:
     if not _IDENTIFIER_PATTERN.fullmatch(workspace_id) or workspace_id in (".", ".."):
         raise ValueError("health_workspace_invalid")
     return workspace_id
+
+
+def load_public_workspaces(public_directory: Path) -> list[dict[str, object]]:
+    """List only valid current public workspaces using non-sensitive dashboard metadata."""
+    public_root = public_directory.resolve(strict=True)
+    result: list[dict[str, object]] = []
+    try:
+        candidates = list(public_root.iterdir())
+    except OSError:
+        return result
+    for workspace_root in candidates:
+        workspace_id = workspace_root.name
+        if (
+            workspace_root.is_symlink()
+            or not workspace_root.is_dir()
+            or not _IDENTIFIER_PATTERN.fullmatch(workspace_id)
+            or workspace_id in (".", "..")
+        ):
+            continue
+        try:
+            snapshot_id, received_at = load_current_snapshot_status(public_root, workspace_id)
+            snapshot_root = workspace_root / "snapshots" / snapshot_id
+            dashboard_path = snapshot_root / "dashboard.json"
+            if dashboard_path.is_symlink() or not dashboard_path.is_file():
+                continue
+            document = validate_snapshot_json_body(
+                dashboard_path.read_bytes(), workspace_id, snapshot_id
+            )
+            if document.get("data_type") != "dashboard":
+                continue
+            project = document.get("project")
+            if not isinstance(project, dict):
+                continue
+            project_name = project.get("name")
+            if not isinstance(project_name, str) or not project_name.strip():
+                continue
+            result.append(
+                {
+                    "workspace_id": workspace_id,
+                    "project_name": project_name,
+                    "last_received_at": received_at,
+                }
+            )
+        except (OSError, ValueError, SnapshotJsonValidationError):
+            continue
+    result.sort(key=lambda entry: (str(entry["project_name"]).casefold(), str(entry["workspace_id"])))
+    return result
 
 
 def load_current_snapshot_status(public_directory: Path, workspace_id: str) -> tuple[str, Optional[str]]:
