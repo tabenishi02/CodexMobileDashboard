@@ -134,6 +134,16 @@ class ServerTests(unittest.TestCase):
                 "workspace-mismatch", "snapshot-x", "Should Not Appear",
                 "2026-09-29T01:00:00+00:00", dashboard_workspace_id="other-workspace",
             )
+            write_workspace(
+                "workspace-snapshot-mismatch", "snapshot-y", "Should Not Appear Either",
+                "2026-09-29T01:30:00+00:00", dashboard_snapshot_id="other-snapshot",
+            )
+
+            unsafe = public / "bad workspace"
+            unsafe.mkdir()
+            (unsafe / "current.json").write_text(
+                json.dumps({"snapshot_id": "snapshot-unsafe"}), encoding="utf-8"
+            )
 
             broken = public / "workspace-broken"
             broken.mkdir()
