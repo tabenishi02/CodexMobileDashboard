@@ -502,9 +502,9 @@
   - [x] 自動更新・画面復帰更新を回帰確認する
 - [x] `README.md`、`docs/PHASE5_SCREEN_DESIGN.md`、`docs/LAN_ACCESS.md`、必要に応じて`server/README.md`を現行仕様へ更新する
 - [x] `CHANGELOG.md`の`Unreleased`へ変更内容を記録する
-- [ ] 追加・回帰自動テスト一式を実行し、全件成功を確認する
-  - 2026-09-29時点でGitHub Actions CIは未構成。接続済み作業PC`FNB1Main`は確認時offlineのため、テストコード追加とJavaScript構文検証まで実施済み。
+- [x] 追加・回帰自動テスト一式を実行し、全件成功を確認する（2026-09-30：Python 374件成功・環境条件による既存2件skip、クライアント4テストファイル成功）
 - [ ] Android実機でPhase 8.1の受入確認を行う
+  - 2026-09-30：Androidへ対象4ファイルを配置してサーバーを再起動し、CA検証付きHTTPSでhealth・workspace一覧・ETag 304・トップページ・JavaScript・公開中dashboard、PC未送信0件、定期Collector再開まで確認。残りは閲覧スマートフォンでの画面・操作確認。
   - [ ] `/`からworkspace IDを知らずに対象プロジェクトを選択できる
   - [ ] 複数workspaceと最終更新日時が正しく表示される
   - [ ] 共通ヘッダー・システム情報・更新表示が設計どおりである
