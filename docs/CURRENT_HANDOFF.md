@@ -2,7 +2,11 @@
 
 ## 再開地点
 
-Phase 7まで完了した。次はPhase 8の未完了タスクから再開する。詳細な実装状況、残作業、運用上の注意は[`PHASE6_HANDOFF.md`](PHASE6_HANDOFF.md)を正とする。
+Phase 8は完了済み。Phase 8.1「ワークスペース選択・閲覧UI整理」は実装、テストコード追加、関連文書更新まで完了している。残作業は追加・回帰自動テスト一式の実行確認とAndroid実機受入である。最新のタスク状態は[`../TASKS.md`](../TASKS.md)、Phase 8.1の設計は[`PHASE8_1_WORKSPACE_SELECTION_UI.md`](PHASE8_1_WORKSPACE_SELECTION_UI.md)を正とする。
+
+Phase 8.1では、`GET /workspaces`による公開中ワークスペース一覧、`/`の選択画面、プロジェクト名と最終更新日時だけの共通ヘッダー、システム情報内の手動更新、正常取得後の常設成功メッセージ廃止を実装した。既存の`/?workspace_id=<workspace_id>`直接URLは維持する。
+
+2026年9月29日時点でGitHub Actions CIは未構成で、接続済み作業PC`FNB1Main`は確認時offlineだったため、自動テストの実行結果とAndroid実機受入は未記録である。JavaScript変更ファイルの構文検証は完了している。
 
 再開時は次を確認する。
 
@@ -11,7 +15,7 @@ git status --short
 git log --oneline -10
 ```
 
-続けて[`../TASKS.md`](../TASKS.md)のPhase 8、[`PHASE6_HANDOFF.md`](PHASE6_HANDOFF.md)、[`SCHEDULED_EXECUTION.md`](SCHEDULED_EXECUTION.md)を読む。実設定、Token、証明書、ログ、生成データは変更・コミットしない。
+続けて[`../TASKS.md`](../TASKS.md)のPhase 8.1、[`PHASE8_1_WORKSPACE_SELECTION_UI.md`](PHASE8_1_WORKSPACE_SELECTION_UI.md)、[`SCHEDULED_EXECUTION.md`](SCHEDULED_EXECUTION.md)を読む。実設定、Token、証明書、ログ、生成データは変更・コミットしない。
 
 Phase 8の既存成果を照合し、初回セットアップ手順を追加した。その後バックアップPhase A仕様を[BACKUP_DESIGN.md](BACKUP_DESIGN.md)へ確定した。Phase BのPC単体ZIP・検証・mutex統合は実装済み（[BACKUP_PC.md](BACKUP_PC.md)）。Phase CのAndroid workerも実装済み（[BACKUP_ANDROID.md](BACKUP_ANDROID.md)）。実機受入は未実施、Phase Dの[両端統合](BACKUP_PAIR.md)も実装済み。Phase Eの[週次・非表示実行](BACKUP_SCHEDULE.md)も実装済み。Phase Fの[一時復元検証と手順](BACKUP_RESTORE.md)も完了。本番登録と実機受入は未完了で、全体完了ではない。残作業と判定根拠は[PHASE8_TASK_AUDIT.md](PHASE8_TASK_AUDIT.md)を参照する。
 
