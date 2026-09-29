@@ -83,6 +83,139 @@ class ServerTests(unittest.TestCase):
                 thread.join()
                 server.server_close()
 
+    def test_workspaces_lists_only_valid_current_public_dashboards(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            static = root / "static"
+            public = root / "public"
+            staging = root / "staging"
+            static.mkdir()
+            public.mkdir()
+            staging.mkdir()
+
+            def write_workspace(
+                workspace_id: str,
+                snapshot_id: str,
+                project_name: str,
+                received_at: str,
+                *,
+                dashboard_workspace_id: str | None = None,
+                dashboard_snapshot_id: str | None = None,
+            ) -> None:
+                workspace = public / workspace_id
+                snapshot = workspace / "snapshots" / snapshot_id
+                snapshot.mkdir(parents=True)
+                (workspace / "current.json").write_text(
+                    json.dumps({"snapshot_id": snapshot_id, "received_at": received_at}),
+                    encoding="utf-8",
+                )
+                dashboard = {
+                    "schema_version": "1.0",
+                    "data_type": "dashboard",
+                    "snapshot_id": dashboard_snapshot_id or snapshot_id,
+                    "generated_at": "2026-09-29T12:00:00+09:00",
+                    "workspace_id": dashboard_workspace_id or workspace_id,
+                    "session_id": "00000000-0000-7000-8000-000000000001",
+                    "warnings": [],
+                    "project": {"name": project_name},
+                }
+                (snapshot / "dashboard.json").write_text(
+                    json.dumps(dashboard, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+
+            write_workspace(
+                "workspace-b", "snapshot-b", "Zulu Project", "2026-09-29T03:00:00+00:00"
+            )
+            write_workspace(
+                "workspace-a", "snapshot-a", "Alpha Project", "2026-09-29T02:00:00+00:00"
+            )
+            write_workspace(
+                "workspace-mismatch", "snapshot-x", "Should Not Appear",
+                "2026-09-29T01:00:00+00:00", dashboard_workspace_id="other-workspace",
+            )
+
+            broken = public / "workspace-broken"
+            broken.mkdir()
+            (broken / "current.json").write_text("{broken", encoding="utf-8")
+
+            missing_dashboard = public / "workspace-missing" / "snapshots" / "snapshot-missing"
+            missing_dashboard.mkdir(parents=True)
+            (public / "workspace-missing" / "current.json").write_text(
+                json.dumps({"snapshot_id": "snapshot-missing"}), encoding="utf-8"
+            )
+
+            staged_dashboard = staging / "workspace-staged" / "snapshot-staged" / "dashboard.json"
+            staged_dashboard.parent.mkdir(parents=True)
+            staged_dashboard.write_text("{}", encoding="utf-8")
+
+            server = create_server(
+                "127.0.0.1", 0, str(static), str(public), str(staging)
+            )
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            try:
+                connection = http.client.HTTPConnection("127.0.0.1", server.server_port)
+                connection.request("GET", "/workspaces")
+                response = connection.getresponse()
+                self.assertEqual(200, response.status)
+                self.assertEqual("application/json; charset=utf-8", response.getheader("Content-Type"))
+                etag = response.getheader("ETag")
+                self.assertIsNotNone(etag)
+                document = json.loads(response.read())
+                self.assertEqual(
+                    [
+                        {
+                            "workspace_id": "workspace-a",
+                            "project_name": "Alpha Project",
+                            "last_received_at": "2026-09-29T02:00:00+00:00",
+                        },
+                        {
+                            "workspace_id": "workspace-b",
+                            "project_name": "Zulu Project",
+                            "last_received_at": "2026-09-29T03:00:00+00:00",
+                        },
+                    ],
+                    document["workspaces"],
+                )
+                serialized = json.dumps(document, ensure_ascii=False)
+                self.assertNotIn(str(public), serialized)
+                self.assertNotIn("workspace-staged", serialized)
+                self.assertNotIn("snapshot-a", serialized)
+
+                connection.request("GET", "/workspaces", headers={"If-None-Match": etag})
+                not_modified = connection.getresponse()
+                self.assertEqual(304, not_modified.status)
+                self.assertEqual(etag, not_modified.getheader("ETag"))
+
+                connection.request("GET", "/workspaces?unexpected=1")
+                self.assertEqual(400, connection.getresponse().status)
+            finally:
+                server.shutdown()
+                thread.join()
+                server.server_close()
+
+    def test_workspaces_returns_empty_list_when_no_public_workspace_is_valid(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            static = root / "static"
+            public = root / "public"
+            static.mkdir()
+            public.mkdir()
+            server = create_server("127.0.0.1", 0, str(static), str(public))
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            try:
+                connection = http.client.HTTPConnection("127.0.0.1", server.server_port)
+                connection.request("GET", "/workspaces")
+                response = connection.getresponse()
+                self.assertEqual(200, response.status)
+                self.assertEqual({"workspaces": []}, json.loads(response.read()))
+            finally:
+                server.shutdown()
+                thread.join()
+                server.server_close()
+
     def test_unknown_path_is_not_found(self) -> None:
         connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
         connection.request("GET", "/unknown")
