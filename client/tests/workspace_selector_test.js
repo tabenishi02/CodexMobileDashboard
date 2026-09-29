@@ -113,6 +113,23 @@ async function run() {
   );
   assert.strictEqual(requests[0].url, "/workspaces");
   assert.strictEqual(context.window.CodexMobileDashboard.getWorkspaceId(), null);
+
+  context.window.CodexMobileDashboard.renderWorkspaceList({ workspaces: [] });
+  assert.strictEqual(workspaceState.hidden, false);
+  assert.strictEqual(workspaceState.textContent, "公開中のワークスペースはありません。");
+  assert.strictEqual(workspaceList.hidden, true);
+
+  context.window.fetch = async () => { throw new Error("offline"); };
+  await assert.rejects(
+    () => context.window.CodexMobileDashboard.fetchWorkspaceList(),
+    /network_error/,
+  );
+
+  const html = fs.readFileSync("client/index.html", "utf8");
+  assert.doesNotMatch(html, /id="project-phase"/);
+  assert.doesNotMatch(html, /id="codex-status"/);
+  assert.match(html, /id="header-last-updated"/);
+  assert.match(html, /<section class="system-update"[^>]*>[\s\S]*id="refresh-button"/);
   console.log("workspace selector tests passed");
 }
 
