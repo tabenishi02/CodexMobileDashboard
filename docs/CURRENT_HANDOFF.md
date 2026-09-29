@@ -2,7 +2,7 @@
 
 ## 再開地点
 
-Phase 8とPhase 8.1「ワークスペース選択・閲覧UI整理」は完了済み。最新のタスク状態は[`../TASKS.md`](../TASKS.md)、Phase 8.1の設計は[`PHASE8_1_WORKSPACE_SELECTION_UI.md`](PHASE8_1_WORKSPACE_SELECTION_UI.md)を正とする。
+Phase 8とPhase 8.1「ワークスペース選択・閲覧UI整理」は完了済み。次の作業はPhase 8.2「v0.1.0 公開準備」とする。最新のタスク状態は[`../TASKS.md`](../TASKS.md)、Phase 8.2の設計は[`PHASE8_2_PUBLIC_RELEASE.md`](PHASE8_2_PUBLIC_RELEASE.md)を正とする。Phase 9「外部アクセス」はv0.1.0対象外として保留する。
 
 Phase 8.1では、`GET /workspaces`による公開中ワークスペース一覧、`/`の選択画面、プロジェクト名と最終更新日時だけの共通ヘッダー、システム情報内の手動更新、正常取得後の常設成功メッセージ廃止を実装した。既存の`/?workspace_id=<workspace_id>`直接URLは維持する。
 
@@ -17,7 +17,7 @@ git status --short
 git log --oneline -10
 ```
 
-続けて[`../TASKS.md`](../TASKS.md)のPhase 8.1、[`PHASE8_1_WORKSPACE_SELECTION_UI.md`](PHASE8_1_WORKSPACE_SELECTION_UI.md)、[`SCHEDULED_EXECUTION.md`](SCHEDULED_EXECUTION.md)を読む。実設定、Token、証明書、ログ、生成データは変更・コミットしない。
+続けて[`../TASKS.md`](../TASKS.md)のPhase 8.2、[`PHASE8_2_PUBLIC_RELEASE.md`](PHASE8_2_PUBLIC_RELEASE.md)、[`MVP_ACCEPTANCE.md`](MVP_ACCEPTANCE.md)を読む。実設定、Token、証明書、ログ、生成データは変更・コミットしない。
 
 Phase 8では初回セットアップ、recovery/fullバックアップ、週次非表示実行、検証付き復元、Snapshot保持・自動整理、実機受入まで完了した。完了時の監査経緯は[PHASE8_TASK_AUDIT.md](PHASE8_TASK_AUDIT.md)、現行のバックアップ運用は[BACKUP_DESIGN.md](BACKUP_DESIGN.md)と各バックアップ手順を参照する。
 
