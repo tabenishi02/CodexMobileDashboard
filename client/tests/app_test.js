@@ -25,6 +25,11 @@ async function run() {
   const listeners = {};
   const markdownInputs = [];
   const nextActions = listElement();
+  const workspaceList = listElement();
+  const appHeader = { hidden: false };
+  const workspaceSelector = { hidden: true };
+  const workspaceListState = { hidden: false, textContent: "" };
+  const bottomNavigation = { hidden: false };
   const recentTurns = listElement();
   const dashboardState = { hidden: false, textContent: "" };
   const dashboardContent = { hidden: true };
@@ -77,14 +82,17 @@ async function run() {
   }
   const screenLinks = [screenLink("dashboard"), screenLink("recent"), screenLink("chat"), screenLink("errors"), screenLink("decisions"), screenLink("system")];
   const elements = new Map([
-    ["missing-workspace", { hidden: true }],
-    ["global-status", { textContent: "" }],
+    ["app-header", appHeader],
+    ["workspace-selector", workspaceSelector],
+    ["workspace-list-state", workspaceListState],
+    ["workspace-list", workspaceList],
+    ["bottom-navigation", bottomNavigation],
+    ["global-status", { hidden: false, textContent: "" }],
     ["refresh-status", { textContent: "" }],
     ["refresh-button", refreshButton],
-    ["codex-status", { textContent: "" }],
     ["current-work", { textContent: "" }],
     ["project-name", { textContent: "" }],
-    ["project-phase", { textContent: "" }],
+    ["header-last-updated", { textContent: "" }],
     ["latest-summary", { textContent: "" }],
     ["error-summary", { textContent: "" }],
     ["git-summary", { textContent: "" }],
@@ -217,12 +225,8 @@ async function run() {
   assert.strictEqual(client.getDocument("dashboard").data_type, "dashboard");
   assert.strictEqual(client.getDocument("dashboard").generated_at, "2026-08-30T12:00:00+09:00");
   assert.strictEqual(elements.get("project-name").textContent, "Codex Mobile Dashboard");
-  assert.strictEqual(elements.get("codex-status").textContent, "Codex: 作業中");
   assert.strictEqual(elements.get("current-work").textContent, "作業ステータス表示を実装する");
-  assert.strictEqual(elements.get("project-phase").textContent, "Phase: Phase 5");
-  client.getDocument("dashboard").project.phase = null;
-  client.renderDashboard();
-  assert.strictEqual(elements.get("project-phase").textContent, "Phase: 情報なし");
+  assert.strictEqual(elements.get("header-last-updated").textContent, "最終更新: 2026/08/30 12:00:00 JST / データが古い可能性があります");
   assert.strictEqual(elements.get("latest-summary").textContent, "ダッシュボード表示を追加");
   client.getDocument("dashboard").latest.summary = "   ";
   client.renderDashboard();
@@ -230,7 +234,8 @@ async function run() {
   assert.strictEqual(elements.get("error-summary").textContent, "未解決 2件 / 重大 1件");
   assert.strictEqual(elements.get("git-summary").textContent, "main / 変更ファイル 3件");
   assert.strictEqual(elements.get("dashboard-generated-at").textContent, "2026/08/30 12:00:00 JST");
-  assert.strictEqual(elements.get("refresh-status").textContent, "最終更新: 2026/08/30 12:00:00 JST / データが古い可能性があります");
+  assert.strictEqual(elements.get("refresh-status").textContent, "更新待機中");
+  assert.strictEqual(elements.get("global-status").hidden, true);
   assert.strictEqual(nextActions.children[0].textContent, "次の作業を確認する");
   assert.strictEqual(nextActions.children[1].textContent, "最近の更新一覧を実装する");
   client.getDocument("dashboard").next_actions = [];
@@ -424,6 +429,7 @@ async function run() {
   assert.strictEqual(systemContent.hidden, false);
   assert.strictEqual(collectorStatus.children[1].textContent, "正常");
   assert.strictEqual(serverStatus.children[1].textContent, "正常");
+  assert.strictEqual(elements.get("refresh-status").textContent, "更新しました");
 
   responses.push(response(304, null, null));
   const dashboard = await client.fetchDocument("dashboard");
