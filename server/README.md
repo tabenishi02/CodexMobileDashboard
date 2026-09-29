@@ -228,3 +228,10 @@ API POSTは保存前に、BOMなしUTF-8、JSONオブジェクト、重複キー
 ## Snapshot POST保存入口
 
 `POST /api/v1/snapshots/{workspace_id}/{snapshot_id}/{relative_json_path}`は、検証済み本文を専用stagingへ保存する。小文字ハイフン形式UUIDの`X-Delivery-Id`を必須とし、リクエスト値不正は400、危険URLは404、Deliveryまたはstaging不整合は409、staging未設定は503、保存障害は500を返す。Content-Length未指定は411、1MiB超過は413とする。成功時は200と`status: stored`、要求と同じ`delivery_id`、URLと同じ`snapshot_id`を含むUTF-8 JSONを返す。
+
+
+## ワークスペース一覧
+
+Phase 8.1以降、閲覧スマートフォン向けに`GET /workspaces`を提供する。応答はcommit済みpublic Snapshotのうち、有効な`current.json`と現在Snapshotの`dashboard.json`を検証できるワークスペースだけを対象とする。
+
+返す情報は`workspace_id`、`project_name`、`last_received_at`に限定し、staging、過去Snapshot、内部パス、認証情報は公開しない。ETagと`If-None-Match`に対応する。Snapshot送信用Bearer Tokenは書き込みAPI専用であり、この閲覧用GETでは要求しない。
