@@ -3,7 +3,7 @@
 VSCode Codexで進めている開発の状況を、スマートフォンから短時間で確認するためのダッシュボードです。
 
 > [!IMPORTANT]
-> Phase 5は完了しました。作業用PCのcollector、Android・Termux向けHTTPSサーバー、スマートフォン向け閲覧画面、Codex CLI推論の増分化は実装済みです。SC-51EでのAndroidブラウザ表示、CA信頼済みHTTPS正式受入、一般的なAndroidスマートフォン相当の画面幅確認も完了しています。アクセシビリティ確認は利用者判断で対応不要とし、ブラウザ用外部ライブラリはリポジトリへ同梱して継続利用します。Phase 6の再開地点は[`docs/CURRENT_HANDOFF.md`](docs/CURRENT_HANDOFF.md)を参照してください。
+> Phase 8まで完了しています。Phase 8.1では、Androidサーバーが公開中のワークスペースを`/`から一覧選択できる閲覧UI、簡素化した共通ヘッダー、システム情報へ集約した更新操作を追加しています。既存の`/?workspace_id=<workspace_id>`直接URLも継続して利用できます。実装状況は[`TASKS.md`](TASKS.md)、設計は[`docs/PHASE8_1_WORKSPACE_SELECTION_UI.md`](docs/PHASE8_1_WORKSPACE_SELECTION_UI.md)を参照してください。
 
 ## 目的
 
@@ -38,7 +38,7 @@ Termux Web Server
 Androidブラウザ
 ```
 
-作業用PCを処理の主体とし、Androidサーバー端末ではCodexログやGitの解析、表示データの整形を行いません。閲覧スマートフォンには専用アプリを導入せず、HTML・CSS・JavaScriptで構成した画面をブラウザで表示します。
+作業用PCを処理の主体とし、Androidサーバー端末ではCodexログやGitの解析、表示データの整形を行いません。閲覧スマートフォンには専用アプリを導入せず、HTML・CSS・JavaScriptで構成した画面をブラウザで表示します。通常はAndroidサーバーの`/`を開いて公開中ワークスペースをプロジェクト名から選択します。
 
 ## 情報源と役割
 
@@ -202,7 +202,7 @@ PC単体の復旧用ZIP作成は[PCバックアップ手順](docs/BACKUP_PC.md)�
 
 新規環境は[初回セットアップ手順](docs/INITIAL_SETUP.md)に従い、PC・Android・閲覧端末の準備から初回送信と自動起動まで確認します。
 
-PC側collectorとAndroidサーバーの設定・運用手順は`docs/`と各コンポーネントのREADMEを参照します。閲覧画面の配置・実機確認手順は[`docs/PHASE5_ANDROID_BROWSER_CHECK.md`](docs/PHASE5_ANDROID_BROWSER_CHECK.md)、次の作業は[`docs/PHASE6_HANDOFF.md`](docs/PHASE6_HANDOFF.md)を参照してください。
+PC側collectorとAndroidサーバーの設定・運用手順は`docs/`と各コンポーネントのREADMEを参照します。閲覧時はAndroidサーバーの`/`からワークスペースを選択し、既知のワークスペースは従来どおり`/?workspace_id=<workspace_id>`で直接開くこともできます。
 
 PC側collectorは`python -m tools.collector --config <collector.ini> collect-once`で1回実行できます。
 
