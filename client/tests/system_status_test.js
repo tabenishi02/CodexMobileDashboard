@@ -38,15 +38,19 @@ async function loadSystem(healthResponse) {
   const collectorStatus = listElement();
   const serverStatus = listElement();
   const nextActions = listElement();
+  const workspaceList = listElement();
   const elements = new Map([
-    ["missing-workspace", { hidden: true }],
-    ["global-status", { textContent: "" }],
+    ["app-header", { hidden: false }],
+    ["workspace-selector", { hidden: true }],
+    ["workspace-list-state", { hidden: false, textContent: "" }],
+    ["workspace-list", workspaceList],
+    ["bottom-navigation", { hidden: false }],
+    ["global-status", { hidden: false, textContent: "" }],
     ["refresh-status", { textContent: "" }],
     ["refresh-button", { disabled: false }],
-    ["codex-status", { textContent: "" }],
     ["current-work", { textContent: "" }],
     ["project-name", { textContent: "" }],
-    ["project-phase", { textContent: "" }],
+    ["header-last-updated", { textContent: "" }],
     ["latest-summary", { textContent: "" }],
     ["error-summary", { textContent: "" }],
     ["git-summary", { textContent: "" }],
