@@ -69,6 +69,14 @@ Start-ScheduledTask -TaskName 'CodexMobileDashboard-SnapshotRetention'
 
 `LastTaskResult=0`かつPC結果の`state=completed`を成功とする。失敗時はAndroidの`retention-latest.log`、PC結果の`error`、collectorキューを確認する。古いレポートを手動で再利用せず、次回タスクまたは手動コーディネータで最新キューからやり直す。
 
+## 実機受入結果
+
+2026-09-29に初回applyで121,959候補、780,015ファイル、12,405,095,574 bytesを整理し、Androidストレージ使用率が45%から31%へ低下した。続く定期タスクの手動実行は`LastTaskResult=0`で完了し、1,964候補、15,134ファイル、472,655,462 bytesを追加整理した。
+
+整理後はcurrent参照、未送信Snapshot 0件、定期HTTPS受信、スマートフォンでのCodex状態・最近の更新・チャット表示を確認した。両端recoveryバックアップ`20260929T015125Z-ac8ce979`も`pair_state=complete`、`recovery_state=restored`となり、両ZIPのManifest・SHA-256・検証付き一時展開とサーバー復旧に成功した。
+
+受入中に1 workspaceでcollectorのcursorに対して履歴が空になる既存状態不整合を検出した。元セッションから表示履歴を再構築し、再構築分を増分AI対象から除外する修正後、対象画面と定期送信が正常であることを再確認した。
+
 ```powershell
 python -m tools.snapshot_retention_coordinator `
   --config "$env:LOCALAPPDATA\CodexMobileDashboard\config\backup.ini"
