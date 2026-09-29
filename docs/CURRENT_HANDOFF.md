@@ -17,7 +17,7 @@ git log --oneline -10
 
 続けて[`../TASKS.md`](../TASKS.md)のPhase 8.1、[`PHASE8_1_WORKSPACE_SELECTION_UI.md`](PHASE8_1_WORKSPACE_SELECTION_UI.md)、[`SCHEDULED_EXECUTION.md`](SCHEDULED_EXECUTION.md)を読む。実設定、Token、証明書、ログ、生成データは変更・コミットしない。
 
-Phase 8の既存成果を照合し、初回セットアップ手順を追加した。その後バックアップPhase A仕様を[BACKUP_DESIGN.md](BACKUP_DESIGN.md)へ確定した。Phase BのPC単体ZIP・検証・mutex統合は実装済み（[BACKUP_PC.md](BACKUP_PC.md)）。Phase CのAndroid workerも実装済み（[BACKUP_ANDROID.md](BACKUP_ANDROID.md)）。実機受入は未実施、Phase Dの[両端統合](BACKUP_PAIR.md)も実装済み。Phase Eの[週次・非表示実行](BACKUP_SCHEDULE.md)も実装済み。Phase Fの[一時復元検証と手順](BACKUP_RESTORE.md)も完了。本番登録と実機受入は未完了で、全体完了ではない。残作業と判定根拠は[PHASE8_TASK_AUDIT.md](PHASE8_TASK_AUDIT.md)を参照する。
+Phase 8では初回セットアップ、recovery/fullバックアップ、週次非表示実行、検証付き復元、Snapshot保持・自動整理、実機受入まで完了した。完了時の監査経緯は[PHASE8_TASK_AUDIT.md](PHASE8_TASK_AUDIT.md)、現行のバックアップ運用は[BACKUP_DESIGN.md](BACKUP_DESIGN.md)と各バックアップ手順を参照する。
 
 ## Phase 5完了状態
 
