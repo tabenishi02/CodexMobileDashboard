@@ -18,6 +18,18 @@ VSCode Codexで進めている開発の状況を、スマートフォンから�
 - 次に行う作業
 - PCとAndroidサーバー端末の稼働状態
 
+## 画面
+
+Androidブラウザでの表示例です。トップページでワークスペースを選ぶと、概要・最近・チャット・エラーなどを確認できます。
+
+| ワークスペース一覧 | 概要 | 最近 |
+|---|---|---|
+| <img src="docs/image/Screenshot_20261005_181527_Chrome_mosiced.jpg" alt="ワークスペース一覧画面" width="240"> | <img src="docs/image/Screenshot_20261005_181551_Chrome_mosiced.jpg" alt="概要画面" width="240"> | <img src="docs/image/Screenshot_20261005_181626_Chrome_mosiced.jpg" alt="最近の更新画面" width="240"> |
+
+| チャット | エラー | その他 |
+|---|---|---|
+| <img src="docs/image/Screenshot_20261005_181915_Chrome_mosiced.jpg" alt="チャット画面" width="240"> | <img src="docs/image/Screenshot_20261005_181921_Chrome_mosiced.jpg" alt="エラー画面" width="240"> | <img src="docs/image/Screenshot_20261005_181926_Chrome_mosiced.jpg" alt="その他画面" width="240"> |
+
 ## システム構成
 
 ```text
